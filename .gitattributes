@@ -1,0 +1,41 @@
+* text=auto eol=lf
+
+# Text contracts must remain text even when their bytes are malformed.
+*.md text
+*.txt text
+*.json text
+*.jsonc text
+*.yaml text
+*.yml text
+*.toml text
+*.js text
+*.mjs text
+*.cjs text
+*.ts text
+*.tsx text
+*.jsx text
+*.html text
+*.css text
+*.svg text
+*.sol text
+*.sh text
+*.ps1 text
+*.env* text
+.editorconfig text
+.gitattributes text
+.gitignore text
+Dockerfile* text
+.githooks/* text
+
+# Binary assets are not subject to text normalization.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.zip binary
+*.mp4 binary

@@ -1,0 +1,5937 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "RealAddr for Agents API",
+    "version": "0.3.0-spec",
+    "description": "Implementation contract, not a deployed service. Hackathon mail scope is approval, enabled status and a human-entered destination; no physical forwarding. ENSv2 names on Ethereum Sepolia reference leases; public resolution does not disclose forwarding addresses."
+  },
+  "servers": [
+    {
+      "url": "https://realaddr.example.invalid",
+      "description": "Placeholder. Replace with the actual HTTPS service origin before live testing."
+    }
+  ],
+  "paths": {
+    "/v1/auth/challenges": {
+      "post": {
+        "operationId": "createAgentChallenge",
+        "summary": "Create domain-bound, expiring wallet challenge",
+        "security": [],
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Challenge"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "410": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "422": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthChallengeRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/sessions": {
+      "post": {
+        "operationId": "createAgentSession",
+        "summary": "Consume challenge and issue agent credential",
+        "security": [],
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSession"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "410": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "422": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignatureProof"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/session": {
+      "delete": {
+        "operationId": "revokeAgentSession",
+        "summary": "Revoke current agent credential",
+        "security": [
+          {
+            "agentBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revoked",
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "410": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "422": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/buildings": {
+      "get": {
+        "operationId": "listBuildings",
+        "summary": "List public buildings and current plans",
+        "security": [
+          {
+            "agentBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Buildings"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "410": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "422": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/lease-orders": {
+      "post": {
+        "operationId": "createLeaseOrder",
+        "summary": "Reserve a slot or create a renewal order",
+        "security": [
+          {
+            "agentBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Order"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "409": {
+            "description": "SOLD_OUT only after confirmed exhaustion, or an idempotency/state conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "410": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "422": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "429": {
+            "description": "Rate, hold quota, or DAILY_PURCHASE_LIMIT reached; existing payment reconciliation remains available.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "503": {
+            "description": "Dependency unavailable or RESERVATION_RETRY after bounded contention retries; reuse the same idempotency key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeaseOrderRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/orders/{orderId}": {
+      "get": {
+        "operationId": "getOrder",
+        "summary": "Read owned order and settlement evidence",
+        "security": [
+          {
+            "agentBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Order"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "410": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "422": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/orders/{orderId}/execute": {
+      "post": {
+        "operationId": "executeOrder",
+        "summary": "Execute an order through screened x402 settlement",
+        "security": [
+          {
+            "agentBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "PAYMENT-SIGNATURE",
+            "in": "header",
+            "required": false,
+            "description": "Encoded x402 v2 payload, produced and verified with the pinned official SDK.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Fulfilled"
+                }
+              }
+            },
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Verified settlement data encoded by the x402 SDK."
+              },
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "202": {
+            "description": "Payment outcome is pending; poll without authorizing a new payment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pending"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "402": {
+            "description": "Valid order requires payment. Body and header follow the pinned x402 v2 SDK.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "description": "Official x402 v2 PaymentRequired shape; validate with the pinned SDK."
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "410": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "422": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Empty"
+              }
+            }
+          }
+        },
+        "description": "Never deliver the lease before confirmed settlement. Same path/body/key with PAYMENT-SIGNATURE continues the order. A 402 is not a final idempotency snapshot. The first accepted payment request persists a Firestore outbox and returns 202; a Cloud Tasks worker settles and reconciles it. Enqueue failure is recovered from the outbox. Retry the same execution after fulfillment to obtain 200."
+      }
+    },
+    "/v1/leases": {
+      "get": {
+        "operationId": "listLeases",
+        "summary": "List owned leases",
+        "security": [
+          {
+            "agentBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Leases"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "410": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "422": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/leases/{leaseId}": {
+      "get": {
+        "operationId": "getLease",
+        "summary": "Read lease, chain and safe mail status; no forwarding destination",
+        "security": [
+          {
+            "agentBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "leaseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Lease"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "410": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "422": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/leases/{leaseId}/mail-approval": {
+      "post": {
+        "operationId": "requestMailApproval",
+        "summary": "Request human mail.enable approval",
+        "security": [
+          {
+            "agentBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "leaseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Already enabled; forceReauth creates a new approval for a human session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailStatus"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalLink"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "410": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "422": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MailApprovalRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/approvals/{approvalId}/owner-challenge": {
+      "post": {
+        "operationId": "createOwnerChallenge",
+        "summary": "Create owner-wallet challenge bound to this browser and approval",
+        "security": [
+          {
+            "humanSession": [],
+            "csrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "approvalId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Challenge"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "410": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "422": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Empty"
+              }
+            }
+          }
+        },
+        "description": "An anonymous session is issued by GET /approve/{approvalId}. It is not authorization to view private data."
+      }
+    },
+    "/v1/approvals/{approvalId}/owner-proof": {
+      "post": {
+        "operationId": "proveOwnerWallet",
+        "summary": "Verify the owning wallet and consume challenge",
+        "security": [
+          {
+            "humanSession": [],
+            "csrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "approvalId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerProofResult"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "410": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "422": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignatureProof"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/approvals/{approvalId}": {
+      "get": {
+        "operationId": "getApproval",
+        "summary": "Read approval after proof of owning wallet",
+        "security": [
+          {
+            "humanSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "approvalId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Approval"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "410": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "422": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/approvals/{approvalId}/authenticate": {
+      "post": {
+        "operationId": "authenticateHuman",
+        "summary": "Start fresh World OIDC after owner proof",
+        "security": [
+          {
+            "humanSession": [],
+            "csrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "approvalId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthUrl"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "410": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "422": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Empty"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/world/callback": {
+      "get": {
+        "operationId": "worldCallback",
+        "summary": "Validate state, code and ID token; return to a fixed same-origin page",
+        "security": [],
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "code",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "error",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Require matching browser session and exactly one of code or error. Unknown state is rejected. Authentication alone must not enable mail.",
+        "responses": {
+          "303": {
+            "description": "Verified authentication or handled cancellation; does not imply consent.",
+            "headers": {
+              "Location": {
+                "required": true,
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Fixed allowlisted same-origin approval page"
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/approvals/{approvalId}/decision": {
+      "post": {
+        "operationId": "decideMailApproval",
+        "summary": "Record explicit approve/deny after fresh World verification",
+        "security": [
+          {
+            "humanSession": [],
+            "csrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "approvalId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResult"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "410": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "422": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Decision"
+              }
+            }
+          }
+        },
+        "description": "Require owner proof, matching World binding/candidate, fresh auth_time, action hash, active lease/version and unexpired approval. Bind and apply atomically."
+      }
+    },
+    "/v1/leases/{leaseId}/mail-profile": {
+      "get": {
+        "operationId": "getHumanMailProfile",
+        "summary": "Read own mail settings and decrypted address",
+        "security": [
+          {
+            "humanSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "leaseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HumanMailProfile"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "410": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "422": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          }
+        },
+        "description": "Requires owning-wallet proof and matching World human binding. Agent bearer is not accepted. Address read requires an active enabled grant."
+      }
+    },
+    "/v1/leases/{leaseId}/mail-destination": {
+      "put": {
+        "operationId": "saveMailDestination",
+        "summary": "Save human-entered destination; does not dispatch mail",
+        "security": [
+          {
+            "humanSession": [],
+            "csrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "leaseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HumanMailProfile"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "410": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "422": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DestinationSave"
+              }
+            }
+          }
+        },
+        "description": "Require owning wallet and matching World binding, active lease, enabled grant, CSRF and expectedVersion. Prefecture must match a Japanese prefecture allowlist."
+      }
+    },
+    "/v1/leases/{leaseId}/mail-disable": {
+      "post": {
+        "operationId": "disableMail",
+        "summary": "Revoke mail setting grant",
+        "security": [
+          {
+            "humanSession": [],
+            "csrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "leaseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HumanMailProfile"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "410": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "422": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected. See error.code and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DisableRequest"
+              }
+            }
+          }
+        },
+        "description": "Require owning wallet and matching World human binding, CSRF and expectedVersion. Return destination=null after revocation."
+      }
+    },
+    "/v1/ens/resolve": {
+      "get": {
+        "operationId": "resolveEnsLease",
+        "summary": "Verify ENSv2 name and active lease binding without disclosing address or human data",
+        "security": [],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            },
+            "description": "ENSIP-15 normalized before lookup; testnet namespace only."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "verified, pending or invalid. No physical address or internal lease UUID.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnsResolution"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/leases/by-ens": {
+      "get": {
+        "operationId": "getLeaseByEns",
+        "summary": "Resolve ENSv2 and return the authenticated owner agent lease",
+        "security": [
+          {
+            "agentBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            },
+            "description": "ENSIP-15 normalized before lookup; testnet namespace only."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Own verified lease; contains contracted office address, never forwarding destination.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Lease"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/leases/{leaseId}/ens": {
+      "get": {
+        "operationId": "getLeaseEnsStatus",
+        "summary": "Read owned lease ENS publishing status",
+        "security": [
+          {
+            "agentBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "leaseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ENS name state independent of lease activation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnsStatus"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/leases/{leaseId}/ens-description-transaction": {
+      "post": {
+        "operationId": "prepareEnsDescriptionTransaction",
+        "summary": "Prepare a constrained unsigned transaction; does not submit or confirm changes",
+        "security": [
+          {
+            "agentBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "leaseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnsDescriptionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The client validates destination, calldata, chain, zero value and gas cap before signing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnsUnsignedTransaction"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rejected or unavailable; inspect error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "agentBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Application agent token, not World OAuth token."
+      },
+      "humanSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "realaddr_session",
+        "description": "Server-side browser session. Each endpoint also enforces required wallet and World verification state."
+      },
+      "csrfToken": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-CSRF-Token",
+        "description": "Session-bound CSRF token; also verify Origin."
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "retryable": {
+                "type": "boolean"
+              },
+              "traceId": {
+                "type": "string"
+              },
+              "resourceId": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retryable",
+              "traceId"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "Empty": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {},
+        "required": []
+      },
+      "AuthChallengeRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "walletAddress": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$"
+          },
+          "network": {
+            "type": "string",
+            "pattern": "^eip155:[0-9]+$"
+          },
+          "termsVersion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "walletAddress",
+          "network",
+          "termsVersion"
+        ]
+      },
+      "Challenge": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "challengeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "message": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "challengeId",
+          "message",
+          "expiresAt"
+        ]
+      },
+      "SignatureProof": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "challengeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "signature": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]+$"
+          }
+        },
+        "required": [
+          "challengeId",
+          "signature"
+        ]
+      },
+      "AgentSession": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "agentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "token": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "agentId",
+          "token",
+          "expiresAt"
+        ]
+      },
+      "Plan": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "periodDays": {
+            "type": "integer",
+            "const": 30
+          },
+          "amountAtomic": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "network": {
+            "type": "string"
+          },
+          "asset": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$"
+          },
+          "decimals": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 36
+          }
+        },
+        "required": [
+          "periodDays",
+          "amountAtomic",
+          "network",
+          "asset",
+          "decimals"
+        ]
+      },
+      "Building": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "label": {
+            "type": "string"
+          },
+          "availableSlots": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "plan": {
+            "$ref": "#/components/schemas/Plan"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "availableSlots",
+          "plan"
+        ]
+      },
+      "Buildings": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Building"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ]
+      },
+      "PurchaseOrder": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "purchase",
+            "type": "string"
+          },
+          "buildingId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "kind",
+          "buildingId"
+        ]
+      },
+      "RenewalOrder": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "renew",
+            "type": "string"
+          },
+          "leaseId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "kind",
+          "leaseId"
+        ]
+      },
+      "LeaseOrderRequest": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/PurchaseOrder"
+          },
+          {
+            "$ref": "#/components/schemas/RenewalOrder"
+          }
+        ]
+      },
+      "Risk": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "allow",
+              "deny",
+              "hold"
+            ]
+          },
+          "reasonCodes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "checkedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "paymentNetwork": {
+            "type": "string"
+          },
+          "riskNetwork": {
+            "type": "string"
+          },
+          "subjectAddress": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$"
+          },
+          "side": {
+            "type": "string",
+            "enum": [
+              "buyer",
+              "seller"
+            ]
+          },
+          "responseHash": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision",
+          "reasonCodes",
+          "checkedAt",
+          "paymentNetwork",
+          "riskNetwork",
+          "subjectAddress",
+          "side"
+        ]
+      },
+      "PaymentReceipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "paymentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "network": {
+            "type": "string"
+          },
+          "asset": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$"
+          },
+          "amountAtomic": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "payer": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$"
+          },
+          "payTo": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$"
+          },
+          "txHash": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{64}$"
+          },
+          "confirmedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "paymentId",
+          "network",
+          "asset",
+          "amountAtomic",
+          "payer",
+          "payTo",
+          "txHash",
+          "confirmedAt"
+        ]
+      },
+      "Order": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "purchase",
+              "renew"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "awaiting_payment",
+              "settling",
+              "reconciling",
+              "fulfilled",
+              "failed_unpaid",
+              "refund_pending",
+              "expired",
+              "cancelled",
+              "blocked"
+            ]
+          },
+          "leaseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amountAtomic": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "network": {
+            "type": "string"
+          },
+          "asset": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$"
+          },
+          "payTo": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "riskAssessments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Risk"
+            }
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/PaymentReceipt"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "status",
+          "amountAtomic",
+          "network",
+          "asset",
+          "payTo",
+          "expiresAt",
+          "riskAssessments"
+        ]
+      },
+      "Pending": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "orderId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "settling",
+              "reconciling"
+            ]
+          },
+          "pollUrl": {
+            "type": "string"
+          },
+          "retryAfterSeconds": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "orderId",
+          "status",
+          "pollUrl",
+          "retryAfterSeconds"
+        ]
+      },
+      "Fulfilled": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "orderId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "const": "fulfilled"
+          },
+          "leaseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/PaymentReceipt"
+          }
+        },
+        "required": [
+          "orderId",
+          "status",
+          "leaseId",
+          "receipt"
+        ]
+      },
+      "MailStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "disabled",
+              "enabled",
+              "suspended"
+            ]
+          },
+          "destinationConfigured": {
+            "type": "boolean"
+          },
+          "grantExpiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "physicalForwardingAvailable": {
+            "type": "boolean",
+            "const": false
+          }
+        },
+        "required": [
+          "status",
+          "destinationConfigured",
+          "grantExpiresAt",
+          "physicalForwardingAvailable"
+        ]
+      },
+      "ChainStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "synced",
+              "error"
+            ]
+          },
+          "network": {
+            "type": "string"
+          },
+          "registryAddress": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$"
+          },
+          "leaseKey": {
+            "type": "string"
+          },
+          "txHash": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "Lease": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "buildingId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slotNumber": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535
+          },
+          "displayAddress": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "expired",
+              "suspended",
+              "revoked"
+            ]
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "chain": {
+            "$ref": "#/components/schemas/ChainStatus"
+          },
+          "mail": {
+            "$ref": "#/components/schemas/MailStatus"
+          },
+          "ens": {
+            "$ref": "#/components/schemas/EnsStatus"
+          }
+        },
+        "required": [
+          "id",
+          "buildingId",
+          "slotNumber",
+          "displayAddress",
+          "status",
+          "startsAt",
+          "expiresAt",
+          "version",
+          "chain",
+          "mail",
+          "ens"
+        ]
+      },
+      "Leases": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Lease"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ]
+      },
+      "MailApprovalRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "forceReauth": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": []
+      },
+      "ApprovalLink": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "approvalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "authenticated"
+            ]
+          },
+          "approvalUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "approvalId",
+          "status",
+          "approvalUrl",
+          "expiresAt"
+        ]
+      },
+      "Approval": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "leaseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "agentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "action": {
+            "type": "string",
+            "const": "mail.enable"
+          },
+          "actionHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "authenticated",
+              "applied",
+              "denied",
+              "expired",
+              "cancelled"
+            ]
+          },
+          "ownerWallet": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "worldAuthenticated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "leaseId",
+          "agentId",
+          "action",
+          "actionHash",
+          "status",
+          "ownerWallet",
+          "expiresAt",
+          "worldAuthenticated"
+        ]
+      },
+      "OwnerProofResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "walletVerified": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "walletVerified"
+        ]
+      },
+      "AuthUrl": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "authorizationUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "authorizationUrl",
+          "expiresAt"
+        ]
+      },
+      "Decision": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "approve",
+              "deny"
+            ]
+          },
+          "actionHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "decision",
+          "actionHash"
+        ]
+      },
+      "DecisionResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "approvalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "applied",
+              "denied"
+            ]
+          },
+          "mail": {
+            "$ref": "#/components/schemas/MailStatus"
+          }
+        },
+        "required": [
+          "approvalId",
+          "status",
+          "mail"
+        ]
+      },
+      "Destination": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "country": {
+            "type": "string",
+            "const": "JP"
+          },
+          "recipient": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "postalCode": {
+            "type": "string",
+            "pattern": "^[0-9]{7}$"
+          },
+          "prefecture": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20
+          },
+          "city": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "addressLine1": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "addressLine2": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "country",
+          "recipient",
+          "postalCode",
+          "prefecture",
+          "city",
+          "addressLine1"
+        ]
+      },
+      "DestinationSave": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "destination": {
+            "$ref": "#/components/schemas/Destination"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "destination"
+        ]
+      },
+      "DisableRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "expectedVersion"
+        ]
+      },
+      "HumanMailProfile": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "leaseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "mail": {
+            "$ref": "#/components/schemas/MailStatus"
+          },
+          "destination": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Destination"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "leaseId",
+          "version",
+          "mail",
+          "destination"
+        ]
+      },
+      "EnsStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "ready",
+              "error",
+              "expired",
+              "disabled"
+            ]
+          },
+          "network": {
+            "type": "string",
+            "const": "eip155:11155111"
+          },
+          "name": {
+            "type": "string"
+          },
+          "resolverAddress": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$"
+          },
+          "registryAddress": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$"
+          },
+          "controllerAddress": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "targetLeaseVersion": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "syncedLeaseVersion": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "txHash": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{64}$"
+          },
+          "lastErrorCode": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "network"
+        ]
+      },
+      "EnsReference": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "network": {
+            "type": "string",
+            "const": "eip155:11155111"
+          },
+          "leaseRegistry": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$"
+          },
+          "leaseKey": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{64}$"
+          },
+          "controller": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$"
+          },
+          "resolver": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$"
+          },
+          "ownerWallet": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$"
+          }
+        },
+        "required": [
+          "network",
+          "leaseRegistry",
+          "leaseKey",
+          "controller",
+          "resolver",
+          "ownerWallet"
+        ]
+      },
+      "EnsResolution": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "normalizedName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "verified",
+              "pending",
+              "invalid"
+            ]
+          },
+          "reasonCode": {
+            "type": "string"
+          },
+          "checkedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reference": {
+            "$ref": "#/components/schemas/EnsReference"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "verifiedBlock": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          }
+        },
+        "required": [
+          "normalizedName",
+          "status",
+          "reasonCode",
+          "checkedAt"
+        ]
+      },
+      "EnsDescriptionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "type": "string",
+            "maxLength": 280
+          },
+          "expectedLeaseVersion": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "description",
+          "expectedLeaseVersion"
+        ]
+      },
+      "EnsUnsignedTransaction": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "network": {
+            "type": "string",
+            "const": "eip155:11155111"
+          },
+          "chainId": {
+            "type": "integer",
+            "const": 11155111
+          },
+          "from": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$"
+          },
+          "to": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$"
+          },
+          "data": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]+$"
+          },
+          "value": {
+            "type": "string",
+            "const": "0"
+          },
+          "name": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string",
+            "const": "description"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "maxGasAtomic": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          }
+        },
+        "required": [
+          "network",
+          "chainId",
+          "from",
+          "to",
+          "data",
+          "value",
+          "name",
+          "key",
+          "expiresAt",
+          "maxGasAtomic"
+        ]
+      }
+    }
+  }
+}
