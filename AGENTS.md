@@ -4,7 +4,9 @@
 
 Build RealAddr for Agents from the shared specification. This repository initially contains specifications only; do not claim that the product already runs.
 
-Read `README.md`, then `.kiro/specs/realaddr/requirements.md`, `design.md`, and `tasks.md`. Read the relevant files in `docs/` before implementing an integration or API. ENSv2 and address-binding details are in `docs/ensv2.md`. GCP infrastructure, Firestore transactions, scale-to-zero execution and cost limits are defined in `docs/infrastructure.md`. The requirements define behavior; the design defines implementation; `docs/openapi.json` defines public HTTP shapes. Resolve contradictions explicitly and update all affected files together.
+Read `README.md`, then `.kiro/specs/realaddr/requirements.md`, `design.md`, and `tasks.md`. Read the relevant files in `docs/` before implementing an integration or API. ENSv2 and address-binding details are in `docs/ensv2.md`. GCP infrastructure, Firestore transactions, scale-to-zero execution and cost limits are defined in `docs/infrastructure.md`. Frontend conventions are in `docs/frontend.md`, operator authorization in `docs/admin.md` and `docs/admin-openapi.json`, and public discovery/AEO in `docs/aeo.md`. The requirements define behavior; the design defines implementation; `docs/openapi.json` defines public HTTP shapes. Resolve contradictions explicitly and update all affected files together.
+
+When consulting user-designated private reference implementations, keep their names, local paths, URLs, account identifiers and provenance out of repository documents, source comments, examples and commit messages. Record only the adopted behavior and this project's own configuration; do not copy secrets or deployment identities.
 
 ## Non-negotiable invariants
 
@@ -20,6 +22,9 @@ Read `README.md`, then `.kiro/specs/realaddr/requirements.md`, `design.md`, and 
 - ENSv2 runs on Sepolia and uses a dedicated resolver per lease. Keep forwarding destinations and World identifiers off ENS. Validate exact registration, controller binding, lease state and expiry; a text record alone proves no entitlement.
 - Hackathon mail scope is only human approval, an enabled indicator, and a human-entered destination form. Do not build physical mail handling, shipping, or postage payments.
 - Agent credentials must never approve human actions or write/read the full forwarding address.
+- Admin access is a separate operator session. It cannot substitute for World consent, expose forwarding destinations, or manually mark payments successful.
+- Use https://address.chain.tokyo as the planned public origin. The user manages domain/DNS configuration; do not change DNS or claim deployment without evidence.
+- Use a conventional white/light-gray SaaS UI with restrained blue accents. Serve public informational pages as crawlable HTML; never include private account/admin data in AEO assets.
 
 ## Model routing and delegation
 
@@ -35,9 +40,9 @@ User preference: delegate work that does not require Astra to Sol, Luna, Terra, 
 
 ## Delivery workflow
 
-Use the task IDs in `.kiro/specs/realaddr/tasks.md`. Check a task only after its acceptance evidence exists. Record tests actually run and unresolved blockers in `docs/implementation-status.md` when implementation starts. Keep sandbox, testnet and production labels visible. Do not silently broaden scope into NFT trading or automated legal adjudication. Authorized chain split: Base Sepolia for x402 payments, Ethereum Sepolia for ENSv2 and lease attestations; no bridge or additional payment chain.
+Use the task IDs in `.kiro/specs/realaddr/tasks.md`. Check a task only after evidence for its implemented behavior exists; the A-01..A-49 list is a scenario catalog, not a requirement to automate or execute every case before the hackathon submission. Follow the minimum gate in `docs/acceptance.md`, then add targeted checks when a change introduces a concrete risk. Record tests actually run, deferred coverage and unresolved blockers in `docs/implementation-status.md` when implementation starts. Keep sandbox, testnet and production labels visible. Do not silently broaden scope into NFT trading or automated legal adjudication. Authorized chain split: Base Sepolia for x402 payments, Ethereum Sepolia for ENSv2 and lease attestations; no bridge or additional payment chain.
 
-Use TypeScript strict mode and a pnpm workspace as specified. Pin tested dependency versions at bootstrap; never invent a version or provider SDK method. The commands in the specification are target command contracts until implemented. Use database integration tests for concurrency, state transitions, and reconciliation, plus live sponsor smoke tests for submission.
+Use TypeScript strict mode and a pnpm workspace as specified. Pin tested dependency versions at bootstrap; never invent a version or provider SDK method. The commands in the specification are target command contracts until implemented. Keep automated checks small: build/typecheck and focused database checks for slot uniqueness, payment retry/unknown outcomes, and human-only mail approval/access. For submission, run one connected sponsor/ENS happy path and representative denial, with brief CLI smoke checks from all three tools. Record manual steps and real external responses; do not replace a required live connection with a mock.
 
 All text files must use UTF-8 without BOM and LF line endings. Follow `.editorconfig` and `.gitattributes`; binary assets are exempt. Before committing, run `node scripts/check-text-format.mjs` for working files and `node scripts/check-text-format.mjs --staged` for the actual staged content. Do not bypass failed checks or silently transcode unknown encodings. Enable the tracked pre-commit hook with `git config core.hooksPath .githooks` on each clone, preserving any existing hook setup by integrating the check instead of overwriting it. These checks also apply when generating or updating documentation and configuration.
 

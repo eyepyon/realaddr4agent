@@ -16,6 +16,9 @@ AIエージェントがx402で実住所の利用区画を契約し、ENSv2名で
 8. [一次資料と確認状況](docs/sources.md)
 9. [ENSv2連携・住所契約の紐づけ](docs/ensv2.md)
 10. [GCP構成・Firestore設計・低コスト運用](docs/infrastructure.md)
+11. [画面構成・標準SaaSデザイン](docs/frontend.md)
+12. [管理画面・運用者権限](docs/admin.md) / [管理API](docs/admin-openapi.json)
+13. [公開ページ・AEO仕様](docs/aeo.md)
 
 ## 3つの開発エージェントから使う
 
@@ -30,12 +33,17 @@ AIエージェントがx402で実住所の利用区画を契約し、ENSv2名で
 ```text
 AGENTS.mdとREADME.mdから仕様を読み、.kiro/specs/realaddr/tasks.mdの
 依存関係を満たす最初の未完了タスクを実装してください。
-完了には対応する受入テストの実行証跡が必要です。
+検証はdocs/acceptance.mdのハッカソン最小チェックを基準に、変更に関係する項目だけ行ってください。
+網羅テストや全49ケースの自動化は不要です。未実施は未実施と記録してください。
 外部APIの未確認部分を捏造せず、実接続できない項目はBLOCKEDとして記録し、
 独立して進められる作業を続けてください。
 ```
 
 仕様の自動読み込みと、実サービスを利用するエージェントの接続は別です。実装後は3ツールとも同じCLI/HTTP APIを使用し、Worldの公式プラグインが使えないクライアントでもブラウザ承認URLを介して利用できます。
+
+## 公開URLと画面方針
+
+公開予定originは **https://address.chain.tokyo**。ドメイン/DNS設定はユーザーが担当します。現時点ではデプロイ・接続確認前です。公開サイト、利用者画面、人間承認画面、管理画面を白〜薄いグレーと控えめな青の標準的なSaaSデザインへ統一します。公開説明は検索/AI向けにも初期HTMLで読めるようにします。
 
 ## スコープ
 
@@ -46,6 +54,10 @@ AGENTS.mdとREADME.mdから仕様を読み、.kiro/specs/realaddr/tasks.mdの
 - 今回、実郵便の受領・発送・送料決済は行わない。
 - 契約ごとのENSv2名をSepoliaで発行し、名前から有効な住所契約を照合。期限・取消・編集権限を同期する。
 - World、Intercepta、MultiBaas、ENSv2の接続結果と失敗経路を画面・監査ログに表示。
+- 管理者専用の拠点・契約・決済・同期状況・監査画面。人間の承認や宛先閲覧権限とは分離する。
+- 公開HTML、FAQ、開発者向け案内、robots/sitemap/llms.txtと正確な構造化データ。
+
+公開APIは `/v1/locations`、`/v1/payment-intents`、`/v1/subscriptions` を使用します。購入時の `floor` は仮想区画の指定で、省略時は自動割当です。認証・金額・状態遷移を含む正確な契約は[API仕様](docs/api.md)と[OpenAPI](docs/openapi.json)に従います。
 
 Curvegridは**Best AI Agent Project**を主対象とする設計です。RWA Tokenizationは追加候補ですが、初回スコープにNFT市場や不動産所有権の表現を追加しません。ENSは**Best Use of ENSv2**も対象とし、親名取得・Sepolia実接続は実装時に確認します。賞への適合方針は[資料一覧](docs/sources.md)を参照。
 
@@ -54,6 +66,10 @@ Curvegridは**Best AI Agent Project**を主対象とする設計です。RWA Tok
 単体テストのモックは許可しますが、提出デモでは公式World開発環境・実Intercepta API・テストネット決済・実MultiBaas照会・公式ENSv2の登録/名前解決を通します。再起動後にも契約が残り、二重課金と未承認の転送設定を防ぎます。
 
 Worldのイベント環境は主催者側の模擬proofを利用する旨が告知されています。公式環境への実接続と、本番の本人確認保証は区別します。World IDの認証だけで法的本人確認が完了するとは扱いません。
+
+## ハッカソンのテスト方針
+
+テストは最小限。主要機能の実接続デモと、二重決済・区画重複・未承認操作を防ぐ少数の確認を優先します。手動確認を認め、同じデモ結果を複数の検証に再利用します。網羅的な単体テスト、負荷試験、全面的な障害注入や大規模E2E基盤は今回の必須作業にしません。詳細は[最小チェック](docs/acceptance.md)を参照してください。
 
 ## テキスト形式とコミット前チェック
 

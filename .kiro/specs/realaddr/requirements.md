@@ -2,6 +2,8 @@
 
 日付: 2026-09-25。ユーザーの追加指定により、郵便は「人間承認後の転送可表示と、人間による転送先入力・保存」まで。実郵便処理は今回実装しない。MUST/SHALLは必須。以下はプロダクト要件であり、外部APIの機能保証ではない。
 
+検証の範囲はユーザー指定により[ハッカソン最小チェック](../../../docs/acceptance.md)を優先する。以下の機能・認可要件は維持するが、全分岐の網羅試験を完了条件にはしない。未検証範囲は明示する。
+
 ## 利用者と用語
 
 - Agent: API資格情報と支払いウォレットを持つ自律クライアント。Codex、Claude Code、Kiroから実行可能。
@@ -18,6 +20,7 @@
 - R-01.3 WHEN 表示する THEN 実住所・実在階と仮想区画を分離する SHALL。例「実在の建物3階／Agent区画 V00042」。仮想区画を実際の42階として表示しない。
 - R-01.4 WHILE 人間承認前 THEN 住所利用権は利用できても、郵便転送設定はdisabledとする SHALL。
 - R-01.5 WHEN 期限終了 THEN 住所利用権と転送可表示を停止する SHALL。v1では区画を他テナントに再利用しない。
+- R-01.6 WHEN 購入要求でfloorを指定する THEN その仮想区画だけを原子的に予約する SHALL。利用不可なら409 / slot_unavailableとし、別区画へ勝手に変更・課金しない。省略時は空区画を自動割当する。
 
 ## R-02 Agent認証
 
@@ -82,7 +85,9 @@
 - R-09.1 CLIはJSON出力、安定したerror code、非対話実行、poll、再開IDを提供する SHALL。
 - R-09.2 UIは住所、期限、決済、risk理由、chain同期、転送可/不可、宛先登録済み/未登録を表示する SHALL。
 - R-09.3 人間画面は対象Agent/Lease、mail.enableの意味、World認証、承認/拒否、承認後の住所フォームを提供する SHALL。
-- R-09.4 Codex/Claude Code/Kiro各々から同じCLIで住所購入→人間承認待ち→状態取得を実行し、証跡を残す SHALL。
+- R-09.4 共通CLIの住所購入→人間承認待ち→状態取得を代表1ツールで通し、他2ツールは認証・既存契約状態/ENS照会の簡単な動作確認で互換性を確認する SHALL。同じ全シナリオを3回繰り返す必要はない。
+- R-09.5 公開HTTP APIはlocations / payment-intents / subscriptionsを正規名とし、リソース自身の識別子はid、参照フィールドとpath parameterはlocationId / intentId / subscriptionId、仮想区画番号はfloorを使用する SHALL。内部のBuilding / Order / Lease / SlotとはAPI境界で対応付ける。floorは実在階ではなく仮想区画番号。
+- R-09.6 エラーはflatなerror文字列（lower_snake_case）とmessageを持ち、retryable / traceIdを付加する SHALL。金額は整数文字列、決済はx402 v2、支払い・人間認可の検査を維持する。
 
 ## R-10 永続化と完成条件
 
@@ -116,7 +121,7 @@
 
 ## R-14 ENSv2の実動作と公開境界
 
-- R-14.1 WHEN 提出する THEN 実登録→解決→住所取得、委任編集成功/禁止キー失敗、失効時拒否を実演する SHALL。
+- R-14.1 WHEN 提出する THEN 実登録→解決→住所取得と委任編集を示し、禁止操作または失効時拒否の代表例を確認する SHALL。全異常経路を提出デモで繰り返す必要はない。
 - R-14.2 WHEN 公開情報を説明する THEN walletと契約名の公開関連付け、testnet、事業者管理の非譲渡名であることを明示する SHALL。
 - R-14.3 WHEN 3ツールから利用する THEN 共通CLIの名前による照合/状態確認を通す SHALL。
 
@@ -129,7 +134,27 @@
 - R-15.5 65,535区画を事前document化せず、必要な区画だけ保存し、全件走査や常時pollを避ける SHALL。
 - R-15.6 CI/CDはOIDC/WIFで短期認証し、workerとFirestore/GCSへ未認証でアクセスできない SHALL。
 - R-15.7 無料枠・region・使用量・予算を記録し、利用増加や外部サービスを含めた完全無料を保証しない SHALL。日次上限到達後も既存決済を照合する。
-- R-15.8 snapshot復元とscale-to-zero後の再開を検証し、未実測の可用性・料金・性能を成功扱いしない SHALL。
+- R-15.8 再起動後の契約/設定保持と未完了処理の再開を代表ケースで確認し、未実測の可用性・料金・性能を成功扱いしない SHALL。snapshotの全面復元訓練とcold start性能試験は今回の必須検証から外す。
+
+## R-16 管理画面と運用者認可
+
+- R-16.1 運用者向けにoverview、拠点、決済intent、subscription/ENS、処理状況と監査の画面を提供する SHALL。実DB/連携状態を表示し、件数取得は全件走査しない。
+- R-16.2 管理ログインはbackendで検証したGoogle OIDCと明示allowlistを用い、Agent/World人間sessionとは別の管理sessionにする SHALL。すべての管理APIで認可し、未設定なら閉じる。
+- R-16.3 拠点の作成・編集・新規契約受付停止と、結果不明処理の安全な再照合要求を提供する SHALL。更新には理由、version、CSRFと冪等制御を使い、管理主体と変更内容を監査する。
+- R-16.4 予約中または発行済み区画がある拠点の正確な住所変更・作成後のslug変更、支払い成功の手動上書き、World承認代行、転送先全文閲覧、実郵便作業を管理UIで許可しない SHALL。既存注文の価格条件は書き換えない。
+
+## R-17 標準SaaSのフロントエンド
+
+- R-17.1 公開サイト、利用者画面、承認画面、管理画面を白/薄いグレー・控えめな青、標準navigation/table/formで統一する SHALL。画面と操作は[frontend仕様](../../../docs/frontend.md)に従う。
+- R-17.2 読込中・空・失敗・処理中・完了を区別し、テストネットとハッカソンの郵便設定範囲を明示する SHALL。未取得の実データを架空の実績で埋めない。
+- R-17.3 スマートフォンでも主要操作が可能で、label、keyboard focus、色以外の状態表示を提供する SHALL。自動承認やAgentによる転送先代筆を誘導しない。
+
+## R-18 公開ドメインとAEO
+
+- R-18.1 公開originをhttps://address.chain.tokyoへ統一する SHALL。DNS/ドメイン設定はユーザー担当とし、開発側は接続先/必要設定を提示する。未確認の稼働を主張しない。
+- R-18.2 公開の説明・開発者向け案内・FAQは初期HTMLに本文と内部リンクを含め、title/description/canonical/OGと実際の本文に一致する構造化データを提供する SHALL。常駐SSRを追加せずbuild時生成または静的配信で実現する。
+- R-18.3 robots.txt、sitemap.xml、llms.txt、OpenAPIへの案内を公開し、originと内容を同じ公開設定から生成する SHALL。認証情報、個人宛先、契約/承認IDを含めない。検索掲載やAI引用順位を保証しない。
+- R-18.4 account/admin/approval/callbackと機密APIには認可とno-store/noindexを適用し、sitemapから除外する SHALL。robots/noindexをアクセス制御の代替にしない。
 
 ## 今回の対象外
 

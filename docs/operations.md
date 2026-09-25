@@ -18,7 +18,7 @@ T-01で秘密のない.env.exampleを作る。secretは環境/secret managerに�
 
 | 変数群 | 用途 |
 | --- | --- |
-| APP_ENV, PUBLIC_ORIGIN | 環境、Cloud Run HTTPS origin |
+| APP_ENV, PUBLIC_ORIGIN | 環境、公開origin=https://address.chain.tokyo |
 | GCP_PROJECT_ID, GCP_REGION, FIRESTORE_DATABASE_ID | event project、初期us-central1、(default) |
 | FIRESTORE_EMULATOR_HOST | local/CIのみ。event/production指定時は起動拒否 |
 | GCS_BUCKET, ARTIFACT_REPOSITORY | privateファイルbucket、image格納先 |
@@ -51,7 +51,7 @@ Cloud TasksのHTTP要求でworkerを実行し、5分ごとのSchedulerが不明�
 
 監視はAPI失敗率、リスクquota、不明決済、予約滞留、OIDC失敗、outbox遅延、chain不一致。PII/秘密/token/完全な署名はログに含めない。宛先は暗号化し閲覧権限を限定する。
 
-提出前に[インフラ仕様](infrastructure.md)の書込停止snapshot/Emulator restoreとCloud Runの停止・復帰を確認。有料managed backup/PITRは初期構成で無効。snapshot保持7日、復元時はchain再照合を必須とする。通常ログ30日、demo宛先はイベント後30日で削除する初期案。商用の契約記録保持は別判断。chainは削除不可なので宛先/World subjectを記録しない。
+提出前は[最小チェック](acceptance.md)に従い、再起動後の契約・設定保持を代表1件で確認。書込停止snapshot/Emulator restoreの全面訓練は必須外とし、必要時の手順は[インフラ仕様](infrastructure.md)を参照。有料managed backup/PITRは初期構成で無効。snapshot保持7日、復元時はchain再照合を必須とする。通常ログ30日、demo宛先はイベント後30日で削除する初期案。商用の契約記録保持は別判断。chainは削除不可なので宛先/World subjectを記録しない。
 
 ## 商用へ進む前の境界
 
@@ -69,7 +69,7 @@ Worldの人間認証と明示同意は、郵便事業の法的な取引時確認
 | O-04 | Intercepta key/schema/危険アドレス | 開発担当+スポンサー | T-04 live |
 | O-05 | facilitator/token/finality | Base Sepolia優先 | T-05 live |
 | O-06 | MultiBaas deployment/chain/署名方式 | 開発担当+Curvegrid | T-07 live |
-| O-07 | Cloud Run HTTPS URL / World callback登録 | 開発担当。初期run.app URL | E2E前 |
+| O-07 | address.chain.tokyoのDNS/TLS接続とWorld callback登録 | ドメイン設定はユーザー担当。開発担当は接続先と必要設定を提示 | E2E前 |
 | O-08 | 参加track/応募対象 | チーム | 提出前 |
 
 実郵便フローの詳細は今回の未確定blockerに含めない。外部値が未確定でも独立作業は進め、実成功結果の捏造で穴埋めしない。
@@ -87,3 +87,21 @@ names/resolverは購入済み件数分だけ作る。デモは数件に限定し
 ## GCP運用追加
 
 [インフラ仕様](infrastructure.md)が構成・無料枠・復旧・CI/CDの正本。O-12: GCP project/billing account、既存無料枠消費、us-central1保存の適否、GitHub repository/Environment/WIFをT-16前に確定する。実装開始までリソース未作成。価格・quotaはdeploy前に再確認する。API/workerが参照するsecret versionと復号鍵を記録し、rollback/snapshotが使う鍵を先に破棄しない。
+
+T-16の運用順序は、既存project・billing・`(default)` Firestore・予算の有無を確認し、管理者がbootstrap rootでstate専用bucket/WIF/Artifact Registryを作成し、app rootのGCS backendを初期化して差分を審査してから適用する。既存DB/予算を管理対象にする場合はimportと差分審査を先に行う。bootstrapの初期ローカルstateをstate bucketへ移す作業は別の手動手順として記録し、実施前は移行済みと書かない。state bucketは版管理・削除防止、業務bucketは短期保持を適用する。secret値はTerraformの変数・state・planを通さずSecret Managerに登録し、参照するversionを運用記録に残す。
+
+公開deployはmainの検証済みcommitから保護されたevent Environmentの手動workflowで行う。Actionsの短期WIF認証を使用し、実行前にproject/region/ref/environmentを確認する。workflowは同じimage digestをworkerとwebへ順次反映するため、両方のdigest、min=0、workerの未認証拒否と公開healthを確認してから成功とする。片方で失敗したら旧digestと現在の業務状態を確認し、安全な再実行または旧digestへのrollbackを記録する。Terraformはサービス設定/IAMを所有し、通常deployが変更するimage属性だけを除外する。この運用手順と実際のコマンド・結果は実装後に`docs/implementation-status.md`へ記録する。
+
+## 公開ドメイン
+
+公開originは`https://address.chain.tokyo`。`PUBLIC_ORIGIN`、OpenAPI servers、canonical/OG URL、sitemap、llms.txt、Agent向け案内をこのoriginへ統一する。Worldの`WORLD_REDIRECT_URI`は`https://address.chain.tokyo/auth/world/callback`としてportalに完全一致登録する。Agentのwallet challenge domainとCSRF Originも同じ公開hostを基準とする。転送ヘッダーや任意Hostからcallback/承認URLを組み立てない。
+
+ドメイン取得・DNS・接続設定はユーザーが行う。開発側はCloud Runの実URLと選択した接続方法の必要レコード/TLS条件を取得後に提示する。未取得のDNS値を推測しない。HTTP/TLS到達、同一originのAPI、World callback、cookieを最小確認してから公開済みと記録する。現在は設定予定であり、DNS/TLS/デプロイ完了を意味しない。
+
+run.app URLは運用確認用に保持できるが、公開案内・検索向けcanonicalには使わない。別originの認証開始・承認処理は拒否し、公開GETの正規化redirectだけを許可する。workerのIAM/OIDC audienceは実worker URLのまま分離する。利用者が構成するドメイン/DNSをTerraformで勝手に作成・上書きしない。
+
+## 管理者ログインと公開画面の設定
+
+O-13: Google OIDC client、`https://address.chain.tokyo/auth/admin/callback`、明示的に許可する運用者をT-18前に確定する。credential/allowlist実値はリポジトリへ記載しない。[管理仕様](admin.md)に従って登録し、設定がない状態では管理データを返さない。Worldの人間承認callbackと管理者callbackを取り違えない。
+
+O-14: 公開ページの運営者表記、公開可能な説明・料金・住所表記をT-19で確認する。未確定項目は未確定と明示し、架空の導入実績や本番稼働を表示しない。[画面仕様](frontend.md)と[AEO仕様](aeo.md)を適用する。

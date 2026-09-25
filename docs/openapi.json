@@ -2,16 +2,70 @@
   "openapi": "3.1.0",
   "info": {
     "title": "RealAddr for Agents API",
-    "version": "0.3.0-spec",
+    "version": "0.5.0-spec",
     "description": "Implementation contract, not a deployed service. Hackathon mail scope is approval, enabled status and a human-entered destination; no physical forwarding. ENSv2 names on Ethereum Sepolia reference leases; public resolution does not disclose forwarding addresses."
   },
   "servers": [
     {
-      "url": "https://realaddr.example.invalid",
-      "description": "Placeholder. Replace with the actual HTTPS service origin before live testing."
+      "url": "https://address.chain.tokyo",
+      "description": "Planned hackathon service origin. Domain and DNS setup are performed by the operator; deployment and availability are not yet verified."
     }
   ],
   "paths": {
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "summary": "Process liveness only; external dependencies are not checked",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "API process is running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "operationId": "getOpenApi",
+        "summary": "Read the planned public OpenAPI contract",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OpenAPI 3.1 document",
+            "content": {
+              "application/vnd.oai.openapi+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenApiDocument"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/auth/challenges": {
       "post": {
         "operationId": "createAgentChallenge",
@@ -38,7 +92,7 @@
             }
           },
           "400": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -56,7 +110,7 @@
             }
           },
           "401": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -74,7 +128,7 @@
             }
           },
           "403": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -92,7 +146,7 @@
             }
           },
           "404": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -110,7 +164,7 @@
             }
           },
           "409": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -128,7 +182,7 @@
             }
           },
           "410": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -146,7 +200,7 @@
             }
           },
           "422": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -164,7 +218,7 @@
             }
           },
           "429": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -182,7 +236,7 @@
             }
           },
           "503": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -238,7 +292,7 @@
             }
           },
           "400": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -256,7 +310,7 @@
             }
           },
           "401": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -274,7 +328,7 @@
             }
           },
           "403": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -292,7 +346,7 @@
             }
           },
           "404": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -310,7 +364,7 @@
             }
           },
           "409": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -328,7 +382,7 @@
             }
           },
           "410": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -346,7 +400,7 @@
             }
           },
           "422": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -364,7 +418,7 @@
             }
           },
           "429": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -382,7 +436,7 @@
             }
           },
           "503": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -446,7 +500,7 @@
             }
           },
           "400": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -464,7 +518,7 @@
             }
           },
           "401": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -482,7 +536,7 @@
             }
           },
           "403": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -500,7 +554,7 @@
             }
           },
           "404": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -518,7 +572,7 @@
             }
           },
           "409": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -536,7 +590,7 @@
             }
           },
           "410": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -554,7 +608,7 @@
             }
           },
           "422": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -572,7 +626,7 @@
             }
           },
           "429": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -590,7 +644,7 @@
             }
           },
           "503": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -610,7 +664,7 @@
         }
       }
     },
-    "/v1/buildings": {
+    "/v1/locations": {
       "get": {
         "operationId": "listBuildings",
         "summary": "List public buildings and current plans",
@@ -658,7 +712,7 @@
             }
           },
           "400": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -676,7 +730,7 @@
             }
           },
           "401": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -694,7 +748,7 @@
             }
           },
           "403": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -712,7 +766,7 @@
             }
           },
           "404": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -730,7 +784,7 @@
             }
           },
           "409": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -748,7 +802,7 @@
             }
           },
           "410": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -766,7 +820,7 @@
             }
           },
           "422": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -784,7 +838,7 @@
             }
           },
           "429": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -802,7 +856,7 @@
             }
           },
           "503": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -822,7 +876,108 @@
         }
       }
     },
-    "/v1/lease-orders": {
+    "/v1/locations/{locationId}/floors/{floor}": {
+      "get": {
+        "operationId": "getFloorAvailability",
+        "summary": "Read the current availability of a virtual slot without disclosing other owners",
+        "parameters": [
+          {
+            "name": "locationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "floor",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authoritative snapshot; reserve again in the payment intent transaction",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FloorAvailability"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "401": {
+            "description": "Agent credential missing or invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "404": {
+            "description": "Location unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "422": {
+            "description": "Floor must be an integer from 1 through 65535",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/payment-intents": {
       "post": {
         "operationId": "createLeaseOrder",
         "summary": "Reserve a slot or create a renewal order",
@@ -863,7 +1018,7 @@
             }
           },
           "400": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -881,7 +1036,7 @@
             }
           },
           "401": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -899,7 +1054,7 @@
             }
           },
           "403": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -917,7 +1072,7 @@
             }
           },
           "404": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -935,7 +1090,7 @@
             }
           },
           "409": {
-            "description": "SOLD_OUT only after confirmed exhaustion, or an idempotency/state conflict.",
+            "description": "sold_out only after confirmed exhaustion, or an idempotency/state conflict.",
             "content": {
               "application/json": {
                 "schema": {
@@ -953,7 +1108,7 @@
             }
           },
           "410": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -971,7 +1126,7 @@
             }
           },
           "422": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -989,7 +1144,7 @@
             }
           },
           "429": {
-            "description": "Rate, hold quota, or DAILY_PURCHASE_LIMIT reached; existing payment reconciliation remains available.",
+            "description": "Rate, hold quota, or daily_purchase_limit reached; existing payment reconciliation remains available.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1007,7 +1162,7 @@
             }
           },
           "503": {
-            "description": "Dependency unavailable or RESERVATION_RETRY after bounded contention retries; reuse the same idempotency key.",
+            "description": "Dependency unavailable or reservation_retry after bounded contention retries; reuse the same idempotency key.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1035,9 +1190,220 @@
             }
           }
         }
+      },
+      "get": {
+        "operationId": "listPaymentIntents",
+        "summary": "List payment intents owned by the authenticated agent",
+        "security": [
+          {
+            "agentBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentIntents"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected. See error and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected. See error and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected. See error and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected. See error and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected. See error and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "410": {
+            "description": "Request rejected. See error and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "422": {
+            "description": "Request rejected. See error and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected. See error and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected. See error and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          }
+        },
+        "description": "Cursor pagination of the authenticated agent payment intents, newest createdAt first with a stable ID tie-breaker. Never returns signed payment payloads or another agent data."
       }
     },
-    "/v1/orders/{orderId}": {
+    "/v1/payment-intents/{intentId}": {
       "get": {
         "operationId": "getOrder",
         "summary": "Read owned order and settlement evidence",
@@ -1048,7 +1414,7 @@
         ],
         "parameters": [
           {
-            "name": "orderId",
+            "name": "intentId",
             "in": "path",
             "required": true,
             "schema": {
@@ -1077,7 +1443,7 @@
             }
           },
           "400": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1095,7 +1461,7 @@
             }
           },
           "401": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1113,7 +1479,7 @@
             }
           },
           "403": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1131,7 +1497,7 @@
             }
           },
           "404": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1149,7 +1515,7 @@
             }
           },
           "409": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1167,7 +1533,7 @@
             }
           },
           "410": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1185,7 +1551,7 @@
             }
           },
           "422": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1203,7 +1569,7 @@
             }
           },
           "429": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1221,7 +1587,7 @@
             }
           },
           "503": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1241,7 +1607,7 @@
         }
       }
     },
-    "/v1/orders/{orderId}/execute": {
+    "/v1/payment-intents/{intentId}/pay": {
       "post": {
         "operationId": "executeOrder",
         "summary": "Execute an order through screened x402 settlement",
@@ -1252,7 +1618,7 @@
         ],
         "parameters": [
           {
-            "name": "orderId",
+            "name": "intentId",
             "in": "path",
             "required": true,
             "schema": {
@@ -1324,7 +1690,7 @@
             }
           },
           "400": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1342,7 +1708,7 @@
             }
           },
           "401": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1386,7 +1752,7 @@
             }
           },
           "403": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1404,7 +1770,7 @@
             }
           },
           "404": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1422,7 +1788,7 @@
             }
           },
           "409": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1440,7 +1806,7 @@
             }
           },
           "410": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1458,7 +1824,7 @@
             }
           },
           "422": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1476,7 +1842,7 @@
             }
           },
           "429": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1494,7 +1860,7 @@
             }
           },
           "503": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1525,7 +1891,7 @@
         "description": "Never deliver the lease before confirmed settlement. Same path/body/key with PAYMENT-SIGNATURE continues the order. A 402 is not a final idempotency snapshot. The first accepted payment request persists a Firestore outbox and returns 202; a Cloud Tasks worker settles and reconciles it. Enqueue failure is recovered from the outbox. Retry the same execution after fulfillment to obtain 200."
       }
     },
-    "/v1/leases": {
+    "/v1/subscriptions": {
       "get": {
         "operationId": "listLeases",
         "summary": "List owned leases",
@@ -1573,7 +1939,7 @@
             }
           },
           "400": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1591,7 +1957,7 @@
             }
           },
           "401": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1609,7 +1975,7 @@
             }
           },
           "403": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1627,7 +1993,7 @@
             }
           },
           "404": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1645,7 +2011,7 @@
             }
           },
           "409": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1663,7 +2029,7 @@
             }
           },
           "410": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1681,7 +2047,7 @@
             }
           },
           "422": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1699,7 +2065,7 @@
             }
           },
           "429": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1717,7 +2083,7 @@
             }
           },
           "503": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1737,7 +2103,7 @@
         }
       }
     },
-    "/v1/leases/{leaseId}": {
+    "/v1/subscriptions/{subscriptionId}": {
       "get": {
         "operationId": "getLease",
         "summary": "Read lease, chain and safe mail status; no forwarding destination",
@@ -1748,7 +2114,7 @@
         ],
         "parameters": [
           {
-            "name": "leaseId",
+            "name": "subscriptionId",
             "in": "path",
             "required": true,
             "schema": {
@@ -1777,7 +2143,7 @@
             }
           },
           "400": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1795,7 +2161,7 @@
             }
           },
           "401": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1813,7 +2179,7 @@
             }
           },
           "403": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1831,7 +2197,7 @@
             }
           },
           "404": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1849,7 +2215,7 @@
             }
           },
           "409": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1867,7 +2233,7 @@
             }
           },
           "410": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1885,7 +2251,7 @@
             }
           },
           "422": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1903,7 +2269,7 @@
             }
           },
           "429": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1921,7 +2287,7 @@
             }
           },
           "503": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1941,7 +2307,7 @@
         }
       }
     },
-    "/v1/leases/{leaseId}/mail-approval": {
+    "/v1/subscriptions/{subscriptionId}/mail-approval": {
       "post": {
         "operationId": "requestMailApproval",
         "summary": "Request human mail.enable approval",
@@ -1952,7 +2318,7 @@
         ],
         "parameters": [
           {
-            "name": "leaseId",
+            "name": "subscriptionId",
             "in": "path",
             "required": true,
             "schema": {
@@ -2009,7 +2375,7 @@
             }
           },
           "400": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2027,7 +2393,7 @@
             }
           },
           "401": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2045,7 +2411,7 @@
             }
           },
           "403": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2063,7 +2429,7 @@
             }
           },
           "404": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2081,7 +2447,7 @@
             }
           },
           "409": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2099,7 +2465,7 @@
             }
           },
           "410": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2117,7 +2483,7 @@
             }
           },
           "422": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2135,7 +2501,7 @@
             }
           },
           "429": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2153,7 +2519,7 @@
             }
           },
           "503": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2224,7 +2590,7 @@
             }
           },
           "400": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2242,7 +2608,7 @@
             }
           },
           "401": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2260,7 +2626,7 @@
             }
           },
           "403": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2278,7 +2644,7 @@
             }
           },
           "404": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2296,7 +2662,7 @@
             }
           },
           "409": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2314,7 +2680,7 @@
             }
           },
           "410": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2332,7 +2698,7 @@
             }
           },
           "422": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2350,7 +2716,7 @@
             }
           },
           "429": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2368,7 +2734,7 @@
             }
           },
           "503": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2440,7 +2806,7 @@
             }
           },
           "400": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2458,7 +2824,7 @@
             }
           },
           "401": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2476,7 +2842,7 @@
             }
           },
           "403": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2494,7 +2860,7 @@
             }
           },
           "404": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2512,7 +2878,7 @@
             }
           },
           "409": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2530,7 +2896,7 @@
             }
           },
           "410": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2548,7 +2914,7 @@
             }
           },
           "422": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2566,7 +2932,7 @@
             }
           },
           "429": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2584,7 +2950,7 @@
             }
           },
           "503": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2654,7 +3020,7 @@
             }
           },
           "400": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2672,7 +3038,7 @@
             }
           },
           "401": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2690,7 +3056,7 @@
             }
           },
           "403": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2708,7 +3074,7 @@
             }
           },
           "404": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2726,7 +3092,7 @@
             }
           },
           "409": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2744,7 +3110,7 @@
             }
           },
           "410": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2762,7 +3128,7 @@
             }
           },
           "422": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2780,7 +3146,7 @@
             }
           },
           "429": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2798,7 +3164,7 @@
             }
           },
           "503": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2859,7 +3225,7 @@
             }
           },
           "400": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2877,7 +3243,7 @@
             }
           },
           "401": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2895,7 +3261,7 @@
             }
           },
           "403": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2913,7 +3279,7 @@
             }
           },
           "404": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2931,7 +3297,7 @@
             }
           },
           "409": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2949,7 +3315,7 @@
             }
           },
           "410": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2967,7 +3333,7 @@
             }
           },
           "422": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2985,7 +3351,7 @@
             }
           },
           "429": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3003,7 +3369,7 @@
             }
           },
           "503": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3077,7 +3443,7 @@
             }
           },
           "400": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3087,7 +3453,7 @@
             }
           },
           "403": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3097,7 +3463,7 @@
             }
           },
           "410": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3107,7 +3473,7 @@
             }
           },
           "503": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3160,7 +3526,7 @@
             }
           },
           "400": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3178,7 +3544,7 @@
             }
           },
           "401": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3196,7 +3562,7 @@
             }
           },
           "403": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3214,7 +3580,7 @@
             }
           },
           "404": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3232,7 +3598,7 @@
             }
           },
           "409": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3250,7 +3616,7 @@
             }
           },
           "410": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3268,7 +3634,7 @@
             }
           },
           "422": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3286,7 +3652,7 @@
             }
           },
           "429": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3304,7 +3670,7 @@
             }
           },
           "503": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3335,7 +3701,7 @@
         "description": "Require owner proof, matching World binding/candidate, fresh auth_time, action hash, active lease/version and unexpired approval. Bind and apply atomically."
       }
     },
-    "/v1/leases/{leaseId}/mail-profile": {
+    "/v1/subscriptions/{subscriptionId}/mail-profile": {
       "get": {
         "operationId": "getHumanMailProfile",
         "summary": "Read own mail settings and decrypted address",
@@ -3346,7 +3712,7 @@
         ],
         "parameters": [
           {
-            "name": "leaseId",
+            "name": "subscriptionId",
             "in": "path",
             "required": true,
             "schema": {
@@ -3375,7 +3741,7 @@
             }
           },
           "400": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3393,7 +3759,7 @@
             }
           },
           "401": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3411,7 +3777,7 @@
             }
           },
           "403": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3429,7 +3795,7 @@
             }
           },
           "404": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3447,7 +3813,7 @@
             }
           },
           "409": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3465,7 +3831,7 @@
             }
           },
           "410": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3483,7 +3849,7 @@
             }
           },
           "422": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3501,7 +3867,7 @@
             }
           },
           "429": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3519,7 +3885,7 @@
             }
           },
           "503": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3540,7 +3906,7 @@
         "description": "Requires owning-wallet proof and matching World human binding. Agent bearer is not accepted. Address read requires an active enabled grant."
       }
     },
-    "/v1/leases/{leaseId}/mail-destination": {
+    "/v1/subscriptions/{subscriptionId}/mail-destination": {
       "put": {
         "operationId": "saveMailDestination",
         "summary": "Save human-entered destination; does not dispatch mail",
@@ -3552,7 +3918,7 @@
         ],
         "parameters": [
           {
-            "name": "leaseId",
+            "name": "subscriptionId",
             "in": "path",
             "required": true,
             "schema": {
@@ -3581,7 +3947,7 @@
             }
           },
           "400": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3599,7 +3965,7 @@
             }
           },
           "401": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3617,7 +3983,7 @@
             }
           },
           "403": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3635,7 +4001,7 @@
             }
           },
           "404": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3653,7 +4019,7 @@
             }
           },
           "409": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3671,7 +4037,7 @@
             }
           },
           "410": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3689,7 +4055,7 @@
             }
           },
           "422": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3707,7 +4073,7 @@
             }
           },
           "429": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3725,7 +4091,7 @@
             }
           },
           "503": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3756,7 +4122,7 @@
         "description": "Require owning wallet and matching World binding, active lease, enabled grant, CSRF and expectedVersion. Prefecture must match a Japanese prefecture allowlist."
       }
     },
-    "/v1/leases/{leaseId}/mail-disable": {
+    "/v1/subscriptions/{subscriptionId}/mail-disable": {
       "post": {
         "operationId": "disableMail",
         "summary": "Revoke mail setting grant",
@@ -3768,7 +4134,7 @@
         ],
         "parameters": [
           {
-            "name": "leaseId",
+            "name": "subscriptionId",
             "in": "path",
             "required": true,
             "schema": {
@@ -3797,7 +4163,7 @@
             }
           },
           "400": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3815,7 +4181,7 @@
             }
           },
           "401": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3833,7 +4199,7 @@
             }
           },
           "403": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3851,7 +4217,7 @@
             }
           },
           "404": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3869,7 +4235,7 @@
             }
           },
           "409": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3887,7 +4253,7 @@
             }
           },
           "410": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3905,7 +4271,7 @@
             }
           },
           "422": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3923,7 +4289,7 @@
             }
           },
           "429": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3941,7 +4307,7 @@
             }
           },
           "503": {
-            "description": "Request rejected. See error.code and traceId.",
+            "description": "Request rejected. See error and traceId.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4009,7 +4375,7 @@
             }
           },
           "400": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4026,7 +4392,7 @@
             }
           },
           "401": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4043,7 +4409,7 @@
             }
           },
           "403": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4060,7 +4426,7 @@
             }
           },
           "404": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4077,7 +4443,7 @@
             }
           },
           "409": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4094,7 +4460,7 @@
             }
           },
           "410": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4111,7 +4477,7 @@
             }
           },
           "422": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4128,7 +4494,7 @@
             }
           },
           "429": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4145,7 +4511,7 @@
             }
           },
           "503": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4164,7 +4530,7 @@
         }
       }
     },
-    "/v1/leases/by-ens": {
+    "/v1/subscriptions/by-ens": {
       "get": {
         "operationId": "getLeaseByEns",
         "summary": "Resolve ENSv2 and return the authenticated owner agent lease",
@@ -4205,7 +4571,7 @@
             }
           },
           "400": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4222,7 +4588,7 @@
             }
           },
           "401": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4239,7 +4605,7 @@
             }
           },
           "403": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4256,7 +4622,7 @@
             }
           },
           "404": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4273,7 +4639,7 @@
             }
           },
           "409": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4290,7 +4656,7 @@
             }
           },
           "410": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4307,7 +4673,7 @@
             }
           },
           "422": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4324,7 +4690,7 @@
             }
           },
           "429": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4341,7 +4707,7 @@
             }
           },
           "503": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4360,7 +4726,7 @@
         }
       }
     },
-    "/v1/leases/{leaseId}/ens": {
+    "/v1/subscriptions/{subscriptionId}/ens": {
       "get": {
         "operationId": "getLeaseEnsStatus",
         "summary": "Read owned lease ENS publishing status",
@@ -4371,7 +4737,7 @@
         ],
         "parameters": [
           {
-            "name": "leaseId",
+            "name": "subscriptionId",
             "in": "path",
             "required": true,
             "schema": {
@@ -4399,7 +4765,7 @@
             }
           },
           "400": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4416,7 +4782,7 @@
             }
           },
           "401": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4433,7 +4799,7 @@
             }
           },
           "403": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4450,7 +4816,7 @@
             }
           },
           "404": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4467,7 +4833,7 @@
             }
           },
           "409": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4484,7 +4850,7 @@
             }
           },
           "410": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4501,7 +4867,7 @@
             }
           },
           "422": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4518,7 +4884,7 @@
             }
           },
           "429": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4535,7 +4901,7 @@
             }
           },
           "503": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4554,7 +4920,7 @@
         }
       }
     },
-    "/v1/leases/{leaseId}/ens-description-transaction": {
+    "/v1/subscriptions/{subscriptionId}/ens-description-transaction": {
       "post": {
         "operationId": "prepareEnsDescriptionTransaction",
         "summary": "Prepare a constrained unsigned transaction; does not submit or confirm changes",
@@ -4565,7 +4931,7 @@
         ],
         "parameters": [
           {
-            "name": "leaseId",
+            "name": "subscriptionId",
             "in": "path",
             "required": true,
             "schema": {
@@ -4613,7 +4979,7 @@
             }
           },
           "400": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4630,7 +4996,7 @@
             }
           },
           "401": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4647,7 +5013,7 @@
             }
           },
           "403": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4664,7 +5030,7 @@
             }
           },
           "404": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4681,7 +5047,7 @@
             }
           },
           "409": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4698,7 +5064,7 @@
             }
           },
           "410": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4715,7 +5081,7 @@
             }
           },
           "422": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4732,7 +5098,7 @@
             }
           },
           "429": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4749,7 +5115,7 @@
             }
           },
           "503": {
-            "description": "Rejected or unavailable; inspect error.code.",
+            "description": "Rejected or unavailable; inspect error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4795,36 +5161,29 @@
         "additionalProperties": false,
         "properties": {
           "error": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "code": {
-                "type": "string"
-              },
-              "message": {
-                "type": "string"
-              },
-              "retryable": {
-                "type": "boolean"
-              },
-              "traceId": {
-                "type": "string"
-              },
-              "resourceId": {
-                "type": "string",
-                "format": "uuid"
-              }
-            },
-            "required": [
-              "code",
-              "message",
-              "retryable",
-              "traceId"
-            ]
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$",
+            "description": "Stable machine-readable error code."
+          },
+          "message": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "traceId": {
+            "type": "string"
+          },
+          "resourceId": {
+            "type": "string",
+            "format": "uuid"
           }
         },
         "required": [
-          "error"
+          "error",
+          "message",
+          "retryable",
+          "traceId"
         ]
       },
       "Empty": {
@@ -4956,10 +5315,6 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
           "label": {
             "type": "string"
           },
@@ -4970,6 +5325,10 @@
           },
           "plan": {
             "$ref": "#/components/schemas/Plan"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
           }
         },
         "required": [
@@ -4983,21 +5342,21 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Building"
-            }
-          },
           "nextCursor": {
             "type": [
               "string",
               "null"
             ]
+          },
+          "locations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Building"
+            }
           }
         },
         "required": [
-          "items",
+          "locations",
           "nextCursor"
         ]
       },
@@ -5007,16 +5366,22 @@
         "properties": {
           "kind": {
             "const": "purchase",
-            "type": "string"
+            "type": "string",
+            "default": "purchase"
           },
-          "buildingId": {
+          "locationId": {
             "type": "string",
             "format": "uuid"
+          },
+          "floor": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535,
+            "description": "Optional virtual slot. Omission requests atomic server allocation."
           }
         },
         "required": [
-          "kind",
-          "buildingId"
+          "locationId"
         ]
       },
       "RenewalOrder": {
@@ -5027,14 +5392,14 @@
             "const": "renew",
             "type": "string"
           },
-          "leaseId": {
+          "subscriptionId": {
             "type": "string",
             "format": "uuid"
           }
         },
         "required": [
           "kind",
-          "leaseId"
+          "subscriptionId"
         ]
       },
       "LeaseOrderRequest": {
@@ -5151,10 +5516,6 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
           "kind": {
             "type": "string",
             "enum": [
@@ -5176,7 +5537,7 @@
               "blocked"
             ]
           },
-          "leaseId": {
+          "subscriptionId": {
             "type": "string",
             "format": "uuid"
           },
@@ -5207,6 +5568,28 @@
           },
           "receipt": {
             "$ref": "#/components/schemas/PaymentReceipt"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "floor": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535,
+            "description": "Virtual service slot, never a physical building floor."
+          },
+          "payPath": {
+            "type": "string",
+            "pattern": "^/v1/payment-intents/[0-9a-fA-F-]+/pay$"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
           }
         },
         "required": [
@@ -5218,14 +5601,18 @@
           "asset",
           "payTo",
           "expiresAt",
-          "riskAssessments"
+          "riskAssessments",
+          "locationId",
+          "floor",
+          "payPath",
+          "createdAt"
         ]
       },
       "Pending": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "orderId": {
+          "intentId": {
             "type": "string",
             "format": "uuid"
           },
@@ -5245,7 +5632,7 @@
           }
         },
         "required": [
-          "orderId",
+          "intentId",
           "status",
           "pollUrl",
           "retryAfterSeconds"
@@ -5255,7 +5642,7 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "orderId": {
+          "intentId": {
             "type": "string",
             "format": "uuid"
           },
@@ -5263,7 +5650,7 @@
             "type": "string",
             "const": "fulfilled"
           },
-          "leaseId": {
+          "subscriptionId": {
             "type": "string",
             "format": "uuid"
           },
@@ -5272,9 +5659,9 @@
           }
         },
         "required": [
-          "orderId",
+          "intentId",
           "status",
-          "leaseId",
+          "subscriptionId",
           "receipt"
         ]
       },
@@ -5350,15 +5737,11 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "id": {
+          "locationId": {
             "type": "string",
             "format": "uuid"
           },
-          "buildingId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "slotNumber": {
+          "floor": {
             "type": "integer",
             "minimum": 1,
             "maximum": 65535
@@ -5395,12 +5778,16 @@
           },
           "ens": {
             "$ref": "#/components/schemas/EnsStatus"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
           }
         },
         "required": [
           "id",
-          "buildingId",
-          "slotNumber",
+          "locationId",
+          "floor",
           "displayAddress",
           "status",
           "startsAt",
@@ -5415,21 +5802,21 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Lease"
-            }
-          },
           "nextCursor": {
             "type": [
               "string",
               "null"
             ]
+          },
+          "subscriptions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Lease"
+            }
           }
         },
         "required": [
-          "items",
+          "subscriptions",
           "nextCursor"
         ]
       },
@@ -5483,7 +5870,7 @@
             "type": "string",
             "format": "uuid"
           },
-          "leaseId": {
+          "subscriptionId": {
             "type": "string",
             "format": "uuid"
           },
@@ -5524,7 +5911,7 @@
         },
         "required": [
           "id",
-          "leaseId",
+          "subscriptionId",
           "agentId",
           "action",
           "actionHash",
@@ -5691,7 +6078,7 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "leaseId": {
+          "subscriptionId": {
             "type": "string",
             "format": "uuid"
           },
@@ -5714,7 +6101,7 @@
           }
         },
         "required": [
-          "leaseId",
+          "subscriptionId",
           "version",
           "mail",
           "destination"
@@ -5930,6 +6317,76 @@
           "key",
           "expiresAt",
           "maxGasAtomic"
+        ]
+      },
+      "Health": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "const": "ok",
+            "type": "string"
+          },
+          "mode": {
+            "const": "api",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "mode"
+        ]
+      },
+      "OpenApiDocument": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "Published OpenAPI 3.1 document."
+      },
+      "FloorAvailability": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "floor": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535,
+            "description": "Virtual service slot, not a physical floor."
+          },
+          "available": {
+            "type": "boolean",
+            "description": "Current bitmap snapshot; payment intent reservation remains authoritative."
+          }
+        },
+        "required": [
+          "locationId",
+          "floor",
+          "available"
+        ]
+      },
+      "PaymentIntents": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "paymentIntents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Order"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "paymentIntents",
+          "nextCursor"
         ]
       }
     }

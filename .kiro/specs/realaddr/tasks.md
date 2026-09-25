@@ -1,6 +1,6 @@
 # 実装タスク
 
-すべて未実装。チェックは対応テストの実行証跡を残してから付ける。順序は依存関係順。コマンドは実装すべきインターフェースであり、現在利用可能と主張するものではない。
+すべて未実装。チェックは実装内容に対応する最小ゲートの実行証跡を残してから付ける。A-01〜A-49は追跡用シナリオであり全件実行・自動化はタスク完了条件ではない。追加検証は未実行と記録する。順序は依存関係順。コマンドは実装すべきインターフェースであり、現在利用可能と主張するものではない。最小ゲートは`docs/acceptance.md`を参照。
 
 - [ ] T-00 外部連携の最小疎通と設定確定
   - World discovery/portal client/HTTPS callback/fresh認証、Intercepta liveレスポンス/危険アドレス、x402 facilitator/asset/finality、MultiBaas Sepolia権限、ENSv2公式deployment/ABI/SDK・親名の制御・gasを確認。
@@ -8,32 +8,32 @@
   - 成果: `docs/implementation-status.md`、秘密を除いた設定表、version/ADR。対応: R-04/R-06/R-08/R-11、A-20〜A-23/A-27。
 - [ ] T-01 ワークスペースと実行基盤
   - React/Vite/Fastify/HTTP worker/Firestore Emulator、pnpm、strict TS、CI、schemaVersion/index管理、env validation、secretのない.env.exampleを作る。
-  - `pnpm dev`, `pnpm build`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:integration`, `pnpm test:e2e`, `pnpm test:live`, `pnpm agent`を実装・READMEへ実コマンド記載。
+  - `pnpm dev`, `pnpm build`, `pnpm typecheck`, `pnpm agent`を実装し、変更箇所の重点チェックを実行できる最小の`pnpm test`を用意する。専用のlint/integration/e2e/liveコマンドは実際に必要な時に追加し、READMEへ実装済みのコマンドのみ記載。
   - 成果: clean cloneから起動、health/readiness、単一HTTPS origin。対応: R-10/A-18。
 - [ ] T-02 ドメイン/DB/Agent認証/区画
   - 依存: T-01。全collection/guard/index/repository、wallet challenge、Bearer hash管理、tenant認可、冪等store。
-  - 64shard bitmapと必要時のslot作成、並行予約、期限/状態遷移、reserve quota/日次予算を実装。65,535 documentをseedしない。
-  - テスト: A-01〜A-04、A-17/A-37/A-38。R-01/R-02/R-15。
+  - 64shard bitmapと必要時のslot作成、floor指定時の対象区画予約・省略時の自動割当、並行予約、期限/状態遷移、reserve quota/日次予算を実装。65,535 documentをseedしない。
+  - 最小確認: slot境界、同一区画の競合予約、他tenant拒否をDBで確認。A-01〜A-04、A-17/A-37/A-38は追加検証の参照。R-01/R-02/R-15。
 - [ ] T-03 World backendと人間session
   - 依存: T-00 World、T-02。owner challenge/署名、OIDC code+PKCE、JWKS検証、freshness、candidate binding、明示同意を実装。
   - CSRF、state再送、callback失敗、別World本人を拒否。OIDC成功のみではMailProfileを変えない。
-  - テスト: A-10〜A-14、A-21。R-05/R-06。
+  - 最小確認: 正しいowner/World/同意で承認し、別人または同意なしでは拒否。A-10〜A-14/A-21は追加検証の参照。R-05/R-06。
 - [ ] T-04 Intercepta policy adapterと署名器
   - 依存: T-00 Intercepta、T-02。実レスポンスに対応した正規化、allow/deny/hold、buyer/payTo・seller/payer判定、金額/asset/chain/domain制約、予算ledgerを実装。
   - 不明enumはhold、mainnet coverageを明示。ライブ理由の画面表示。
-  - テスト: A-07〜A-09、A-20。R-04。
+  - 最小確認: 実allow/denyで署名・決済の可否を確認し、未知判定はhold。A-07〜A-09/A-20は追加検証の参照。R-04。
 - [ ] T-05 x402注文/実決済/照合
   - 依存: T-00 facilitator、T-02、T-04。402 v2、固定価格、verify/screen/settle順、receipt確認、exactly-once相当の業務冪等性を実装。
   - 不明結果を永続化し照合、二重settle防止、更新、返金追跡。middlewareの配信順に依存しない。
-  - テスト: A-05/A-06/A-19/A-22。R-03。
+  - 最小確認: 実決済一件、同じ要求の再送、結果不明時の照合とslot保持。A-05/A-06/A-19/A-22は追加検証の参照。R-03。
 - [ ] T-06 郵便転送設定の最小機能
   - 依存: T-03、T-05。mail.enable承認URL、apply一回、enabled表示、人間専用フォーム、国内住所validation、暗号化、version競合、取消。
   - 実郵便処理・送料・配送APIは作らない。Agentはenabled/destinationConfiguredのみ参照。
-  - テスト: A-10〜A-16。R-06/R-07。
+  - 最小確認: 人間の承認・宛先保存/再読込、Agentまたは別人の全文取得/書込拒否。A-10〜A-16は追加検証の参照。R-06/R-07。
 - [ ] T-07 LeaseRegistryとMultiBaas
   - 依存: T-00 MultiBaas、T-02。role/slot/version/非譲渡registry、Foundryテスト、Sepolia deploy、MultiBaas ABI/read/write/events、outbox/reorg回復。
   - 宛先/World subjectなどPIIをchainへ出さない。
-  - テスト: A-23/A-24。R-08。
+  - 最小確認: 実write/readの一致と無権限変更の拒否。A-23/A-24は追加検証の参照。R-08。
 - [ ] T-12 ENSv2 namespaceと契約別Resolver
   - 依存: T-00 ENS、T-01、T-07。親ENS名取得、UserRegistry deploy/親への接続、契約ごとのResolverをfactory生成。
   - role bitmapを固定し、顧客descriptionだけの委任とtransfer/契約record変更拒否を実コントラクトで確認。
@@ -48,28 +48,38 @@
   - 対応: R-12/R-14、A-28/A-29/A-35/A-36。
 - [ ] T-08 UIと共通CLI
   - 依存: T-03〜T-07、T-14。ダッシュボード、risk理由、World承認ページ、住所フォーム、JSON CLI/exit code/poll/再開、ENS名と検証状態を接続する。
-  - 実API/DBから表示。pending/errorを成功に見せない。
-  - テスト: A-15/A-16/A-25。R-09。
+  - 実API/DBから表示。pending/errorを成功に見せない。公開HTTPはlocations/payment-intents/subscriptionsとflatなerror形式を使い、内部モデルとの変換をAPI境界へ集約する。
+  - 最小確認: 実APIの表示と共通CLIの状態取得。A-15/A-16/A-25は追加検証の参照。R-09。
+- [ ] T-18 管理画面と運用者API
+  - 依存: T-02、T-05、T-07、T-13。docs/admin.mdと管理OpenAPIに従いGoogle OIDC/allowlist、独立session、管理の一覧/詳細、拠点管理、安全な再照合要求、監査を実装する。
+  - docs/frontend.mdの標準SaaS部品を共有する。管理者によるWorld承認代行、宛先全文取得、手動paid上書きを許可しない。
+  - 最小確認: 管理ログインとAgent/未認証拒否、拠点の受付停止または再照合要求1件の監査。対応: R-16/R-17、A-45/A-46。
+- [ ] T-19 公開HTML・AEO・画面統一
+  - 依存: T-01、T-08。docs/frontend.mdとdocs/aeo.mdに従い/・/developers・/faqの初期HTML、metadata/JSON-LD、robots/sitemap/llms、OpenAPI導線を共通公開設定から生成する。
+  - 公開originはhttps://address.chain.tokyo。公開/利用者/承認/adminで白/薄灰/青のSaaS UIを共有し、私的データをpublic HTMLへ含めない。SPA fallbackは既知routeだけ。
+  - 最小確認: 狭い/広い画面を1回確認し、no-JS GETの本文と発見用ファイル、private noindex/no-storeを確認。ドメイン到達はT-16完了後。対応: R-17/R-18、A-47〜A-49。
 - [ ] T-16 GCP基盤とGitHub Actionsデプロイ
   - 依存: T-01、T-02。docs/infrastructure.mdに沿って2つのCloud Run、Firestore、private GCS、Tasks、Scheduler、Secret Manager、Artifact Registry、WIFを定義する。
-  - 同じimage digestをdeploy、rules/index、IAM分離、永続outboxの配信/回復、min=0、retry上限、image/snapshot保持、予算通知を設定。
-  - `pnpm test:infra`とbootstrap/deploy手順を実装し、OIDC制限と未認証拒否を検証する。T-05/T-07/T-13の外部効果runnerをrequest駆動へ接続する。
-  - 対応: R-15、A-39〜A-41/A-43。
+  - `infra/bootstrap`と`infra/app`の2 rootを用意し、state専用bucketと業務bucketを分離する。既存`(default)` DB/予算は確認・import後に管理し、secret値をTerraform stateへ入れない。初回bootstrap stateの移行は手動手順を作り、実施結果を別途記録する。
+  - TerraformはCloud Run設定/IAMを所有し、通常deployだけがimage digestを更新する。対象image属性に限定したdrift除外を検証し、同じdigestを2サービスへ順次deploy、失敗時の片側復旧と旧digest rollbackを実装する。rules/index、IAM分離、永続outboxの配信/回復、min=0、retry上限、image/snapshot保持、予算通知も設定。
+  - PR CIはGCP認証なしで最小チェック、Terraform変更時だけ対象rootのfmt/validate。保護されたmain手動deployはWIF条件・最小権限・同時実行制御・事前target照合と事後digest/IAM確認を実装する。bootstrap/deploy手順を記録し、提出用環境のmin=0復帰と未認証拒否を代表操作で確認する。専用`pnpm test:infra`は必要になった時に追加する。T-05/T-07/T-13の外部効果runnerをrequest駆動へ接続する。
+  - 公開origin・World/admin callbackはaddress.chain.tokyoへ統一し、ユーザーへ必要なDNS/TLS接続情報を提示する。設定自体はユーザー担当。
+  - 対応: R-15/R-18、A-39〜A-41/A-43/A-49。
 - [ ] T-09 復旧/機密/公開環境
-  - 依存: T-05〜T-08、T-16。環境分離、HTTPS、書込停止snapshot/Emulator restore、再起動、失敗注入、rate limit、ログredaction、origin allowlist。
-  - テスト: A-17〜A-19/A-26。R-10。
+  - 依存: T-05〜T-08、T-16、T-18、T-19。環境分離、HTTPS、代表的な停止・再起動、rate limit、ログredaction、origin allowlist。完全なsnapshot/Emulator restoreと失敗注入マトリクスは追加検証。
+  - 最小確認: 永続状態・未完了jobの再開、ログ/公開応答に秘密・宛先全文がないこと。A-17〜A-19/A-26は追加検証の参照。R-10。
 - [ ] T-15 ENSv2実接続の縦断検証
-  - 依存: T-09。Sepolia実名の発行→公式解決→住所取得、許可description更新/禁止key拒否、失効時拒否を確認。
-  - 3ツールで名前から住所契約へ到達し、公開動画・gas・latency・失敗証跡を保存する。
-  - 対応: R-11〜R-14、A-27〜A-36。ベータ未接続を成功扱いしない。
+  - 依存: T-09。Sepolia実名の発行→公式解決→住所取得を確認し、禁止key拒否または失効時拒否を代表的な失敗経路として示す。残りの組合せは追加検証。
+  - 代表ツールで名前から住所契約へ到達し、他の2ツールは共通CLIの認証・状態取得・ENS照合を疎通する。公開動画・gas・代表的な失敗証跡を保存する。
+  - 対応: R-11〜R-14、A-27〜A-36は追加検証の参照。ベータ未接続を成功扱いしない。
 - [ ] T-17 使用量・Firestore実環境・復旧検証
-  - 依存: T-09。小規模live Firestoreで競合/guard、Tasks再配信、scale-to-zero復帰を確認。Emulator結果だけで実環境合格としない。
-  - 使用量目標、定期処理分、外向き通信、secret/image容量を計測し、無料枠残と実請求を記録。snapshot復元/日次予算到達を試験する。
+  - 依存: T-09。Emulatorで代表的な競合/guardを確認し、提出用GCP環境でscale-to-zero復帰と未認証拒否を確認する。Tasks再配信の網羅は追加検証。
+  - 使用region、min=0、予算通知と観測できた使用量・請求を記録する。snapshot復元/日次予算到達、費用・性能の全測定は追加検証。
   - 対応: R-10/R-15、A-37〜A-44。
 - [ ] T-10 3ツール横断とスポンサーlive検証
-  - 依存: T-09、T-15、T-17。Codex/Claude Code/Kiro各々で購入→URL提示→人間承認/住所保存→Agent状態確認。
+  - 依存: T-09、T-15、T-17。Codex/Claude Code/Kiroの代表する1ツールで購入→URL提示→人間承認/住所保存→Agent状態確認。他の2ツールは同じCLIの認証・状態取得・ENS照合を疎通。
   - live Intercepta成功/拒否、World成功/拒否、x402 tx、MultiBaas query、ENSv2登録/解決を証跡化。未接続・テスト未実行をチェック済みにしない。
-  - テスト: A-20〜A-36。
+  - 最小確認: 一つの実接続縦断フローと代表的なdeny/拒否。A-20〜A-36は追加検証の参照。
 - [ ] T-11 提出パッケージ
   - 依存: T-10。公開リポジトリ、README起動手順、team/SNS、デモ動画、chain/contract URL、統合コードへのリンク、実測feedback。
   - 賞の最新条件を再確認。録画とliveの別、sandbox proof、郵便設定のみであることを明示。

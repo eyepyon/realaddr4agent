@@ -25,7 +25,7 @@ T-00ではこのmetadataを再取得し差分を記録する。providerの広告
 
 ### 採用方式
 
-confidential backendのAuthorization Code + PKCE S256。scopeはopenid。callbackは`https://<service-host>/auth/world/callback`をportalへ完全一致登録。HTTP localhostが使えると仮定せず、開発用HTTPS originを用意する。
+confidential backendのAuthorization Code + PKCE S256。scopeはopenid。callbackは`https://address.chain.tokyo/auth/world/callback`をportalへ完全一致登録。HTTP localhostが使えると仮定せず、開発用HTTPS originを用意する。
 
 1. backendがapproval/sessionに一回限りのstateとnonceを保存する。PKCE verifierはbackendのみ。
 2. providerへclient_id、redirect_uri、response_type=code、scope=openid、state、nonce、code_challenge、code_challenge_method=S256、prompt=login、max_age=0を送る。

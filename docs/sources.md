@@ -83,3 +83,12 @@ Interceptaの認証付きレスポンスschemaや既知危険アドレスの当�
 - [予算と通知](https://docs.cloud.google.com/billing/docs/how-to/budgets): alerts-only予算は強制的な利用上限ではない。
 
 確認日2026-09-25。公開資料に基づく仕様であり、GCPリソース作成・負荷試験・請求実測は未実施。具体的な構成と使用量目標は[infrastructure.md](infrastructure.md)に記載。
+
+## 公開HTML・AEO
+
+- [Google JavaScript SEO](https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics): 公開HTMLの初期本文と事前生成。
+- [Google noindex](https://developers.google.com/search/docs/crawling-indexing/block-indexing): robotsの遮断とnoindexの関係。アクセス認可は別途必要。
+- [Google structured data policies](https://developers.google.com/search/docs/appearance/structured-data/sd-policies): 可視本文と構造化データの一致。検索表示を保証しない。
+- [RFC 9727 API Catalog](https://www.rfc-editor.org/rfc/rfc9727.html): 追加候補の機械可読API案内。今回必須のllms/OpenAPI案内とは別。
+
+確認日2026-09-26。公開仕様を確認した設計であり、ドメイン設定・検索取得・AIによる引用は未検証。

@@ -131,10 +131,12 @@ Resolverの`realaddr.api`やagent記述は未信頼入力として扱う。任�
 ## 10. APIとCLI
 
 - `GET /v1/ens/resolve?name=...`: public、rate limited。binding検証結果と契約参照のみ。営業所住所・転送先・World情報・内部lease UUIDは返さない。
-- `GET /v1/leases/by-ens?name=...`: Agent認証。上記検証後、所有者が一致した場合だけ既存Lease response（契約した営業所住所付き）を返す。他者は404。
-- `GET /v1/leases/{leaseId}/ens`: owner Agent。発行/同期状態を取得。
-- `POST /v1/leases/{leaseId}/ens-description-transaction`: owner Agentが更新する説明文の**unsigned transaction**を準備するendpointとし、HTTP保存で成功扱いしない。bodyと冪等キーに対応するto/data/chainIdを返す。Agentの専用署名器がSepoliaで署名・送信し、receiptとread-back後にCLIが完了報告する。
-- CLI: `ens status --lease`、`ens resolve --name`、`lease status --name`、`ens describe --lease --text`。transfer/update権限は実コントラクトで検査する。
+- `GET /v1/subscriptions/by-ens?name=...`: Agent認証。上記検証後、所有者が一致した場合だけ既存Subscription response（契約した営業所住所付き）を返す。他者は404。
+- `GET /v1/subscriptions/{subscriptionId}/ens`: owner Agent。発行/同期状態を取得。
+- `POST /v1/subscriptions/{subscriptionId}/ens-description-transaction`: owner Agentが更新する説明文の**unsigned transaction**を準備するendpointとし、HTTP保存で成功扱いしない。bodyと冪等キーに対応するto/data/chainIdを返す。Agentの専用署名器がSepoliaで署名・送信し、receiptとread-back後にCLIが完了報告する。
+
+HTTPの`subscriptionId`は内部`leaseId`と同じUUID。ENS binding、controller、actionHashで参照する内部leaseKey/leaseIdと混同しない。公開resolve応答に内部UUIDを含めない。
+- CLI: `ens status --subscription`、`ens resolve --name`、`lease status --name`、`ens describe --subscription --text`。transfer/update権限は実コントラクトで検査する。
 
 description用のtxは代金の支払いではなく、テストETH gasのみ。送信先resolver、function、DNS name、key=description、文字数、gas上限を署名器が固定検査する。x402支出上限を無効にしてgeneric arbitrary txを許可しない。
 
@@ -146,4 +148,4 @@ description用のtxは代金の支払いではなく、テストETH gasのみ。
 
 ## 12. 実装前に確定するもの
 
-親名の取得と制御、公式deployment/ABI/commit、viem等の対応version、MultiBaas Sepolia、test ETH、role設定、親resolverのfallback挙動をT-00/T-12で検証する。ベータのinterfaceが変わった場合はpinを更新し、契約テストを再実施する。具体的contract addressや使用可能な親名を推測で埋めない。
+親名の取得と制御、公式deployment/ABI/commit、viem等の対応version、MultiBaas Sepolia、test ETH、role設定、親resolverのfallback挙動をT-00/T-12で検証する。ベータのinterfaceが変わった場合はpinを更新し、影響する登録/解決/権限の代表ケースだけを再確認する。[最小チェック](acceptance.md)を基準にし、変更と無関係な全契約テストは繰り返さない。具体的contract addressや使用可能な親名を推測で埋めない。

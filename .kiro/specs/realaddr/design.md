@@ -4,7 +4,7 @@
 
 ## 1. 構成
 
-TypeScript strict / pnpm workspace。React/Vite静的UI、Fastify API、Firestore Native Standard、request駆動worker。ジョブはFirestore outbox + Cloud Tasks。Solidity + FoundryのLeaseRegistry、viemの署名・receipt処理。T-01で実際に互換性を確認したversionをlockfileへ固定する。
+TypeScript strict / pnpm workspace。公開説明ページはbuild時にHTML生成、保護画面はReact/Vite静的UI、Fastify API、Firestore Native Standard、request駆動worker。ジョブはFirestore outbox + Cloud Tasks。Solidity + FoundryのLeaseRegistry、viemの署名・receipt処理。T-01で実際に互換性を確認したversionをlockfileへ固定する。
 
 UI/APIは同一Cloud Runサービス、workerは非公開の別Cloud Runサービス。ともにrequest-based / min instances=0。UI/APIは同じHTTPS origin。GCS、GitHub Actions、Tasks/Scheduler、Firestore実装詳細は[インフラ仕様](../../../docs/infrastructure.md)を正とする。3ツールの実利用は共通HTTP/JSON CLIで対応し、MCPを必須にしない。
 
@@ -31,7 +31,7 @@ flowchart LR
   NC --> REG
 ```
 
-予定ディレクトリ: apps/web、apps/api、apps/worker、packages/domain、packages/db、packages/integrations/{world,intercepta,x402,multibaas,ens}、packages/agent-cli、contracts、tests/{integration,e2e,live}。
+予定ディレクトリ: apps/web（公開HTMLとapp/adminの共通UI）、apps/api、apps/worker、packages/domain、packages/db、packages/integrations/{world,intercepta,x402,multibaas,ens}、packages/agent-cli、contracts、tests/{integration,e2e,live}。
 
 決済chainはBase Sepolia eip155:84532を第一候補。ENSv2とLeaseRegistryはEthereum Sepolia eip155:11155111に統一する。T-00でfacilitator/assetとMultiBaas Sepolia対応を確認。支払い確認からの記録は事業者backendによる証明で、cross-chain proof/bridgeではない。Worldの利用はWorld Chainへのdeployを前提にしない。
 
@@ -53,10 +53,10 @@ UUID、Firestore Timestamp（APIはUTC ISO 8601）、schemaVersion。金額はAP
 | agents | id, tenantId, walletChain, walletAddress, name, status; wallet identity一意 |
 | api_credentials | id, agentId, secretHash, scopes, expiresAt, revokedAt |
 | wallet_challenges | id, purpose, address, chain, domain, nonce, sessionId?, resourceId?, expiresAt, consumedAt |
-| buildings | id, publicLabel, postalAddress, addressUseEnabled, policyVersion |
+| buildings | id(UUID), slug, publicLabel, publicArea, postalAddress, plan, addressUseEnabled, policyVersion, version, updatedAt |
 | slots | buildingId, slotNumber, state, heldByOrderId, holdExpiresAt; PK(buildingId,slotNumber) |
-| leases | id, tenantId, agentId, ownerWallet, buildingId, slotNumber, status, startsAt, expiresAt, version, chainSyncStatus |
-| orders | id, agentId, kind, leaseId?, slotRef?, bodyHash, amountAtomic, network, asset, payTo, expiresAt, status |
+| leases | id, tenantId, agentId, ownerWallet, buildingId, slotNumber, addressSnapshot, status, startsAt, expiresAt, version, chainSyncStatus |
+| orders | id, agentId, createdAt, addressSnapshot, locationVersion, kind, leaseId?, slotRef?, bodyHash, amountAtomic, network, asset, payTo, expiresAt, status |
 | payments | id, orderId 一意, payer, authorizationNonce, payloadHash, status, txHash, settlementEvidence; 一意(network,asset,payer,nonce) |
 | idempotency_keys | principalId, method, path, key, bodyHash, resourceId, responseSnapshot; composite 一意 |
 | risk_assessments | id, orderId, side, subjectAddress, paymentNetwork, riskNetwork, decision, reasonCodes, responseHash, checkedAt, expiresAt, policyVersion |
@@ -71,20 +71,22 @@ UUID、Firestore Timestamp（APIはUTC ISO 8601）、schemaVersion。金額はAP
 | chain_cursors | chainId, contract, finalizedBlock, blockHash |
 | audit_events | id, actorId, action, resourceId, oldState, newState, traceId, occurredAt, redactedDetails |
 
-すべてのresource参照でtenant/agent/leaseの整合性を検査。slotsとleaseを同一transactionで更新。発行済み(buildingId,slotNumber)は決定的slot documentを残し別leaseに使用不可。renewは同じleaseを更新する。承認はleaseごとに有効なpending/authenticatedを一つとし、approval_headsとversionのtransaction比較で直列化する。uniques、slot_shards、wallet_hold_quotas、rate_limits、daily_purchase_budgets、signer_nonces、chain_submissionsを補助collectionとする。各guardと割当algorithmはインフラ仕様に従う。
+すべてのresource参照でtenant/agent/leaseの整合性を検査。slotsとleaseを同一transactionで更新。発行済み(buildingId,slotNumber)は決定的slot documentを残し別leaseに使用不可。renewは同じleaseを更新する。承認はleaseごとに有効なpending/authenticatedを一つとし、approval_headsとversionのtransaction比較で直列化する。uniques、slot_shards、wallet_hold_quotas、rate_limits、daily_purchase_budgets、signer_nonces、chain_submissionsを補助collectionとする。各guardと割当algorithmはインフラ仕様に従う。管理用にadmin_principals / admin_sessions / admin_oidc_sessions / ops_metricsを追加し、権限・保存項目はadmin.mdに従う。拠点slugは一意guardで固定する。
+
+提供住所とplanはintent作成時にsnapshot化し、支払い確定時はその内容をleaseへ引き継ぐ。現在の拠点編集によって過去のintent/leaseの住所や価格を暗黙に変えない。管理画面の総数は集計時点付きmetrics documentから取得し、業務認可の根拠にしない。
 
 Browser sessionはidle 15分/absolute 60分、owner proofは承認時点で10分以内とする。承認適用時とログイン成功時にsession IDをrotateする。API credentialは初期30日有効、登録/失効操作を監査する。新規challengeはIP単位毎分10件、通常Agent APIは毎分60件、未決済区画holdはwallet単位同時3件を初期上限とし、超過は429。settling/reconcilingも上限へ含め、解放目的で消さない。これらはanti-abuseの補助であり、無料wallet作成によるSybil耐性を保証するものではない。
 
 ## 4. 住所購入
 
 1. ドメイン・chain・nonce・期限・規約versionを含むwallet challengeを検証してAgent bearer発行。既存walletは同じ主体へ戻す。
-2. POST /v1/lease-ordersに冪等キー。Firestore transactionでshard bitmapから空区画を予約し、wallet quota/日次上限/冪等記録/orderを同時作成。価格、30日、asset、payToを固定。
-3. executeは所有者と期限を確認し、payloadなしなら402。まだ契約未発行。
+2. POST /v1/payment-intentsに冪等キー。購入は公開`locationId`と任意の仮想`floor`（1..65535）を受け、未指定なら自動割当する。指定floorが保持・発行済みなら409 / `slot_unavailable`。いずれもFirestore transactionでshard bitmapのbit、slot、wallet quota/日次上限/冪等記録/orderを同時作成する。renewは`kind=renew`と`subscriptionId`を受け同じslotを維持する。価格、30日、asset、payToを固定し、応答に`payPath=/v1/payment-intents/{intentId}/pay`を含める。
+3. payは所有者と期限を確認し、payloadなしなら402。まだ契約未発行。
 4. buyerはInterceptaでpayToをlive判定し、chain/asset/amountと実際のEIP-712全内容を検査。日次予算を原子的に予約して署名。
 5. sellerはSDK verify、payer一致、order一致、nonce一意、期限、slot保持を検査し、payerをlive判定。
 6. Firestore transactionでsettlingへversion比較更新し、payloadを暗号化保存、slot固定、settlement outboxを保存。commit後にtaskをenqueueして202。workerは送金直前の条件を再検査してsettleする。外部通信をtransaction callbackへ入れない。
 7. receipt/Transfer/金額/token/payer/payTo/認可対応と設定finalityを確認。未確定は202。
-8. workerのFirestore transactionでpayment=confirmed、lease=active、slot=leased、mail_profile=disabled、quota解放、日次予約の確定消費、outboxを同時保存。以後の同じexecuteは200。chain記録は非同期。
+8. workerのFirestore transactionでpayment=confirmed、lease=active、slot=leased、mail_profile=disabled、quota解放、日次予約の確定消費、outboxを同時保存。以後の同じpayは200。chain記録は非同期。
 
 DBとchainが一つのtransactionになると仮定しない。住所の配信は支払い確認後のみ。処理受付202と商品配信は区別し、HTTP終了後のメモリ内settleは行わない。
 
@@ -100,18 +102,20 @@ finality前のreorgは保留、確認後のreorg検知はsuspendedと運用通�
 
 ## 5. World承認→フォーム
 
-1. Agentが POST /v1/leases/{id}/mail-approval を実行。scope=mail.enable、固定actionHash、10分期限のApprovalと人間用URLを返す。enabledなら既存profileを返す。
+1. Agentが POST /v1/subscriptions/{subscriptionId}/mail-approval を実行。scope=mail.enable、固定actionHash、10分期限のApprovalと人間用URLを返す。enabledなら既存profileを返す。
 2. 人間が /approve/{approvalId} を開くとanonymous browser sessionを作る。URLだけでは契約の非公開情報を見せない。人間が接続したwalletの署名を検証してownerWallet一致を確認する。challengeはpurpose=mail.owner、approvalId、sessionId、domain、chain、nonce、期限で束縛。
 3. 対象Agent/Lease、権限の意味を表示しWorld認証開始。serverがstate/nonce/PKCEを生成しapprovalとbrowser sessionへ束縛する。
 4. callbackで署名/issuer/audience/nonce/時刻を検証し、prompt=login・max_age=0に対応したfreshnessを確認。auth_timeは開始時刻以降、許容clock skew最大30秒。既存bindingがあれば(iss,sub)一致必須。初回はcandidateとしてsessionへ保存し、まだbindingを作らない。
 5. 人間に「郵便転送設定を有効にする」を再表示。CSRF付きapprove POSTでactionHash、owner proof、World freshness（5分以内）、Approval期限、Lease有効性、policyを再検査する。
 6. 一つのDB transactionで初回binding確定、Approval=applied、MailProfile=enabled、grantExpiresAt=現在のlease.expiresAtにする。World認証だけではenabledにしない。二回目の同一承認は同じ結果を返す。
 7. UIに「郵便転送可」「転送先未登録」と人間用フォームを表示。recipient、郵便番号、都道府県、市区町村、番地、任意建物名を本人が入力する。
-8. PUT /v1/leases/{id}/mail-destination は人間sessionのみ受理。ownerWalletとWorld binding、enabled権限、有効契約、CSRF、expectedVersionを検査して暗号化保存。成功後「転送先登録済み」を表示。実発送・送料決済は発生させない。
+8. PUT /v1/subscriptions/{subscriptionId}/mail-destination は人間sessionのみ受理。ownerWalletとWorld binding、enabled権限、有効契約、CSRF、expectedVersionを検査して暗号化保存。成功後「転送先登録済み」を表示。実発送・送料決済は発生させない。
 9. AgentのGETはstatusとdestinationConfiguredのみ返す。人間のGETだけ転送先を復号。再編集は同じwallet+World認証の新sessionを確立できるよう、別Approvalで同一scopeを再承認する。既存bindingを変えない。
 10. 人間のdisable操作は権限を取り消す。lease期限切れでもenabledを有効として返さない。renew後は再承認が必要。保存済み住所はdisabled中にAgentへ返さず、人間の再承認後のみ表示する。
 
 actionHash=SHA-256(JCS({schemaVersion, action:'mail.enable', leaseId, leaseVersion, agentId, ownerWallet, policyVersion, nonce, expiresAt}))。
+
+HTTP公開語彙は`locationId`=内部`buildingId`、`floor`=内部`slotNumber`、`intentId`=内部`orderId`、`subscriptionId`=内部`leaseId`。公開名称を変更してもactionHashのcanonical payload、Firestore documentとguardの内部IDは変えない。公開Agent APIは`/v1/locations`、`/v1/payment-intents`、`/v1/subscriptions`を用い、共通errorはflatな`{"error":"lower_snake_code","message":"…","retryable":false,"traceId":"…"}`とする。健康確認は`GET /health`、仕様取得は`GET /openapi.json`。どちらも外部接続の成功を示さない。
 
 この承認は宛先フォームの設定権限であり、個々の郵便の転送同意ではない。承認時点に存在しない宛先を承認済みの発送先として扱わない。将来発送を追加する場合は別の宛先・料金・郵便ごとの操作承認を設計する。
 
@@ -153,6 +157,10 @@ webhookは任意。署名が検証できない通知は再照会トリガーの�
 Agent dashboard: 住所/期限、risk/決済履歴、chain同期、転送可/不可、宛先登録有無。Human page: wallet proof → World認証 → 明示承認 → 国内住所フォーム。日本語を基本に審査用英語ラベルを併記。
 
 sandbox proof/testnetと「実際の郵便転送は行いません」を常時明示。pendingを成功に見せない。転送先はモデル出力、普通のログ、chain、Agent responseへ出さない。フォーム入力はplain textとして保存・escapeし、命令やHTMLとして実行しない。
+
+公開サイト・利用者・人間承認・管理画面の構成、視覚仕様、状態表示は[frontend.md](../../../docs/frontend.md)に従う。管理画面は同じwebサービスの/adminで提供するが、別の管理sessionとAPI認可を使用する。[admin.md](../../../docs/admin.md)と[管理API](../../../docs/admin-openapi.json)を正とし、Agent APIの拡張権限として扱わない。
+
+公開originはhttps://address.chain.tokyo。公開HTMLの生成、discovery、構造化データ、noindex/no-storeの境界は[aeo.md](../../../docs/aeo.md)を正とする。公開HTMLに機密データを埋め込まず、既知のapp route以外をSPA成功ページへfallbackしない。
 
 ## 9. ENSv2連携
 

@@ -1,14 +1,28 @@
 # 受入テストと提出デモ
 
-本書は実装後の検証計画。現時点のテスト結果ではない。unit testのmockとevent live証跡を明確に分ける。
+本書は実装後の検証計画。現時点のテスト結果ではない。unit testのmockとevent live証跡を明確に分ける。A-01〜A-49は追跡用のシナリオ一覧であり、ハッカソン提出前に全件を自動化・実行する義務を意味しない。未実行の行を合格と記録しない。
 
-## 必須テスト
+## ハッカソン提出前の最小ゲート
+
+少数の実装に即したチェックを再利用し、実行コマンド、手動操作、公開可能な証跡、未実行範囲を`docs/implementation-status.md`に記録する。コード変更ではbuild/typecheckと変更箇所に関係するチェックを実行する。文書・設定だけの変更は形式検査とdiff確認を行い、動作に影響する場合は対応する重点チェックも行う。提出前に次を確認する。
+
+1. Firestore EmulatorなどのDB統合チェックで、slot境界と同一区画への競合予約、同じ支払いの再送・結果不明時の照合を確認する。一つの確定支払いが複数注文を有効にせず、不明な支払い中のslotを解放・再課金しない（A-01/A-03/A-05/A-06/A-19/A-38の代表例）。100並行・全組合せは不要。
+2. backendの権限チェックで、owner wallet proofとWorldのfresh認証・明示同意を通した場合だけmail.enableと宛先保存を許し、Agent資格情報や別人sessionによる承認・宛先全文取得/書込を拒否する（A-10〜A-16の代表例）。JWTの全改変パターンと全入力境界の網羅は追加検証とする。
+3. 公式環境へつないだ一つの手動縦断フローで、Intercepta allow、Base Sepoliaのx402決済、住所契約、SepoliaのLeaseRegistry/MultiBaas照会、ENSv2登録・公式解決・住所照合、World承認、人間の宛先保存と再読込を確認する（A-20〜A-23/A-27/A-28の代表例）。実Intercepta denyとWorld拒否または取消、ENSの禁止操作または失効照合を代表的な失敗経路として示す。providerごとの生応答と画面表示を照合し、sandbox/testnetを明記する。
+4. 一度停止・再起動して契約、支払い冪等記録、承認状態、宛先、未完了jobが残り、再開後の状態取得ができることを確認する。Cloud Run/Firestoreの実環境を使う場合はmin=0復帰と未認証アクセス拒否も少数の手動チェックで確認する（A-18/A-39〜A-41の代表例）。完全なsnapshot復元訓練は追加検証とする。
+5. 同じCLIをCodex/Claude Code/Kiroから実行し、代表する一つのツールで購入から承認後の状態確認まで通す。他の二つは認証、状態取得、ENS照合の短い疎通でよい（A-25/A-36）。秘密・転送先のログ/公開応答/chainへの露出がないことを代表フローで確認し、`node scripts/check-text-format.mjs`とcommit時の`--staged`検査を維持する。
+
+管理画面・公開サイトの追加分は既存デモの確認にまとめる。管理者ログインと未認証拒否・運用操作1件、公開HTML/discovery/private headerと狭い画面の目視確認だけを追加し、網羅的なUI/検索crawlerテストは行わない。
+
+実接続できない項目はBLOCKEDと記録し、その範囲を提出成功と主張しない。最小ゲート外のシナリオは実装要件を緩めるものではなく、追加の回帰・耐障害性検証として後回しにできる。
+
+## 追加検証シナリオ一覧
 
 | ID | 要件 | Given / When | Then |
 | --- | --- | --- | --- |
-| A-01 | R-01 | slot 0/-1/1/32768/65535/65536/小数 | 1〜65535の整数のみ許可。Firestore repositoryでも拒否 |
+| A-01 | R-01 | APIのfloor（内部slot）に0/-1/1/32768/65535/65536/小数 | 1〜65535の整数のみ許可。Firestore repositoryでも拒否 |
 | A-02 | R-01/R-03 | 100並行購入予約 | 異なる区画、重複契約なし |
-| A-03 | R-01 | 最後の一枠へ同時要求、または全枠消費 | 一件だけreserve、他はSOLD_OUT、課金なし |
+| A-03 | R-01 | 同じfloor指定へ同時要求、最後の一枠、または全枠消費 | 指定区画は一件だけreserve。他はslot_unavailable、全枠消費で自動割当不可はsold_out。別区画への無断変更・課金なし |
 | A-04 | R-02 | 別tenant ID、期限切れBearer、使い回しwallet nonce | 401/404、他者情報なし、session再発行なし |
 | A-05 | R-03 | 無料要求→402→有効payload | 順序通りverify/screen/settle/確認/発行。一契約のみ |
 | A-06 | R-03 | 同キー再送、別キー同payload、同キー別body、応答喪失 | 再課金なし、同契約または409 |
@@ -35,9 +49,9 @@
 
 R-07の合格はフォーム保存と表示まで。現物発送・郵便局APIをテストしない。フォームをモックで成功表示するだけではA-15不合格。
 
-## テスト階層
+## テストの実施方法
 
-unit: policy、canonical hash、address validation、state transition。integration: Firestore Emulatorでrace、決定的ID/guardとversion transaction、rollback、再起動、暗号化、reconciler。小規模live Firestoreでも競合/IAMを確認しEmulatorとの差を記録。contract: Foundryの境界/role/version。E2E: 実API/DBとブラウザ、外部失敗の制御fixture。live: providerへ実接続する別コマンドでA-20〜A-23を通す。
+変更箇所に応じて小さなunit/DB統合/contractチェックを選ぶ。上記の最小ゲートはFirestore Emulatorの代表的な競合・照合、contractの重要な権限境界、実API/DBとブラウザの手動E2E、providerへの実接続で満たせる。専用のunit/integration/E2E/liveフルスイートを毎回構築・実行する必要はない。100並行、JWT全改変、reorg全経路、完全なsnapshot復元、費用と性能の全マトリクスは時間と環境が許す場合の追加検証とする。
 
 live検証の結果はrunId、commit、時刻、環境、chain、公開可能なtx/contract、redacted provider evidenceで記録。自動テストでWorld本人操作を人間になりすまして代行しない。UIを人間が操作した箇所は手動ステップとして記録する。
 
@@ -76,11 +90,11 @@ live検証の結果はrunId、commit、時刻、環境、chain、公開可能な
 | A-35 | R-14 | 公開record/response/ブラウザ/ログのPII検査 | 転送先/World情報/承認URL/内部lease UUIDなし。名前・walletは公開と明示 |
 | A-36 | R-14 | Codex/Claude Code/Kiroから同じENS CLI | 名前解決→owner契約取得。署名器は許可description txとgas capのみ送信 |
 
-A-27/A-29/A-31はlive Sepoliaの証跡も必要。A-31のliveは実取消を行い、期限境界の網羅試験はローカルchainで時刻を進めて行う。通常30日契約をDBだけ短くしてchain失効を偽装しない。liveとローカルの結果を明確に区別する。
+提出時のENS実動作はlive Sepoliaで実登録・公式解決と代表的な権限拒否または失効照合を示す。A-29/A-31の両方のlive実演や期限境界の網羅は追加検証とする。失効を実演する場合、通常30日契約をDBだけ短くしてchain失効を偽装しない。liveとローカルの結果を明確に区別する。
 
 ## ENSを含むデモ差分
 
-従来の5分デモのchain照会場面へ「発行済みENS名→公式名前解決→自分の住所契約取得」を追加。description委任成功と禁止key拒否、取消後の照合拒否は補足動画またはliveで提示する。名前発行がまだpendingの場合は成功と表示しない。実郵便処理は引き続き行わない。
+従来の5分デモのchain照会場面へ「発行済みENS名→公式名前解決→自分の住所契約取得」を追加。禁止key拒否または取消後の照合拒否を代表的な失敗経路として補足動画またはliveで提示する。description委任成功を含む残りの組合せは追加検証とする。名前発行がまだpendingの場合は成功と表示しない。実郵便処理は引き続き行わない。
 
 ENS提出証跡: 親名・registry/resolver/controller・Sepolia explorerリンク・公式解決結果・権限拒否・失効・再現手順。名前を画面に固定表示しただけでは完成としない。
 
@@ -97,4 +111,16 @@ ENS提出証跡: 親名・registry/resolver/controller・Sepolia explorerリン�
 | A-43 | R-15 | 新規契約上限へ並行要求、provider停止、大量pending | 原子的予算制限、未知決済は解放なし、既存照合は継続、全件scan/無限retryなし |
 | A-44 | R-15 | eventの使用量測定・設定監査 | min=0、無料枠残/region/secret/image/通信/定期処理費を記録。課金額未反映を0円の証拠にしない |
 
-A-37/A-38の網羅はEmulator、代表的競合はlive Firestore。A-39〜A-41は実GCPの最小fixtureでも確認。A-44では予算通知が強制停止ではないことを記録する。未deploy・未計測の段階では未実行。
+A-37/A-38の代表的競合はEmulatorで確認する。実GCPへ提出用環境をdeployした場合は、min=0復帰とIAM拒否を小規模な実環境操作で確認する。全枠境界、callback強制retryの全組合せ、snapshot復元、費用・性能の網羅測定は追加検証とする。A-44の費用記録では予算通知が強制停止ではないことを明記する。未deploy・未計測の段階では未実行。
+
+## 管理画面・フロント・AEOの代表チェック
+
+| ID | 要件 | Given / When | Then |
+| --- | --- | --- | --- |
+| A-45 | R-16 | 許可された管理ログイン、未認証/Agent資格情報で管理API呼出 | 許可運用者のみ管理sessionを得る。未認証/Agent/World人間sessionでは管理操作不可 |
+| A-46 | R-16 | 拠点受付停止か安全な再照合要求1件と再送 | CSRF/version/理由を検査し一度だけ監査。決済成功・人間承認を手動上書きしない。宛先全文を返さない |
+| A-47 | R-17 | 公開/利用者/管理画面を狭い幅と広い幅で目視 | 標準SaaSの共通部品、読める表/フォーム、pending/空/エラーを正しく表示 |
+| A-48 | R-18 | 公開HTML/discoveryをJavaScriptなしでGET、private routeも確認 | 本文/link/canonicalと正確なmetadataあり。robots/sitemap/llms/OpenAPI一致。機密情報なし、privateは認可+no-store/noindex |
+| A-49 | R-18 | ユーザーのDNS/TLS設定後に公開originとcallbackを確認 | address.chain.tokyoでHTTPS・同一origin API・callback/cookieを確認。未設定時は未検証のまま記録 |
+
+上記は実装後に代表ケースで確認する。画面コード・DNS・公開到達はいずれも現時点では未実装/未検証。
