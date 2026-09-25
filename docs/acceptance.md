@@ -38,7 +38,7 @@
 | A-16 | R-07 | Agentから宛先書込/全文取得、別human、無効郵便番号、過長文字、古いversion | 拒否。Agentはstatus/登録有無だけ。XSSなし |
 | A-17 | R-01/R-07 | lease失効/停止、mail-disable、期限切れrenew | 転送可停止。再開は新承認。cron遅延でも期限判定 |
 | A-18 | R-10 | API/worker停止・Firestore接続断とsnapshot restore | 契約・approval・住所・cursor・冪等記録を保持 |
-| A-19 | R-03 | settle成功直後DB停止、timeout後遅延receipt、reorg | reconcilingから照合回復。未知状態でslot解放/再課金なし |
+| A-19 | R-03 | settle成功直後DB停止、timeout後遅延receipt、reorg。別の決定的な発行失敗を1件、同じ返金jobの重複・応答喪失とともに確認 | 不明結果はreconcilingから照合回復しslot解放/再課金なし。発行失敗確定後だけ元payer・同一network/asset・注文額全額の返金receiptを検証し、一payment一返金。返金結果不明は同じtx/nonceを照合し、二重送金なし |
 | A-20 | R-04 | 実Intercepta key、mainnet安全/危険アドレス | 実レスポンスでpay/blockを制御。理由と時刻を表示。危険先送金0 |
 | A-21 | R-06 | 公式World devで人間成功と拒否/期限切れ | 実callback検証、成功のみenabled。event fake proofを表示 |
 | A-22 | R-03 | 実testnet token/facilitator | explorer/receiptで金額・payer/payTo照合。住所発行 |

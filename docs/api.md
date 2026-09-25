@@ -57,13 +57,13 @@ intent作成bodyは購入なら`{"locationId":"…","floor":42}`（floorは省�
 
 標準名のlabelは仮想区画番号を5桁ゼロ埋めした`f00042`で、`f00042.<locationSlug>.<parent>.eth`のように組み立てる。独自名も同じ拠点namespaceの`<customLabel>.<locationSlug>.<parent>.eth`を一契約のcanonical名とする。`customLabel`は小文字ASCIIのDNS label、3〜32文字、英数字で開始/終了し内部の`-`を許す。`f`に数字だけが続く全labelを標準用に予約する。初期`namePolicyVersion=1`のservice予約labelは正確に`admin`、`api`、`www`の3つで、serverは見積前にこの固定policyとENSIP-15でlabel/FQDNを検証する。見積snapshotのpolicy versionはNameControllerへ渡し、将来のpolicy変更でも支払済みの旧version/nameを遡って拒否・改名・再課金しない。正規化後のFQDNについて全契約で一意のguardを取る。衝突は409 / `ens_name_unavailable`とし、他契約情報を返さない。未払い確定のpending guardだけ原子的に解放し、結果不明/settlingは保持する。発行済み名は期限後も別leaseへ再利用しない。名前type/label/FQDN/feeは署名・pay再送時に変更できない。有料renameと二つ目の名前はv1対象外。
 
-`ens_addon`はowner Agentの有効な既存subscriptionだけを対象に、`locationId`と`floor`をserver側で導出する。新しい区画holdや日次新規契約quotaは消費しない。同一subscriptionのpaid entitlementは一回限りで、同時に進行できるaddon intentも一つ。新しい冪等キーで購入済みなら409 / `ens_already_purchased`、進行中なら409 / `ens_purchase_in_progress`と既存`intentId`を`resourceId`で返す。既存キーの同一要求は通常の冪等結果を返す。未払い確定したintentだけ排他を解除して再購入を許し、決済結果不明を時間切れだけで解除しない。返金済みentitlementの自動再購入はv1で提供せず409 / `ens_repurchase_unavailable`。所有外/未知subscriptionは404、有効でなければ409 / `lease_not_active`。親名残存期間やregistry/ENSの必須設定を確認できない場合も503 / `ens_dependency_unavailable`で販売を止め、402は返さない。addon intentの`expiresAt`は見積もりから10分とsubscription期限の早い方であり、支払い署名前に契約有効性と購入状態を再検査する。既にsettling/reconcilingなら不明決済を同じintentで照合し、新nonce・新しいENS請求を求めない。risk評価、x402、支出上限、payer/nonce/receipt照合は住所決済と同じ規則を使う。
+`ens_addon`はowner Agentの有効な既存subscriptionだけを対象に、`locationId`と`floor`をserver側で導出する。新しい区画holdや日次新規契約quotaは消費しない。同一subscriptionのpaid entitlementは一回限りで、同時に進行できるaddon intentも一つ。新しい冪等キーで購入済みなら409 / `ens_already_purchased`、進行中なら409 / `ens_purchase_in_progress`と既存`intentId`を`resourceId`で返す。既存キーの同一要求は通常の冪等結果を返す。未払い確定したintentだけ排他を解除して再購入を許し、決済結果不明を時間切れだけで解除しない。発行失敗で返金済みのentitlementも自動再購入を提供せず409 / `ens_repurchase_unavailable`。所有外/未知subscriptionは404、有効でなければ409 / `lease_not_active`。親名残存期間やregistry/ENSの必須設定を確認できない場合も503 / `ens_dependency_unavailable`で販売を止め、402は返さない。addon intentの`expiresAt`は見積もりから10分とsubscription期限の早い方であり、支払い署名前に契約有効性と購入状態を再検査する。既にsettling/reconcilingなら不明決済を同じintentで照合し、新nonce・新しいENS請求を求めない。risk評価、x402、支出上限、payer/nonce/receipt照合は住所決済と同じ規則を使う。
 
 floor空き照会は`{"locationId":"…","floor":42,"available":true}`を返す。bitmapの現在状態を認可付きで読むが、照会と予約の間に他要求が入るため、購入はtransaction内で再判定する。未知locationは404、floorが整数1..65535以外なら422。他ownerや契約の情報は返さない。
 
 未払いpayは空JSON body。同じpath/body/Idempotency-KeyへPAYMENT-SIGNATUREを付けて再送する。PAYMENT-REQUIREDとPAYMENT-RESPONSEは公式x402 v2 SDKのencoder/decoderを使用する。
 
-402を冪等cacheの最終結果にしない。支払い付き初回payはFirestore outboxを保存してCloud Tasksへ配信し202、完了後の同一payは200。enqueue失敗もoutboxから回復する。settling/reconcilingの202はintentId、pollUrl、retryAfterSecondsを返す。新nonceで払い直さない。確定200はstatus=fulfilledとsubscriptionId、receiptを返す。`ens_addon`のfulfilledは既存subscriptionへ一回限りのpaid entitlementとENS発行outboxを永続化した意味であり、ENSがreadyになった意味ではない。settle後に契約が期限切れ/停止でもpaidを消さず発行を保留し、期限切れの同一subscriptionの住所renewで復旧する。復旧不能なら照合して返金状態へ進め、勝手に再課金しない。技術的な発行retryと以後の住所renewに伴うENS同期は再課金しない。
+402を冪等cacheの最終結果にしない。支払い付き初回payはFirestore outboxを保存してCloud Tasksへ配信し202、完了後の同一payは200。enqueue失敗もoutboxから回復する。settling/reconciling/manual_review/refund_pendingの202はintentId、pollUrl、retryAfterSecondsを返す。manual_reviewは決済済み未履行や結果不明の確認待ちであり、新nonce/再settle/新しい請求を要求しない。復旧した同じorderだけをfulfilledにする。確定200はstatus=fulfilledとsubscriptionId、receiptを返す。発行失敗による返金が確定した同じpayの再送は200 / `status=refunded`と返金receiptを返し、新たなsettleを開始しない。冪等記録のresourceIdは維持しつつ現在のorder状態から応答を組み立て、過去の200 fulfilled snapshotを後のrefundedに優先しない。`ens_addon`のfulfilledは既存subscriptionへ一回限りのpaid entitlementとENS発行outboxを永続化した意味であり、ENSがreadyになった意味ではない。settle後に契約が期限切れ/停止でもpaidを消さず発行を保留し、期限切れの同一subscriptionの住所renewで復旧する。不明・再試行可能なENS発行障害はpaid entitlementを保持して照合し、readyと偽らない。復旧不能な発行失敗が確定し、提出済みtxと無効化をfinality付きで確認した後だけENS追加料金全額を自動返金し、住所利用は維持する。技術的な発行retryと以後の住所renewに伴うENS同期は再課金しない。
 
 OpenAPIのpayment headerはencoded stringとして扱い、内部payload validationは固定したx402 SDK schemaを用いる。SDK schemaを独自に推測して再定義しない。
 
@@ -99,7 +99,7 @@ Agentにapproval.approve、mail-destination.writeを付与しない。clientのh
 
 ## ENSv2追加API
 
-詳細は[ENSv2設計](ensv2.md)。ENSを購入しなくても住所契約と郵便承認フローは利用できる。paid entitlementがないSubscriptionは`ens.status=not_purchased`を返し、進行中の支払いは別のpayment intentで確認する。返金済みentitlementは`ens.status=disabled`、`lastErrorCode=ens_refunded`とし、v1で自動再購入できない。name/resolver/txHash等を捏造しない。ENS購入済みの住所renewでは名前とlease version/期限を追加料金なしで同期する。以下もOpenAPIに含める。
+詳細は[ENSv2設計](ensv2.md)。ENSを購入しなくても住所契約と郵便承認フローは利用できる。paid entitlementがないSubscriptionは`ens.status=not_purchased`を返し、進行中の支払いは別のpayment intentで確認する。paid後の発行障害は`ens.status=pending|error|disabled`で実状態を示し、再購入や新しい請求を求めない。返金中/返金済みentitlementは`ens.status=disabled`とし、確定後は`lastErrorCode=ens_refunded`で実状態を示して自動再購入させない。name/resolver/txHash等を捏造しない。ENS購入済みの住所renewでは名前とlease version/期限を追加料金なしで同期する。以下もOpenAPIに含める。
 
 既存のENS GETはaddon価格や販売可否を返さない。利用者画面は架空の金額や購入可能表示を出さず、「ENS追加料金をCLIで確認」の導線を示す。CLIの`ens purchase`が作成したpayment intentの固定見積もりを署名前に表示し、料金未設定や依存設定不足は503のquote errorとして知らせる。
 

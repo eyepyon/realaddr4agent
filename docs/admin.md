@@ -12,6 +12,16 @@
 | 契約とENS | subscription ID、仮想区画、期限、契約状態、ENS種別・canonical name・registry同期、mail enabledと宛先登録有無 | 状態確認のみ |
 | 処理と監査 | 未完了outbox/jobの安全な要約、最終error code、次回実行時刻、運営操作履歴 | 対象を指定した読取照合の再要求 |
 
+既存の一覧APIだけで拠点は`status`、決済と契約は`status`/`locationId`、処理は`kind`/`status`、監査は`targetType`と`targetId`の両方でserver側の完全一致絞り込みを行う。拠点・決済・契約・処理は`id`による一件照会もでき、一覧と同じ安全な要約だけを返す。`id`は他の絞り込み・cursorと併用せず、結果は0または1件で`nextCursor=null`。監査のtarget条件は片方だけを拒否する。未知のquery名や未対応の組合せを黙って無視せず400にする。自由文・部分一致の全DB検索、重い期間分析、export、新しい詳細GETは作らない。行詳細panelは現在の一覧要約fieldだけで描き、存在しない履歴や証跡を補わない。関連IDをコピーして他の一覧の`id`/`locationId`/監査target filterへ渡せるが、その一覧でも認証と情報制限を再適用する。
+
+通常一覧はserver側で`limit` 1〜100（既定20）とopaque cursorを使い、拠点・契約・処理は`updatedAt`、決済は`createdAt`、監査は`occurredAt`の降順、同時刻はdocument ID降順で安定化する。cursorには管理主体・絞り込み値・順序・limitを結び、変更した条件で旧cursorを再使用せず先頭から取得する。これは同時更新をまたぐ全件の不変snapshotを保証しない。`id`照会はdocument直接読取で全件scanしない。表示時刻とstatusは照会時点の情報であり、集計の`asOf`や一覧の値を決済・販売・契約の認可根拠には使わない。
+
+処理一覧は`admin_operations/{operationId}`の安全な読取projectionから取得し、payment/registry/ENSの権威的状態遷移と同じFirestore transactionで更新する。再照合要求時はprojectionのstatusを信用せず、元の業務recordとversionを再読して許可された読取照合だけをenqueueする。契約一覧のENS名種別は取得した最大100件のlease IDに対応する購入snapshotだけをbounded readし、未購入なら`ensNameType=null`とする。
+
+「拠点」一覧の「拠点を登録」から同じ画面のフォームを開く。slug、表示名、公開エリア、日本国内の提供住所・郵便番号、変更理由を入力し、固定の30日planを読取専用で確認する。仮想区画は全拠点共通の1〜65535で、区画数・価格の入力欄を設けない。slug以外の文字入力はserverで前後の空白を除去し、空文字・空白のみを拒否して長さ上限を検証する。郵便番号は7桁または`123-4567`を受け付け、保存時はハイフン付きに正規化する。フォームの送信前に提供住所と公開エリアを確認し、作成後は必ず`paused`として登録する。作成結果のUUID、slug、version、停止状態を一覧へ表示する。編集は一覧の行から現在値を開き、version競合なら再取得して差分を確認する。販売再開は別操作とし、運営者がこの提供住所の利用・公開を許可したことを確認して理由と`publicationConfirmed=true`を送る。serverは確認値がなければ販売再開を拒否する。実住所のseedを必須とせず、提供拠点は運用時に管理画面から登録する。localテスト用fixtureは既存のテスト方針に従う。
+
+販売再開時と新規購入の予約時に、serverは拠点の必須住所・planと住所発行に必要な依存の準備状態を検証し、不足時は販売しない。ENSは任意の追加購入なので、親名・拠点namespaceの未準備だけを理由に住所の新規購入を止めない。ENSの追加購入は拠点namespaceとregistry/controllerの検証完了後だけ販売する。公開の拠点一覧は表示名・公開エリア・固定planなど既存の公開API項目に限り、管理画面の正確な提供住所や郵便番号を未契約者へ返さない。住所を取得する権限がある契約のsnapshotは既存APIに従い、管理画面でも人間の転送先住所と混同しない。
+
 一覧はserver側でカーソルページングし、limitは1〜100、既定20件。概要は全件scanせず、権威的な状態遷移と同じtransactionで更新する小さな `ops_metrics/current` 集計documentから読む。このdocumentは `schemaVersion`、`version`、`asOf`、`locationCount`、`activeSubscriptionCount`、`uncertainPaymentCount`、`syncPendingCount`、`manualReviewCount`を持ち、`GET /v1/admin/overview` の同名fieldへ写す。`asOf` を表示し、集計が未作成・破損・更新失敗なら `available=false`、`asOf=null`、該当counterを `null` として「取得不可」と表示する。欠損を0件に見せず、古い集計は時刻を明示する。この集計を決済・権限判定に使わない。自動pollingせず手動更新する。pending、unknown、reconciling、manual_reviewを成功として表示しない。支払いはBase Sepolia、ENSとLeaseRegistryはEthereum Sepoliaと明記する。区画番号1〜65535は「仮想区画 V00042」のように表示し、物理階数と区別する。住所提供拠点の表示と、人間が入力した転送先住所は別物である。
 
 管理API・UIは転送先住所の平文、World issuer/subject、OIDC token、wallet署名、支払いauthorization/receiptのraw値、秘密鍵を一切返さない。Agentのmail状態と同等の `enabled` / `destinationConfigured` だけを契約一覧に出せる。運営者は `mail.enable` の承認・取消、宛先の読取・入力・修正を代行できない。World認証を法的KYCと表示せず、KYC審査画面は設けない。実郵便、サポートCMS、返金実行、手動の決済済み化・契約発行・ENS verified化を含めない。
@@ -32,7 +42,7 @@ Googleの[OpenID Connect検証手順](https://developers.google.com/identity/ope
 
 ## 書込規則
 
-拠点の `locationId` はserver生成UUID、`slug` は別の決定的unique guardで一意にする。slugは作成後常に不変。新規拠点は住所、公開エリア、固定plan参照、販売状態を登録し、`floor` の総数を個別に設定しない。運営画面で料金、期間、通貨、atomic amountを任意編集する機能は設けない。住所planは30日55/0.55 USDC、ENS初回add-onは標準10/0.10、custom30/0.30 USDC（mainnet想定 / testnet-dev、6 decimals）。plan料金は実行環境の固定設定から導出し、allowlist/network/asset/rateと一致しない場合は起動・intent作成を拒否する。testnet/dev価格をmainnetで使えず、環境変数だけでmainnetを有効化できない。ENS add-onの名前型ごとの環境設定が欠落またはchain不整合なら販売不可。表示名、公開エリア、販売状態は更新できるが、更新後のplanと住所表示は新しいpayment intentだけに使い、既存intentの固定価格・期間・住所snapshot、既存契約を変更しない。住所renewは住所30日料金のみで、購入済みENSの期限同期を含む。ENS初回料金を住所料金へ混ぜない。ENS名の変更や同一leaseへの2つ目のENSは初回購入後に許可しない。active hold、settling/reconcilingのorder、または発行済み契約が一つでもある拠点の郵便番号・正確な提供住所は不変。住所を変える場合は新しい拠点を登録する。販売停止は新規予約を止める。停止前に作成済みの未払いintentも支払い前の可用性検査で止め、決済中・結果不明の照合や成立済み契約の権利は消さない。再開も安全性判定や在庫競合を迂回しない。
+拠点の `locationId` はserver生成UUID、`slug` は別の決定的unique guardで一意にする。slugは作成後常に不変。新規拠点は住所、公開エリア、server導出の固定plan参照、`paused`販売状態を登録し、`floor` の総数を個別に設定しない。運営画面で料金、期間、通貨、atomic amountを任意編集する機能は設けない。住所planは30日55/0.55 USDC、ENS初回add-onは標準10/0.10、custom30/0.30 USDC（mainnet想定 / testnet-dev、6 decimals）。plan料金は実行環境の固定設定から導出し、allowlist/network/asset/rateと一致しない場合は起動・intent作成を拒否する。testnet/dev価格をmainnetで使えず、環境変数だけでmainnetを有効化できない。ENS add-onの名前型ごとの環境設定が欠落またはchain不整合なら販売不可。表示名、公開エリア、販売状態は更新できるが、実行環境の固定planと更新後の住所表示は新しいpayment intentだけに使い、既存intentの固定価格・期間・住所snapshot、既存契約を変更しない。住所renewは住所30日料金のみで、購入済みENSの期限同期を含む。ENS初回料金を住所料金へ混ぜない。ENS名の変更や同一leaseへの2つ目のENSは初回購入後に許可しない。active hold（期限経過だけでは解放しないものを含む）、settling/reconciling/manual_review/refund_pendingのorder、または発行済み契約が一つでもある拠点の郵便番号・正確な提供住所は不変。住所を変える場合は新しい拠点を登録する。販売停止は新規予約を止める。停止前に作成済みの未払いintentも支払い前の可用性検査で止め、決済中・結果不明の照合や成立済み契約の権利は消さない。再開も安全性判定や在庫競合を迂回しない。
 
 拠点create/update/pause/resumeは理由（3〜500文字）、`Idempotency-Key`、更新時 `expectedVersion` を必須とする。Firestore transactionでversion比較・状態更新・監査record・outboxを一緒に確定し、外部効果はtransaction外で実行する。同じキーと同じbodyは同じ結果、別bodyは409。失敗した競合は409で現在versionを返すが、他者情報は返さない。拠点の削除endpointは作らない。
 

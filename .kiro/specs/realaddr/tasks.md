@@ -25,7 +25,7 @@
   - 最小確認: 実allow/denyで署名・決済の可否を確認し、未知判定はhold。A-07〜A-09/A-20は追加検証の参照。R-04。
 - [ ] T-05 x402注文/実決済/照合
   - 依存: T-00 facilitator、T-02、T-04。402 v2、固定価格、verify/screen/settle順、receipt確認、exactly-once相当の業務冪等性を実装。
-  - 不明結果を永続化し照合、二重settle防止、更新、返金追跡。middlewareの配信順に依存しない。
+  - 不明結果を永続化し照合、二重settle防止、更新、確定した発行失敗だけの自動全額返金を実装。元payer・同一network/asset・注文額を固定し、送金前に署名済みtx/nonceを永続化、未知返金結果は同じtxを照合して二重送金しない。middlewareの配信順に依存しない。
   - 最小確認: 実決済一件、同じ要求の再送、結果不明時の照合とslot保持。A-05/A-06/A-19/A-22は追加検証の参照。R-03。
 - [ ] T-06 郵便転送設定の最小機能
   - 依存: T-03、T-05。mail.enable承認URL、apply一回、enabled表示、人間専用フォーム、国内住所validation、暗号化、version競合、取消。
@@ -53,8 +53,8 @@
   - 実API/DBから表示。pending/errorを成功に見せない。住所30日料金と任意ENS add-on料金を分け、`not_purchased`に別購入導線を表示する。ENS購入UIは既存CLI `ens purchase`へ引き渡し、新しいbrowser signerを作らない。公開HTTPはlocations/payment-intents/subscriptionsとflatなerror形式を使い、内部モデルとの変換をAPI境界へ集約する。
   - 最小確認: 実APIの表示と共通CLIの状態取得。A-15/A-16/A-25は追加検証の参照。R-09。
 - [ ] T-18 管理画面と運用者API
-  - 依存: T-02、T-05、T-07、T-13。docs/admin.mdと管理OpenAPIに従いGoogle OIDC/allowlist、独立session、管理の一覧/詳細、拠点管理、安全な再照合要求、監査を実装する。
-  - docs/frontend.mdの標準SaaS部品を共有する。管理者によるWorld承認代行、宛先全文取得、手動paid上書きを許可しない。
+  - 依存: T-02、T-05、T-07、T-13。docs/admin.mdと管理OpenAPIに従いGoogle OIDC/allowlist、独立session、管理の一覧/詳細、拠点登録フォームと編集・販売停止/再開、安全な再照合要求、監査を実装する。拠点はserver導出planと固定仮想区画数で停止状態から作成し、登録済み一覧の行から編集する。実住所のseedを必須とせず、運用時に管理画面登録する。
+  - docs/frontend.mdの標準SaaS部品を共有する。既存一覧に条件付きcursorとID一件照会を実装し、一覧要約だけの詳細panelと関連ID間の導線を用意する。管理者によるWorld承認代行、宛先全文取得、手動paid上書きを許可しない。
   - 最小確認: 管理ログインとAgent/未認証拒否、拠点の受付停止または再照合要求1件の監査。対応: R-16/R-17、A-45/A-46。
 - [ ] T-19 公開HTML・AEO・画面統一
   - 依存: T-01、T-08。docs/frontend.mdとdocs/aeo.mdに従い/・/developers・/faqの初期HTML、metadata/JSON-LD、robots/sitemap/llms、OpenAPI導線を共通公開設定から生成する。
@@ -62,8 +62,8 @@
   - 最小確認: 狭い/広い画面を1回確認し、no-JS GETの本文と発見用ファイル、private noindex/no-storeを確認。ドメイン到達はT-16完了後。対応: R-17/R-18、A-47〜A-49。
 - [ ] T-16 GCP基盤とGitHub Actionsデプロイ
   - 依存: T-01、T-02。docs/infrastructure.mdに沿って2つのCloud Run、Firestore、private GCS、Tasks、Scheduler、Secret Manager、Artifact Registry、WIFを定義する。
-  - `infra/bootstrap`と`infra/app`の2 rootを維持し、`RESOURCE_PREFIX=realaddr-event` でCloud Run、業務GCS、Terraform state bucket、WIF、service account、Secret Manager secret、queue等を専用命名する。既存`(default)` DBは必要時に共有参照のみとしapp stateへimport・管理しない。secret値をTerraform stateへ入れない。初回bootstrap stateの移行は手動手順を作り、実施結果を別途記録する。
-  - deploy前にlive inventoryからproject、resource ownership、Firestore database/rules/index、region、IAM、API有効化、予算を確認する。既存DB/rules/project IAM/API/予算の包括変更・削除は禁止。本アプリ専用SAへの限定的なIAM member追加は許可し、既存policy bindingの置換や他主体grantの削除は拒否する。index変更は本アプリのprefix付きcollection groupだけに限定する。Terraform planで本アプリ所有外の更新/削除を検知した場合は拒否する（専用SAへの上記additive IAM member追加を除く）。名前が未使用に見える場合もlive確認は省略しない。
+  - `infra/bootstrap`と`infra/app`の2 rootを維持し、`RESOURCE_PREFIX=realaddr-event` でCloud Run、業務GCS、Terraform state bucket、WIF、runtime/invoker service account、Secret Manager secret、queue等を専用命名する。既存`(default)` DBは必要時に共有参照のみとしapp stateへimport・管理しない。secret値をTerraform stateへ入れない。初回bootstrap stateの移行は手動手順を作り、実施結果を別途記録する。
+  - deploy前にlive inventoryからproject、resource ownership、Firestore database/rules/index、region、IAM、API有効化、予算を確認する。デプロイ用service accountは保護された最終設定の`DEPLOY_SERVICE_ACCOUNT`で指定し、所有者・binding・実効権限を読み取り確認する。accountの作成・import・削除やIAM policy bindingの置換は禁止する。許可するIAM変更は、本アプリ専用SAへの必要最小限のadditive grant、指定したデプロイ用service accountに対する本アプリ専用WIF principalのimpersonation member、本アプリ専用resourceへの必要なgrantに限定し、他主体grantを削除・置換しない。共有DB/rules/project IAM/API/予算の包括変更・削除は禁止する。index変更は本アプリのprefix付きcollection groupだけに限定する。Terraform planで本アプリ所有外の更新/削除を検知した場合は拒否する（上記3種類の限定IAM追加を除く）。名前が未使用に見える場合もlive確認は省略しない。
   - Terraformは専用Cloud Run設定と限定的IAM memberを所有し、通常deployだけがimage digestを更新する。対象image属性に限定したdrift除外を検証し、同じdigestを2サービスへ順次deploy、失敗時の片側復旧と旧digest rollbackを実装する。既存Firestore rulesは管理主体を確認して有効内容を照合し、本アプリprefix付きindexだけを管理する。IAM分離、永続outboxの配信/回復、min=0、retry上限、image/snapshot保持を設定し、既存予算通知の有無としきい値を確認する。
   - PR CIはGCP認証なしで最小チェック、Terraform変更時だけ対象rootのfmt/validate。保護されたmain手動deployはWIF条件・最小権限・同時実行制御・事前target照合と事後digest/IAM確認を実装する。bootstrap/deploy手順を記録し、提出用環境のmin=0復帰と未認証拒否を代表操作で確認する。専用`pnpm test:infra`は必要になった時に追加する。T-05/T-07/T-13の外部効果runnerをrequest駆動へ接続する。
   - 公開origin・World/admin callbackはaddress.chain.tokyoへ統一し、ユーザーへ必要なDNS/TLS接続情報を提示する。設定自体はユーザー担当。

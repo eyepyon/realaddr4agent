@@ -2,6 +2,8 @@
 
 優先順位付きの短い確認一覧は[未解決事項](open-items.md)を参照。各項目の詳細、設定契約、実施時期は本書と参照先を正本とする。
 
+GitHub Actions、Cloud Run、Secret Manager、localへの設定値の配置とダミー例は[event環境の設定手順](deployment-configuration.md)を参照。
+
 ユーザー指定により、今回は実際の郵便処理を行わない。World承認後に転送可表示と人間の転送先フォームを提供する。
 
 ## 環境と完成範囲
@@ -21,6 +23,7 @@ T-01で秘密のない.env.exampleを作る。secretは環境/secret managerに�
 | 変数群 | 用途 |
 | --- | --- |
 | APP_ENV, PUBLIC_ORIGIN | 環境、公開origin=https://address.chain.tokyo |
+| DEPLOY_SERVICE_ACCOUNT | デプロイ用service accountを保護された設定manifestで明示指定。本アプリでは作成・import・削除しない |
 | GCP_PROJECT_ID, GCP_REGION, FIRESTORE_DATABASE_ID | 他サービスと共存する既存project ID、既存DBの実配置に合わせて選ぶ新規resourceのregion、共有`(default)` |
 | FIRESTORE_COLLECTION_PREFIX, RESOURCE_PREFIX | 固定値`realaddr_event_`（全論理collectionの単一mapper）、`realaddr-event`（専用GCP resource名） |
 | FIRESTORE_EMULATOR_HOST | local/CIのみ。event/production指定時は起動拒否 |
@@ -35,7 +38,7 @@ T-01で秘密のない.env.exampleを作る。secretは環境/secret managerに�
 | PAYMENT_FINALITY_POLICY | receipt/finality基準 |
 | MULTIBAAS_URL, MULTIBAAS_API_KEY, MULTIBAAS_CHAIN_LABEL | deployment |
 | REGISTRY_ADDRESS, REGISTRY_CHAIN_ID, REGISTRY_CONTRACT_LABEL | 記録先 |
-| REGISTRY_SIGNER_KEY_REF, REFUND_SIGNER_KEY_REF | 業務用鍵参照 |
+| REGISTRY_SIGNER_KEY_REF, REFUND_SIGNER_KEY_REF | registry発行鍵と、発行失敗が確定した注文の自動返金用鍵を分離して参照。返金鍵と実USDC/network/finalityはT-00/T-05で疎通確認 |
 | LEASE_PRICE_MAINNET_ATOMIC, LEASE_PRICE_TESTNET_ATOMIC, LEASE_PERIOD_DAYS | 住所価格と期間。6-decimal USDCでmainnet想定55000000、testnet/dev 550000、期間30日。mainnetは今回無効 |
 | ENS_ADDON_STANDARD_PRICE_MAINNET_ATOMIC, ENS_ADDON_STANDARD_PRICE_TESTNET_DEV_ATOMIC | 標準ENS初回額。mainnet想定10000000、testnet/dev 100000。各環境の固定network/assetと照合 |
 | ENS_ADDON_CUSTOM_PRICE_MAINNET_ATOMIC, ENS_ADDON_CUSTOM_PRICE_TESTNET_DEV_ATOMIC | custom ENS初回額。mainnet想定30000000、testnet/dev 300000。各環境の固定network/assetと照合 |
@@ -52,7 +55,7 @@ T-01で秘密のない.env.exampleを作る。secretは環境/secret managerに�
 
 ## 障害・運用
 
-Cloud TasksのHTTP要求でworkerを実行し、5分ごとのSchedulerが不明決済、outbox、期限切れholdを小分け回復。常駐timerや起動時全件走査を使わない。結果不明を未払いへ初期化しない。settling/reconcilingを5分超で運用キューへ出す。決済済み未発行は照合・再発行、不可なら元payerへ返金を別記録する。
+Cloud TasksのHTTP要求でworkerを実行し、5分ごとのSchedulerが不明決済、outbox、期限切れholdを小分け回復。常駐timerや起動時全件走査を使わない。結果不明を未払いへ初期化しない。settling/reconcilingを5分超で運用キューへ出す。決済済み未発行は照合・同じ注文への再発行を行い、不明・再試行可能ならmanual_reviewで支払い証跡と権利を保持する。提出済みtxと提供物をfinality付きで調べ、復旧不能な発行失敗が確定した場合だけworkerが自動返金する。返金は元payer・同一network/USDC asset・注文額全額で、gasは運営負担。署名済み送金とnonce/tx hashをbroadcast前に永続化し、返金結果不明なら同じ送金を照合して新nonceで再送しない。管理画面から返金送金は開始しない。詳細は[状態・取引設計](../.kiro/specs/realaddr/design.md)。
 
 監視はAPI失敗率、リスクquota、不明決済、予約滞留、OIDC失敗、outbox遅延、chain不一致。PII/秘密/token/完全な署名はログに含めない。宛先は暗号化し閲覧権限を限定する。
 
@@ -64,12 +67,11 @@ Worldの人間認証と明示同意は、郵便事業の法的な取引時確認
 
 今回はその業務実装を対象外にする。将来は契約主体、本人確認、代理権、保存期間、受領/保管/転送/解約後郵便、操作ごとの転送同意を事業者の手順と専門家確認に沿って追加する。「住所だけなら法的手続き不要」「Worldを通せば法律上発送可能」とは断定しない。
 
-## 未確定事項
+## 外部確認・運用の未実施事項
 
 | ID | 内容 | 仮定/担当 | 必要時点 |
 | --- | --- | --- | --- |
-| O-01 | 事業者名、公開許可住所、区画表記 | 事業者、1拠点65,535区画 | 実住所表示前 |
-| O-02 | 返金規約、実行責任者、payerへの送金経路/署名権限、冪等性と不明結果の照合手順 | 料金は確定済み。admin UIから返金送金しない | live決済・返金実装前 |
+| O-01 | 権限のある管理画面で提供拠点の住所・郵便番号・slug・表示名・公開エリア/文言を登録し、運営者が公開許可と表示内容を確認する。通常の拠点登録であり、事前に実住所をコード/seedへ固定する必要はない。 | 運営者。事業者名・公式URLは確定済み。1拠点65,535仮想区画 | 販売開始前 |
 | O-03 | World client/イベント認証手順 | 開発担当+portal | T-03 live |
 | O-04 | Intercepta key/schema/危険アドレス | 開発担当+スポンサー | T-04 live |
 | O-05 | facilitator/token/finality | Base Sepolia優先 | T-05 live |
@@ -77,7 +79,9 @@ Worldの人間認証と明示同意は、郵便事業の法的な取引時確認
 | O-07 | address.chain.tokyoのDNS/TLS接続とWorld callback登録 | ドメイン設定はユーザー担当。開発担当は接続先と必要設定を提示 | E2E前 |
 | O-08 | 参加track/応募対象 | チーム | 提出前 |
 
-住所料金・ENS add-on料金は[料金仕様](pricing.md)の値で確定済みであり、O-02に価格未確定を含めない。実郵便フローの詳細は今回の未確定blockerに含めない。外部値の取得やlive接続を要する項目と仕様不足を区別し、独立作業は進める。実成功結果を捏造して穴埋めしない。
+O-02（決定済み）: 任意取消・通常運用では返金しない。発行失敗が照合後に復旧不能と確定した場合だけ対象注文の全額をworkerが自動返金する。サービス終了時に残る前払い分の対象条件・方法・時期はその時に別途案内する。価格と処理条件は[料金仕様](pricing.md)・[状態設計](../.kiro/specs/realaddr/design.md)を正とし、返金鍵・asset・finalityの実疎通はO-05/T-00/T-05の外部設定作業に含める。管理UIに返金実行を設けない。
+
+事業者の正式表記は**国立日本総合研究センター株式会社**、公式URLは[https://jgrec.jp/](https://jgrec.jp/)とする。提供拠点住所をこの事業者の住所から推定せず、販売前に権限のある管理画面で運営者が拠点情報を登録し、公開許可と表示内容を確認する。住所等は事前にチャットで提示したり、実住所をコード/seedへ固定したりする必要はない。[管理仕様](admin.md)を正本とする。実郵便フローの詳細は今回の未確定blockerに含めない。外部値の取得やlive接続を要する項目と仕様不足を区別し、独立作業は進める。実成功結果を捏造して穴埋めしない。
 
 ## ENSv2追加設定と運用
 
@@ -93,9 +97,9 @@ names/resolverは購入済み件数分だけ作る。デモは数件に限定し
 
 [インフラ仕様](infrastructure.md)が構成・無料枠・復旧・CI/CDの正本。O-12: 共存先の既存GCP project/billing account、`(default)` Firestoreのlocation・rules・index、既存IAM/API/予算・無料枠消費、専用resource名の空き、GitHub repository/Environment/WIFをT-16前に確認する。現時点でprojectのlive inventoryは未実施で、`gcloud`はPATHで未検出。実装開始まで本アプリのresourceは未作成。価格・quotaはdeploy前に再確認する。API/workerが参照するsecret versionと復号鍵を記録し、rollback/snapshotが使う鍵を先に破棄しない。
 
-T-16は共有projectの読み取りinventoryから開始し、resource IDと所有者、IAM grantとその管理方法、project API、`(default)` Firestoreのlocation/rules/index/field exemption、既存予算と無料枠消費を確認する。live rulesを読み取り、Firebase clientなどRules適用経路で本アプリprefixの代表パスを未認証・他利用者がread/writeできないことを確認する。rulesの読取・評価ができない場合、または既存client rulesが本アプリprefixへのアクセスを広く許す場合は共存ゲート失敗とし、共有管理主体が修正するまでapplyしない。server SDK/IAM RESTはRulesを迂回するため、この確認の代わりにしない。追加のdenyだけで既存allowを上書きできない。[Rules評価](https://firebase.google.com/docs/rules/rules-behavior)。本アプリのstateへ共有DB本体・rules・既存API・既存予算をimportしない。共有DB全体のrules更新、包括的なFirebase index deploy、他サービスのindex削除、project IAM policy/binding、API disableを本アプリの手順から除外する。別stateが同roleのauthoritative IAM bindingを管理する場合も、本アプリのadditive memberと競合させない。必要APIの有効化やrules修正は共有project管理主体の別手順で行う。
+T-16は共有projectの読み取りinventoryから開始し、resource IDと所有者、IAM grantとその管理方法、project API、`(default)` Firestoreのlocation/rules/index/field exemption、既存予算と無料枠消費を確認する。live rulesを読み取り、Firebase clientなどRules適用経路で本アプリprefixの代表パスを未認証・他利用者がread/writeできないことを確認する。rulesの読取・評価ができない場合、または既存client rulesが本アプリprefixへのアクセスを広く許す場合は共存ゲート失敗とし、共有管理主体が修正するまでapplyしない。server SDK/IAM RESTはRulesを迂回するため、この確認の代わりにしない。新規web/worker runtime service accountの権限は作成後、顧客データ投入・公開業務routeの有効化前に実identityで共有DBの必要操作と対象外DBへの拒否を確認する。apply前は既存resource/IAM所有者・planとRules適用clientの拒否を調べる。運用者credentialでの成功はruntime主体の証拠にならず、documentのNOT_FOUNDはIAM拒否の証拠にならない。追加のdenyだけで既存allowを上書きできない。[Rules評価](https://firebase.google.com/docs/rules/rules-behavior)。本アプリのstateへ共有DB本体・rules・既存API・既存予算をimportしない。共有DB全体のrules更新、包括的なFirebase index deploy、他サービスのindex削除、project IAM policy/binding、API disableを本アプリの手順から除外する。別stateが同roleのauthoritative IAM bindingを管理する場合も、本アプリのadditive memberと競合させない。必要APIの有効化やrules修正は共有project管理主体の別手順で行う。
 
-共存ゲートを通過したら、管理者がbootstrap rootで本アプリ専用state bucket/WIF/Artifact Registryを作成し、app rootのGCS backendを初期化して差分を審査してから適用する。state bucketは`${GCP_PROJECT_ID}-realaddr-event-tfstate`、業務bucketは`${GCP_PROJECT_ID}-realaddr-event-data`、state prefixは`realaddr/event/bootstrap`と`realaddr/event/app`。Cloud Run等の基本名は`RESOURCE_PREFIX=realaddr-event`から生成し、実IDは保護された設定manifestへ置く。同名の既存resourceが本アプリ所有と確認できなければ上書き/importせず停止し、明示的なsuffixを設定する。その際は`FIRESTORE_COLLECTION_PREFIX`の単一mapperも同じmanifestで確定し、コード・Terraform・cleanup対象と一致させる。運用開始後のprefix変更はdocument移行が必要であり、単純な設定変更として扱わない。ランダム名での再試行はしない。planは本アプリ専用resourceとmanifestのprefixに属するcollection groupの複合index/field exemptionだけに触れることを確認する。bootstrapの初期ローカルstateを専用state bucketへ移す作業は別の手動手順として記録し、実施前は移行済みと書かない。state bucketは版管理・削除防止、業務bucketは短期保持を適用する。secret値はTerraformの変数・state・planを通さずSecret Managerに登録し、参照するversionを運用記録に残す。`FIRESTORE_COLLECTION_PREFIX`は名前衝突対策でありIAM隔離ではないため、既存の広いIAM grantも確認する。DBがregionalなら新規resourceは原則同region、multi-regionなら公式配置を確認して保存/通信費を見積もる。[Firestore複数DB管理](https://firebase.google.com/docs/firestore/manage-databases)の通り追加の名前付きDBは可能だが、無料quota対象はproject内1 DBだけなので初期構成では採用しない。[Firestore無料quota](https://docs.cloud.google.com/firestore/quotas)
+共存ゲートを通過したら、管理者がbootstrap rootで本アプリ専用state bucket/WIF/Artifact Registryを作成する。web/worker/tasks/schedの4専用service accountはbackend初期化とplan審査の後、app rootのapplyで作成する。デプロイ用service accountは`DEPLOY_SERVICE_ACCOUNT`で保護された設定manifestから指定し、本アプリstateで作成・import・削除しない。そのaccountのIAM policyは置換せず、所有者・現在のgrant・実効権限を確認したうえで本アプリ専用WIFからの狭いimpersonation memberと対象resource限定grantだけを追加する。state bucketは`${GCP_PROJECT_ID}-realaddr-event-tfstate`、業務bucketは`${GCP_PROJECT_ID}-realaddr-event-data`、state prefixは`realaddr/event/bootstrap`と`realaddr/event/app`。Cloud Run等の基本名は`RESOURCE_PREFIX=realaddr-event`から生成し、実IDは保護された設定manifestへ置く。同名のresourceが本アプリ所有と確認できなければ上書き/importせず停止し、明示的なsuffixを設定する。その際は`FIRESTORE_COLLECTION_PREFIX`の単一mapperも同じmanifestで確定し、コード・Terraform・cleanup対象と一致させる。運用開始後のprefix変更はdocument移行が必要であり、単純な設定変更として扱わない。ランダム名での再試行はしない。planは本アプリ専用resourceとmanifestのprefixに属するcollection groupの複合index/field exemptionだけに触れることを確認する。bootstrapの初期ローカルstateを専用state bucketへ移す作業は別の手動手順として記録し、実施前は移行済みと書かない。state bucketは版管理・削除防止、業務bucketは短期保持を適用する。secret値はTerraformの変数・state・planを通さずSecret Managerに登録し、参照するversionを運用記録に残す。`FIRESTORE_COLLECTION_PREFIX`は名前衝突対策でありIAM隔離ではないため、現在の広いIAM grantも確認する。DBがregionalなら新規resourceは原則同region、multi-regionなら公式配置を確認して保存/通信費を見積もる。[Firestore複数DB管理](https://firebase.google.com/docs/firestore/manage-databases)の通り追加の名前付きDBは可能だが、無料quota対象はproject内1 DBだけなので初期構成では採用しない。[Firestore無料quota](https://docs.cloud.google.com/firestore/quotas)
 
 公開deployはmainの検証済みcommitから保護されたevent Environmentの手動workflowで行う。Actionsの短期WIF認証を使用し、実行前にproject/region/ref/environmentと対象2サービスのresource IDを確認する。workflowは同じimage digestを本アプリのworkerとwebへ順次反映するため、両方のdigest、min=0、workerの未認証拒否と公開healthを確認してから成功とする。片方で失敗したら旧digestと現在の業務状態を確認し、安全な再実行または旧digestへのrollbackを記録する。Terraformは本アプリ専用サービスの設定/IAMを所有し、通常deployが変更するimage属性だけを除外する。この運用手順と実際のコマンド・結果は実装後に`docs/implementation-status.md`へ記録する。
 
@@ -103,7 +107,7 @@ T-16は共有projectの読み取りinventoryから開始し、resource IDと所�
 
 公開originは`https://address.chain.tokyo`。`PUBLIC_ORIGIN`、OpenAPI servers、canonical/OG URL、sitemap、llms.txt、Agent向け案内をこのoriginへ統一する。Worldの`WORLD_REDIRECT_URI`は`https://address.chain.tokyo/auth/world/callback`としてportalに完全一致登録する。Agentのwallet challenge domainとCSRF Originも同じ公開hostを基準とする。転送ヘッダーや任意Hostからcallback/承認URLを組み立てない。
 
-ドメイン取得・DNS・接続設定はユーザーが行う。開発側はCloud Runの実URLと選択した接続方法の必要レコード/TLS条件を取得後に提示する。未取得のDNS値を推測しない。HTTP/TLS到達、同一originのAPI、World callback、cookieを最小確認してから公開済みと記録する。現在は設定予定であり、DNS/TLS/デプロイ完了を意味しない。
+ドメイン取得・DNS・接続設定はユーザーが行う。eventの初期接続方式はCloud Run direct domain mappingとする。実regionの対応、所有権確認、既存mapping/recordとの衝突を確認してから本アプリweb serviceへmappingを作る。条件を満たせなければ公開を停止し、別方式を明示決定する。開発側はmappingから実際に返されたDNS recordとmanaged certificate状態を提示し、ユーザーが対象recordだけを設定する。他サービスのmappingやDNSを上書きしない。未取得のDNS値を推測しない。この方式はpreviewでproduction非推奨のため将来の商用接続方式は再検討する。[Cloud Run custom domain mapping](https://docs.cloud.google.com/run/docs/mapping-custom-domains)。設定後は`GET https://address.chain.tokyo/health`を認証なしで直送し、TLS検証を維持してredirectを追わず、30秒・応答4 KiB以内で現在のhealth契約に従うJSONの`status=ok`を確認する。同一originのAPI、World/admin callback、cookieも最小確認してから公開済みと記録する。現在は設定予定であり、DNS/TLS/デプロイ完了を意味しない。
 
 run.app URLは運用確認用に保持できるが、公開案内・検索向けcanonicalには使わない。別originの認証開始・承認処理は拒否し、公開GETの正規化redirectだけを許可する。workerのIAM/OIDC audienceは実worker URLのまま分離する。利用者が構成するドメイン/DNSをTerraformで勝手に作成・上書きしない。
 
@@ -111,4 +115,4 @@ run.app URLは運用確認用に保持できるが、公開案内・検索向け
 
 O-13: 本アプリ専用のGoogle OIDC client、`https://address.chain.tokyo/auth/admin/callback`、明示的に許可する運用者をT-18前に確定する。共有projectの既存clientやconsent設定を全面置換しない。credential/allowlist実値はリポジトリへ記載しない。[管理仕様](admin.md)に従って登録し、設定がない状態では管理データを返さない。Worldの人間承認callbackと管理者callbackを取り違えない。
 
-O-14: 公開ページの運営者表記、公開可能な説明・料金・住所表記をT-19で確認する。未確定項目は未確定と明示し、架空の導入実績や本番稼働を表示しない。[画面仕様](frontend.md)と[AEO仕様](aeo.md)を適用する。
+O-14: 運営者名は**国立日本総合研究センター株式会社**、公式URLは[https://jgrec.jp/](https://jgrec.jp/)に固定する。提供拠点住所等は仕様検討項目ではなく、販売前に権限のある管理画面から運営者が登録し、公開許可と表示文言を確認する通常運用入力とする。事業者の住所から推定しない。事前にチャットで住所を提示したり、実住所をコード/seedへ固定したりする必要はない。[管理仕様](admin.md)を正本とし、[画面仕様](frontend.md)と[AEO仕様](aeo.md)を適用する。架空の導入実績や本番稼働を表示しない。

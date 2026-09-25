@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "RealAddr Operator API",
-    "version": "0.2.0-spec",
+    "version": "0.4.0-spec",
     "description": "Planned same-origin operator API. No implementation or deployment exists. Authentication is server-side Google OIDC plus a separate admin session. This API cannot approve human actions or force payments."
   },
   "servers": [
@@ -583,12 +583,34 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "available",
+                "paused"
+              ]
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "description": "Exact document ID. Cannot combine with cursor or other filters; returns zero or one sanitized summary with nextCursor null.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
-        ]
+        ],
+        "description": "Server-side exact filters, stable updatedAt descending then document ID descending order. Opaque cursor binds authenticated operator, filter values, sort, and limit; changing filters resets pagination. Unsupported query names or combinations return 400. No full-text or substring search and no total count scan. Optional id is an exact direct-document lookup, exclusive with cursor and all other filters; limit remains valid, result has zero or one item, and nextCursor is null."
       },
       "post": {
         "operationId": "createAdminLocation",
         "summary": "Create a location and record operator reason",
+        "description": "Server creates a UUID and fixed environment plan, normalizes Japanese postal code, and stores the location paused. A separate audited update enables sales after operator confirmation and readiness checks. The client cannot set price or slot capacity.",
         "security": [
           {
             "AdminSession": []
@@ -1167,8 +1189,46 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "awaiting_payment",
+                "settling",
+                "reconciling",
+                "fulfilled",
+                "failed_unpaid",
+                "manual_review",
+                "refund_pending",
+                "refunded",
+                "expired",
+                "cancelled",
+                "blocked"
+              ]
+            }
+          },
+          {
+            "name": "locationId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "description": "Exact document ID. Cannot combine with cursor or other filters; returns zero or one sanitized summary with nextCursor null.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
-        ]
+        ],
+        "description": "Server-side exact filters, stable createdAt descending then document ID descending order. Opaque cursor binds authenticated operator, filter values, sort, and limit; changing filters resets pagination. Unsupported query names or combinations return 400. No full-text or substring search and no total count scan. Optional id is an exact direct-document lookup, exclusive with cursor and all other filters; limit remains valid, result has zero or one item, and nextCursor is null."
       }
     },
     "/v1/admin/subscriptions": {
@@ -1352,8 +1412,39 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "expired",
+                "suspended",
+                "revoked"
+              ]
+            }
+          },
+          {
+            "name": "locationId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "description": "Exact document ID. Cannot combine with cursor or other filters; returns zero or one sanitized summary with nextCursor null.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
-        ]
+        ],
+        "description": "Server-side exact filters, stable updatedAt descending then document ID descending order. Opaque cursor binds authenticated operator, filter values, sort, and limit; changing filters resets pagination. Unsupported query names or combinations return 400. No full-text or substring search and no total count scan. Optional id is an exact direct-document lookup, exclusive with cursor and all other filters; limit remains valid, result has zero or one item, and nextCursor is null."
       }
     },
     "/v1/admin/operations": {
@@ -1537,8 +1628,44 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "payment",
+                "registry",
+                "ens"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "reconciling",
+                "pending_readback",
+                "manual_review",
+                "unknown"
+              ]
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "description": "Exact document ID. Cannot combine with cursor or other filters; returns zero or one sanitized summary with nextCursor null.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
           }
-        ]
+        ],
+        "description": "Server-side exact filters, stable updatedAt descending then document ID descending order. Opaque cursor binds authenticated operator, filter values, sort, and limit; changing filters resets pagination. Unsupported query names or combinations return 400. No full-text or substring search and no total count scan. Optional id is an exact direct-document lookup, exclusive with cursor and all other filters; limit remains valid, result has zero or one item, and nextCursor is null."
       }
     },
     "/v1/admin/operations/{operationId}/reconcile": {
@@ -1928,8 +2055,27 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "targetType",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "targetId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
           }
-        ]
+        ],
+        "description": "Server-side exact filters, stable occurredAt descending then document ID descending order. Opaque cursor binds authenticated operator, filter values, sort, and limit; changing filters resets pagination. Unsupported query names or combinations return 400. No full-text or substring search and no total count scan. targetType and targetId must be supplied together."
       }
     }
   },
@@ -1957,14 +2103,14 @@
           "retryable": {
             "type": "boolean"
           },
-        "traceId": {
-          "type": "string"
-        },
-        "currentVersion": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Present only for a version conflict on an operator-owned resource"
-        }
+          "traceId": {
+            "type": "string"
+          },
+          "currentVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Present only for a version conflict on an operator-owned resource"
+          }
         },
         "required": [
           "error",
@@ -2126,16 +2272,24 @@
             "description": "Single lowercase ASCII DNS label for the ENS location namespace. No dots; letters/digits at both ends, internal hyphens allowed. The server verifies that ENSIP-15 normalization preserves this exact slug."
           },
           "displayName": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
           },
           "publicArea": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
           },
           "postalCode": {
-            "type": "string"
+            "type": "string",
+            "pattern": "^[0-9]{3}-[0-9]{4}$",
+            "description": "Canonical Japanese seven-digit postal code with hyphen; the create/update request also accepts seven digits without a hyphen and the server normalizes before storing."
           },
           "address": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
           },
           "plan": {
             "$ref": "#/components/schemas/Plan"
@@ -2208,26 +2362,29 @@
             "description": "Single lowercase ASCII DNS label for the ENS location namespace. No dots; letters/digits at both ends, internal hyphens allowed. The server verifies that ENSIP-15 normalization preserves this exact slug."
           },
           "displayName": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
           },
           "publicArea": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
           },
           "postalCode": {
-            "type": "string"
+            "type": "string",
+            "pattern": "^[0-9]{3}-?[0-9]{4}$",
+            "description": "Japanese seven-digit postal code; server stores the hyphenated canonical form."
           },
           "address": {
-            "type": "string"
-          },
-          "plan": {
-            "$ref": "#/components/schemas/Plan"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
           },
           "status": {
             "type": "string",
-            "enum": [
-              "available",
-              "paused"
-            ]
+            "const": "paused",
+            "description": "New locations always start paused; enabling sales requires a separate audited update."
           },
           "reason": {
             "type": "string",
@@ -2241,7 +2398,6 @@
           "publicArea",
           "postalCode",
           "address",
-          "plan",
           "status",
           "reason"
         ]
@@ -2259,25 +2415,33 @@
             "minLength": 3,
             "maxLength": 500
           },
+          "publicationConfirmed": {
+            "type": "boolean",
+            "description": "Must be true when changes.status is available; operator confirms authorization to offer the registered address. The server rejects resumption without it."
+          },
           "changes": {
             "type": "object",
             "additionalProperties": false,
             "minProperties": 1,
             "properties": {
               "displayName": {
-                "type": "string"
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
               },
               "publicArea": {
-                "type": "string"
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
               },
               "postalCode": {
-                "type": "string"
+                "type": "string",
+                "pattern": "^[0-9]{3}-?[0-9]{4}$"
               },
               "address": {
-                "type": "string"
-              },
-              "plan": {
-                "$ref": "#/components/schemas/Plan"
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
               },
               "status": {
                 "type": "string",
@@ -2294,6 +2458,37 @@
           "expectedVersion",
           "reason",
           "changes"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "changes": {
+                  "required": [
+                    "status"
+                  ],
+                  "properties": {
+                    "status": {
+                      "const": "available"
+                    }
+                  }
+                }
+              },
+              "required": [
+                "changes"
+              ]
+            },
+            "then": {
+              "required": [
+                "publicationConfirmed"
+              ],
+              "properties": {
+                "publicationConfirmed": {
+                  "const": true
+                }
+              }
+            }
+          }
         ]
       },
       "PaymentIntentSummary": {
@@ -2317,7 +2512,8 @@
             "type": "string",
             "enum": [
               "purchase",
-              "renew"
+              "renew",
+              "ens_addon"
             ]
           },
           "amountAtomic": {
@@ -2435,6 +2631,18 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "ensNameType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "floor",
+              "custom",
+              null
+            ],
+            "description": "Selected name type from a paid ENS add-on snapshot; null when no paid entitlement exists."
           }
         },
         "required": [
@@ -2445,6 +2653,7 @@
           "expiresAt",
           "registryStatus",
           "ensName",
+          "ensNameType",
           "ensStatus",
           "mailEnabled",
           "destinationConfigured",

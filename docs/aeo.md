@@ -14,6 +14,8 @@
 
 公開本文、`<title>`、description、Open Graph、JSON-LD、`/llms.txt`、APIカタログを実装時に一つの公開コンテンツ設定から生成し、実行環境・料金・機能の表現を揃える。APIのpath、request、response、認可は[OpenAPI](openapi.json)と[API契約](api.md)を正とし、公開ページに別の契約を作らない。`PUBLIC_ORIGIN` はデプロイ時に `https://address.chain.tokyo` と固定し、canonical、sitemap、OpenAPI `servers`、絶対リンクに使う。リクエストの `Host` / `X-Forwarded-Host` から公開originを組み立てない。別のCloud Run標準URLから到達できる場合もcanonicalはこの公開originに統一する。DNSとTLSが整う前は公開到達を合格扱いしない。
 
+同じ公開コンテンツ設定に運営者名「国立日本総合研究センター株式会社」と運営者サイト `https://jgrec.jp/` を固定し、公開HTMLの可視表記・運営者リンクに使う。構造化データで`Organization`を記す場合は`name`と`url`だけをこの可視情報に一致させる。運営者の公開本社所在地を、本サービスで販売する住所拠点や転送先として流用しない。販売対象拠点の住所・郵便番号・slugは別途公開許可された値が確定するまで掲載しない。
+
 本文では次を明示する。
 
 - 1拠点あたり1〜65,535の**仮想区画**を提供し、実在する階数として表示しない。

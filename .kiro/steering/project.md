@@ -14,7 +14,7 @@ ENSv2の契約別サブネーム・専用Resolver・期限/取消・名前から
 
 GCP / Cloud Run / Firestore / Cloud Storage / GitHub Actionsを採用。永続outboxはCloud TasksとSchedulerで実行する。低コスト設定とFirestoreの一意性・再試行規則は `docs/infrastructure.md` に従い、SQLや常駐workerを追加しない。
 
-GCP projectは共有環境。アプリ専用リソースは `RESOURCE_PREFIX=realaddr-event`、Firestoreの全論理collection（admin/guard/outboxを含む）は `FIRESTORE_COLLECTION_PREFIX=realaddr_event_` を付ける。既存`(default)` DBは必要時に共有参照し、app stateへimport・管理しない。prefixはIAM隔離ではない。既存rules/DB/project IAM/API/予算を包括上書き・削除せず、本アプリ専用SAへの限定的なIAM member追加は許可する。他主体のgrantを置換・削除しない。indexは専用prefixのcollection groupのみ変更する。他リソースの未使用名に見えてもlive inventoryとownershipを確認する。
+GCP projectは共有環境。アプリ専用リソースは `RESOURCE_PREFIX=realaddr-event`、Firestoreの全論理collection（admin/guard/outboxを含む）は `FIRESTORE_COLLECTION_PREFIX=realaddr_event_` を付ける。`(default)` DBは必要時に共有参照し、app stateへimport・管理しない。prefixはIAM隔離ではない。デプロイ用service accountは`DEPLOY_SERVICE_ACCOUNT`の保護された設定で指定し、その所有者・binding・実効権限を読み取り確認する。accountの作成・import・削除は本アプリのTerraform対象外とし、許可する限定的なIAM追加は `docs/infrastructure.md` に従う。Cloud Run runtime/invoker等のservice accountは専用とする。既存rules/DB/project IAM/API/予算を包括上書き・削除せず、既存policy bindingの置換や他主体grantの削除をしない。indexは専用prefixのcollection groupのみ変更する。未使用名に見えてもlive inventoryとownershipを確認する。
 
 テストはハッカソン最小限とし、`docs/acceptance.md` の最小チェックを適用する。網羅テストや全受入ケースの自動化を必須にしない。
 

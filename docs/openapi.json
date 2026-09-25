@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "RealAddr for Agents API",
-    "version": "0.7.0-spec",
+    "version": "0.8.0-spec",
     "description": "Implementation contract, not a deployed service. Hackathon mail scope is approval, enabled status and a human-entered destination; no physical forwarding. ENSv2 names on Ethereum Sepolia reference leases; public resolution does not disclose forwarding addresses."
   },
   "servers": [
@@ -74,7 +74,7 @@
         "parameters": [],
         "responses": {
           "201": {
-            "description": "Success",
+            "description": "Order fulfilled or its confirmed issuance-failure refund completed",
             "content": {
               "application/json": {
                 "schema": {
@@ -981,7 +981,7 @@
       "post": {
         "operationId": "createLeaseOrder",
         "summary": "Create an address purchase, renewal, or one-time ENS add-on payment intent",
-        "description": "ens_addon defaults to a standard floor name; nameType custom requires a customLabel. The quoted nameType, label, canonical FQDN, pricingVersion and fee are immutable through pay. A canonical-name collision returns 409 ens_name_unavailable without disclosing the other lease. An owned active subscription and a verified environment/nameType fee are required. Missing or mismatched fee returns 503 ens_pricing_unavailable without a 402; unavailable parent-name or registry prerequisites return 503 ens_dependency_unavailable. An existing paid entitlement returns 409 ens_already_purchased; a refunded entitlement returns 409 ens_repurchase_unavailable; an in-progress add-on returns 409 ens_purchase_in_progress with its intentId as resourceId. Only a confirmed unpaid intent releases pending name and entitlement guards. Unknown or unowned subscriptions return 404; inactive subscriptions return 409 lease_not_active. The add-on inherits locationId and floor from the subscription, creates no new slot hold, and does not consume new-lease quota. Normal risk, x402, nonce, and spend limits still apply.",
+        "description": "ens_addon defaults to a standard floor name; nameType custom requires a customLabel. The quoted nameType, label, canonical FQDN, pricingVersion and fee are immutable through pay. A canonical-name collision returns 409 ens_name_unavailable without disclosing the other lease. An owned active subscription and a verified environment/nameType fee are required. Missing or mismatched fee returns 503 ens_pricing_unavailable without a 402; unavailable parent-name or registry prerequisites return 503 ens_dependency_unavailable. An existing paid entitlement returns 409 ens_already_purchased; an entitlement refunded after confirmed issuance failure returns 409 ens_repurchase_unavailable; an in-progress add-on returns 409 ens_purchase_in_progress with its intentId as resourceId. Only a confirmed unpaid intent releases pending name and entitlement guards. Unknown or unowned subscriptions return 404; inactive subscriptions return 409 lease_not_active. The add-on inherits locationId and floor from the subscription, creates no new slot hold, and does not consume new-lease quota. Normal risk, x402, nonce, and spend limits still apply.",
         "security": [
           {
             "agentBearer": []
@@ -1653,7 +1653,14 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Fulfilled"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/Fulfilled"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Refunded"
+                    }
+                  ]
                 }
               }
             },
@@ -1673,7 +1680,7 @@
             }
           },
           "202": {
-            "description": "Payment outcome is pending; poll without authorizing a new payment.",
+            "description": "Settlement, issuance review, or a confirmed issuance-failure refund is pending. Poll the same intent without authorizing a new payment or refund transfer.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5596,7 +5603,7 @@
       "Order": {
         "type": "object",
         "additionalProperties": false,
-        "description": "For kind ens_addon, fulfilled means one paid ENS entitlement and its publishing outbox are durably recorded for the existing subscription; it does not mean ENS is ready. Reconciliation of an unknown payment uses the same intent and must not request a new add-on charge.",
+        "description": "For kind ens_addon, fulfilled means one paid ENS entitlement and its publishing outbox are durably recorded for the existing subscription; it does not mean ENS is ready. A confirmed unrecoverable ENS issuance failure may later move the same order through refund_pending to refunded while the address lease remains intact. Reconciliation of an unknown payment uses the same intent and must not request a new add-on charge.",
         "properties": {
           "kind": {
             "type": "string",
@@ -5614,7 +5621,9 @@
               "reconciling",
               "fulfilled",
               "failed_unpaid",
+              "manual_review",
               "refund_pending",
+              "refunded",
               "expired",
               "cancelled",
               "blocked"
@@ -5750,7 +5759,9 @@
             "type": "string",
             "enum": [
               "settling",
-              "reconciling"
+              "reconciling",
+              "manual_review",
+              "refund_pending"
             ]
           },
           "pollUrl": {
@@ -5768,10 +5779,68 @@
           "retryAfterSeconds"
         ]
       },
+      "Refunded": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "A confirmed issuance-failure refund of the full original order amount to the verified original payer. Replaying pay returns this result without a new settlement.",
+        "properties": {
+          "intentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "const": "refunded"
+          },
+          "refundId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amountAtomic": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$"
+          },
+          "network": {
+            "type": "string"
+          },
+          "asset": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$"
+          },
+          "payer": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$"
+          },
+          "sender": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$"
+          },
+          "txHash": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{64}$"
+          },
+          "confirmedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "intentId",
+          "status",
+          "refundId",
+          "amountAtomic",
+          "network",
+          "asset",
+          "payer",
+          "sender",
+          "txHash",
+          "confirmedAt"
+        ]
+      },
       "Fulfilled": {
         "type": "object",
         "additionalProperties": false,
-        "description": "For ens_addon, this confirms a durable one-time paid entitlement and publishing outbox for subscriptionId, not completed ENS registration or resolution.",
+        "description": "For ens_addon, this confirms a durable one-time paid entitlement and publishing outbox for subscriptionId, not completed ENS registration or resolution. A later confirmed unrecoverable issuance failure can lead to an automatic refund of that add-on order only.",
         "properties": {
           "intentId": {
             "type": "string",
@@ -6241,7 +6310,7 @@
       "EnsStatus": {
         "type": "object",
         "additionalProperties": false,
-        "description": "not_purchased means no paid ENS entitlement; an in-progress payment is tracked by its payment intent. A refunded entitlement is disabled with lastErrorCode ens_refunded and cannot be repurchased automatically in v1. A ready name requires a real registered name and resolver, never placeholders.",
+        "description": "not_purchased means no paid ENS entitlement; an in-progress payment is tracked by its payment intent. An entitlement refunded after confirmed issuance failure is disabled with lastErrorCode ens_refunded and cannot be repurchased automatically in v1. A ready name requires a real registered name and resolver, never placeholders.",
         "properties": {
           "status": {
             "type": "string",

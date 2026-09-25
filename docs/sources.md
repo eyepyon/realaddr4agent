@@ -86,6 +86,8 @@ Interceptaの認証付きレスポンスschemaや既知危険アドレスの当�
 
 ## 公開HTML・AEO
 
+運営者の公開表記は、事業者自身が配信した[会社概要付きプレスリリース](https://prtimes.jp/main/html/rd/p/000000006.000147800.html)で「国立日本総合研究センター株式会社」と `https://jgrec.jp/` の対応を2026-09-26に確認した。指定サイト自体は取得時にrobots制限があり直接本文を確認できなかった。この確認は法人名と公式サイトの表記に限り、会社の公開所在地が本サービスの住所利用拠点として許可された証拠ではない。
+
 - [Google JavaScript SEO](https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics): 公開HTMLの初期本文と事前生成。
 - [Google noindex](https://developers.google.com/search/docs/crawling-indexing/block-indexing): robotsの遮断とnoindexの関係。アクセス認可は別途必要。
 - [Google structured data policies](https://developers.google.com/search/docs/appearance/structured-data/sd-policies): 可視本文と構造化データの一致。検索表示を保証しない。

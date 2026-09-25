@@ -71,17 +71,20 @@ event起動時はprefix空値・不正値・設定の不一致を拒否し、未
 | oidc_sessions | id, approvalId, stateHash 一意, nonceHash, encryptedPkceVerifier, browserSessionId, expiresAt, consumedAt |
 | browser_sessions | idHash, ownerWallet?, walletProvedAt?, candidateIssuer?, candidateSubject?, worldAuthTime?, expiresAt |
 | mail_profiles | leaseId PK, status, enabledByApprovalId?, grantExpiresAt?, version, encryptedDestination?, destinationConfigured, updatedAt |
-| refunds | id, paymentId 一意, amountAtomic, destination, status, txHash?, reason |
+| refunds | paymentId PK, orderId, reason(issuance_failed_final), originalPayer, network, asset, amountAtomic, signerAddress, transferNonce?, encryptedSignedTx?, txHash?, status(prepared/submitting/unknown/confirmed), settlementEvidence?, createdAt, updatedAt, version; 一確定paymentに一件、宛先・額は元決済から固定。confirmedが返金記録の終端状態 |
 | outbox | id, aggregateId, version, eventType, payload, state, availableAt, attempts; 一意(aggregateId,version,eventType) |
+| admin_operations | operationId PK, kind(payment/registry/ens), targetId, status, version, lastErrorCode?, nextAttemptAt?, updatedAt; 安全な一覧専用projection。元の業務状態と同一transactionで更新 |
 | ens_namespaces | buildingId PK, parentName, locationSlug, namespaceName, upperRegistry, locationRegistry, expiresAt, status, version; 拠点ごとのregistry接続と期限 |
 | ens_bindings | leaseId 一意, nameType, label, normalizedName 一意, namePolicyVersion, nameNode, labelHash, leaseKey, ownerWallet, resolverAddress, registryAddress(locationRegistry), controllerAddress, targetLeaseVersion, syncedLeaseVersion, status, expiry, txHash?, verifiedBlock?, lastErrorCode? |
-| ens_entitlements | leaseId PK, state(pending_payment/paid/refunded), intentId, nameType, label, normalizedName, namePolicyVersion, paidPaymentId?, paidAt?, pricingVersion, version; 一lease一つの初回購入と支払中の排他 |
+| ens_entitlements | leaseId PK, state(pending_payment/paid/refund_pending/refunded), intentId, nameType, label, normalizedName, namePolicyVersion, paidPaymentId?, paidAt?, pricingVersion, version; 一lease一つの初回購入と支払中の排他。返金後も支払い履歴を消さない |
 | chain_cursors | chainId, contract, finalizedBlock, blockHash |
-| audit_events | id, actorId, action, resourceId, oldState, newState, traceId, occurredAt, redactedDetails |
+| audit_events | eventId, actorId, action, targetType, targetId, reason, beforeVersion?, afterVersion?, idempotencyKeyHash, result, traceId, occurredAt, redactedDetails; 秘密値なし |
 
 すべてのresource参照でtenant/agent/leaseの整合性を検査。slotsとleaseを同一transactionで更新。発行済み(buildingId,slotNumber)は決定的slot documentを残し別leaseに使用不可。renewは同じleaseを更新する。承認はleaseごとに有効なpending/authenticatedを一つとし、approval_headsとversionのtransaction比較で直列化する。uniques、slot_shards、wallet_hold_quotas、rate_limits、daily_purchase_budgets、signer_nonces、chain_submissionsを補助collectionとする。各guardと割当algorithmはインフラ仕様に従う。管理用にadmin_principals / admin_sessions / admin_oidc_sessions / ops_metricsを追加し、権限・保存項目はadmin.mdに従う。拠点slugは一意guardで固定する。
 
 提供住所とplanはintent作成時にsnapshot化し、支払い確定時はその内容をleaseへ引き継ぐ。現在の拠点編集によって過去のintent/leaseの住所や価格を暗黙に変えない。管理画面の総数は集計時点付きmetrics documentから取得し、業務認可の根拠にしない。
+管理一覧は拠点status、決済/契約statusとlocationId（内部`buildingId`へ変換）、処理kind/status、監査targetType+targetIdの完全一致filterをserver queryで適用する。`admin_operations/{operationId}`はpayment/registry/ENSの権威的状態遷移と同じtransactionで更新する安全な読取projectionとし、一覧・ID直接読取にだけ使う。再照合の受付時は元のorder/outbox/chain状態とversionを再取得して検証し、projectionの値を操作認可根拠にしない。拠点/決済/契約/処理の`id` filterはdocument直接読取とし、他filter/cursorと排他で0/1件を返す。通常一覧の時刻降順にはdocument ID降順をtie-breakerとし、opaque cursorに管理主体・filter・sort・limitを固定する。監査targetTypeとtargetIdは同時指定のみ、未知queryや不正な組合せは400。返却は現在の安全なsummaryに限り、全件走査・自由文検索・新しい詳細取得は行わない。契約のENS名種別は返したlease IDについてだけ関連entitlement/bindingを最大100件のbounded batch readで照合し、他契約を走査しない。paginationは同時更新をまたぐ不変snapshotではなく、認可判定に一覧時点のstatusを使わない。
+拠点は管理APIからserver生成UUID・一意slug・日本の提供住所/郵便番号・公開エリア・表示名を登録する。slug以外の文字入力は前後空白を除去して必須・長さをserverで検証し、空白のみを拒否する。入力郵便番号は7桁またはハイフン付き7桁を検証して`NNN-NNNN`へ正規化し、環境固定のplanをserverが導出する。新規登録は必ず販売停止、別の監査付きversion更新でのみ販売再開し、serverは`publicationConfirmed=true`と理由を必須にする。予約時にも住所必須項目、plan、住所発行に必要な依存を検査する。ENS namespaceの未準備は任意ENS add-onだけを止め、基本住所の販売条件へ混ぜない。公開拠点catalogへ正確な提供住所・郵便番号を含めず、契約の住所snapshotはowner認可後だけ返す。実住所のseedを必須とせず、運用時に管理画面から登録する。65535区画をデプロイ時にseedせず、localテストfixtureは既存方針に従う。
 
 価格は[料金仕様](../../../docs/pricing.md)に従い、住所30日mainnet 55 USDC / testnet・dev 0.55 USDCを購入・更新へ適用する。ENS初回追加は標準名/独自名の選択ごとにmainnet 10/30 USDC、testnet・dev 0.10/0.30 USDCを別intentで課金する。独自名は30 USDCの一回分で、標準名料金を重ねない。検証済みUSDC decimals=6とnetwork別allowlistを使用し、APP_ENVだけで安い価格をmainnetへ流せないよう価格profileも検証する。mainnetは今回の起動許可対象外。設定欠落・価格profile不一致なら販売不可。管理画面から固定された料金・期間・資産条件を変更できない。見積にはkind、対象、名前選択、価格versionを固定し、支払い確定後に他商品へ読み替えない。
 
@@ -106,7 +109,9 @@ DBとchainが一つのtransactionになると仮定しない。住所の配信�
 
 settle timeoutはreconciling。txHash、payer/token/nonce、認可消費状態と対応送金を照合。nonce消費だけで成功にしない。同じpayloadの再settleはfacilitatorの冪等性が確認できた場合だけ。新nonceの再課金は禁止。
 
-hold標準10分。payment validBeforeはhold期限以内。settling/reconcilingのslotは時間だけで解放しない。未決済確定なら解放。決済済み契約未発行はreconcilerが発行を回復し、不可能ならrefund_pendingとする。返金は元payerへの別送金を記録。
+hold標準10分。payment validBeforeはhold期限以内。settling/reconcilingのslotは時間だけで解放しない。未決済確定なら解放。決済確定後に契約を発行できなければpayment=confirmedと証跡を保持し、order=manual_reviewとして永続outbox/運用キューで照合・同じ契約への復旧を続ける。履行していない状態をfulfilledと表示せず、新しい支払いを求めない。発行失敗の自動返金triggerは、決定的な非再試行失敗、または既定のoutbox retry上限に達した後に提供物がないと検証でき、かつ未確定の提出済みchain txが存在しない場合だけとする。timeout・retry回数だけでは失敗確定にせず、不明結果はmanual_reviewと照合を維持する。失敗が確定したら既存の外部送信や遅延jobをversion/generationでfenceし、提出済みchain txを全件照合して有効な提供物が存在しないことを確認してから、該当orderの支払額全額についてrefund_pendingを一度だけ作る。これはworkerの自動遷移であり運営者承認を待たない。renew失敗では失敗したrenew orderだけを返金し、旧契約の残存期間・権利を維持する。運営者の任意取消では返金しない。サービス終了時に残る前払い分の対象条件・方法・時期はその時に別途案内する。
+
+自動返金はBase Sepoliaの元決済と同じnetwork/USDC assetで、確認済み元payerへ該当orderの全額を別のERC-20 transferとして送る。gasは運営負担で返金額から差し引かない。`refunds/{paymentId}`の決定的guard、payment/order/leaseまたはentitlementのversion、失敗根拠、元payer・asset・額を一つのFirestore transactionで固定し、outboxへ記録する。返金workerは送信前に権利・発行jobのfenceを再確認する。専用返金signerのchain pending nonceをtransaction外で確認し、`signer_nonces/{network,signerAddress}`の永続cursorと`uniques/{network,signerAddress,nonce}`のrefundId所有guardをtransactionで原子的に割り当て、refundsにnonceを記録する。異なる返金が同じnonceを取得できず、結果不明・停止中の予約nonceも再利用しない。署名はtransaction外で行い、署名済みtransferのtx hash・暗号化payloadをbroadcast前に永続化する。外部送信をtransaction callback内で行わない。結果不明では同じtx hash/nonceとchain receiptを照合し、新nonceで別送金しない。成功にはsender、元payer宛先、asset、network、額、Transfer log、receipt success、設定finalityを照合し、一つのtransactionでrefund.status=confirmed、payment/order.status=refunded、ENS追加購入ならentitlement.state=refundedへ進める。確認できない結果はunknownのまま保持し、再送が安全と確認できた同じ署名済みtx以外は送らない。管理APIから返金送金を起動しない。
 
 finality前のreorgは保留、確認後のreorg検知はsuspendedと運用通知。再課金しない。期限内renewは旧期限+30日、expiredからは確定時点+30日。suspended/revokedはAgentがrenewで解除できない。
 
@@ -134,8 +139,8 @@ HTTP公開語彙は`locationId`=内部`buildingId`、`floor`=内部`slotNumber`�
 | 対象 | 遷移 |
 | --- | --- |
 | Slot | available → held → leased → retired。未決済確定したholdのみavailableへ戻す |
-| Order | awaiting_payment → settling → fulfilled。settling → reconciling → fulfilled / failed_unpaid / refund_pending。awaiting_payment → expired / cancelled / blocked |
-| Payment | prepared → settling → confirmed。settling → unknown → confirmed / failed。confirmed → refund_pending → refunded |
+| Order | awaiting_payment → settling → fulfilled。settling → reconciling → fulfilled / failed_unpaid / manual_review。確定支払いの未履行はsettling/reconciling → manual_review、復旧後は同じorderでfulfilled。発行失敗確定後はmanual_review/fulfilled → refund_pending → refunded。awaiting_payment → expired / cancelled / blocked |
+| Payment | prepared → settling → confirmed。settling → unknown → confirmed / failed。confirmed → refund_pending → refunded（発行失敗確定時だけ）。各状態で元決済証跡を保持 |
 | Lease | active → expired / suspended / revoked。expiredはrenewでactive可 |
 | Approval | pending → authenticated → applied。pending/authenticated → denied / expired / cancelled |
 | MailProfile | disabled → enabled（appliedのみ）。enabled → disabled（人間取消）/ suspended（契約停止・期限切れ） |
@@ -186,7 +191,7 @@ ENS追加intentのtransactionは対象leaseの所有者・active状態・購入g
 
 APIのOrderにはsnapshotを `nameType`、`label`、`fqdn`（内部normalizedName）、`pricingVersion`、`amountAtomic` として返す。これらはENS追加intentの必須情報であり、CLIが署名前に完全名と初回追加料金を表示・検査する。
 
-支払確定時はpayment・paid entitlement・paid完全名guard・ENS outboxを同じtransactionで保存する。送金未確定のguardを期限だけで解放せず、未払いが確定した場合だけ未発行の名前予約と購入排他を原子的に解放して次の購入を許す。pay時の名前・価格の変更は認めず、作り直す場合も元の支払い状態を先に確定させる。一度paidになった名前のguardは返金・失効・解約後も別leaseへ再利用しない。既購入を新intentで再請求しない。送金後にleaseが期限切れ・停止しても購入済み記録は失わず、名前の有効化は保留する。期限切れは同leaseの住所更新後に同じ購入権で再開し、復旧不能・取消は既存の照合/返金手順へ送り、勝手に再課金しない。返金が確定した購入はrefundedにして有効化せず、再購入はv1の自動フローに含めない。
+支払確定時はpayment・paid entitlement・paid完全名guard・ENS outboxを同じtransactionで保存する。送金未確定のguardを期限だけで解放せず、未払いが確定した場合だけ未発行の名前予約と購入排他を原子的に解放して次の購入を許す。pay時の名前・価格の変更は認めず、作り直す場合も元の支払い状態を先に確定させる。一度paidになった名前のguardは返金・失効・解約後も別leaseへ再利用しない。既購入を新intentで再請求しない。送金後にleaseが期限切れ・停止しても購入済み記録は失わず、名前の有効化は保留する。期限切れは同leaseの住所更新後に同じ購入権で再開する。不明・再試行可能な発行障害はpaid entitlementと証跡を保持してENS同期をmanual_reviewへ送り、readyと表示しない。復旧不能なENS発行失敗が確定した場合だけ、提出済みtxの結果を照合し、使えるnameをdisable/revokeしてfinality付きread-backで無効を確認し、古いjobをfenceしてからENS追加orderの全額だけを自動返金する。住所leaseとその支払いは変更しない。返金準備時にentitlement=refund_pendingとして名前の有効表示・再発行を止め、返金確定後はrefundedを保持し自動再購入を許さない。
 
 NameControllerへのpublisher要求もpaidな見積のnameType/namePolicyVersion/labelと一致させる。contractは固定した拠点registry、slot由来の標準名、独自label制約とversion 1の正確な予約label集合、一lease一名と過去の名前bindingを検査し、任意namespaceへの登録や後からの名前差替えを拒否する。支払いの確認は従来通り運営backendの証明であり、名前のhashだけでBaseの決済をEthereum上で証明したとは扱わない。詳細interfaceはENS設計を正とする。
 

@@ -20,6 +20,7 @@ AIエージェントがx402で実住所の利用区画を契約し、ENSv2名で
 12. [管理画面・運用者権限](docs/admin.md) / [管理API](docs/admin-openapi.json)
 13. [公開ページ・AEO仕様](docs/aeo.md)
 14. [料金・ENS追加購入](docs/pricing.md)
+15. [event環境の設定値・GitHub Actions投入先](docs/deployment-configuration.md)
 
 ## 3つの開発エージェントから使う
 
@@ -49,7 +50,7 @@ AGENTS.mdとREADME.mdから仕様を読み、.kiro/specs/realaddr/tasks.mdの
 ## スコープ
 
 - Cloud Run（最小instance数0）、Firestore、Cloud Storage、GitHub Actions。非同期処理はCloud Tasks、回復はScheduler。無料枠中心の運用を設計し、完全0円は保証しない。
-- 共有GCP projectでは `RESOURCE_PREFIX=realaddr-event` と `FIRESTORE_COLLECTION_PREFIX=realaddr_event_` を使う。既存`(default)` DB等は共有参照に限定し、Terraform stateへimport・一括管理しない。prefixはIAM境界ではなく、既存サービスと合算して無料枠/予算を評価する。実際のGCP変更は未実施。
+- 共有GCP projectでは `RESOURCE_PREFIX=realaddr-event` と `FIRESTORE_COLLECTION_PREFIX=realaddr_event_` を使う。`(default)` DB等は共有参照に限定し、Terraform stateへimport・一括管理しない。デプロイ用service accountは保護された設定の`DEPLOY_SERVICE_ACCOUNT`で指定し、所有者・binding・実効権限を事前に確認する。そのaccountの作成・import・削除は本アプリのTerraform対象外とし、限定的なIAM追加は[インフラ仕様](docs/infrastructure.md)に従う。Cloud Run runtime/invoker等のservice accountは専用とする。prefixはIAM境界ではなく、project全体で無料枠/予算を評価する。実際のGCP変更は未実施。
 - 1拠点につき1〜65,535の仮想区画。住所表記は実際の建物階数と区別する。
 - 住所契約は30日ごとにmainnet想定55 USDC、testnet/dev 0.55 USDC（USDC 6 decimalsでそれぞれ55,000,000 / 550,000 atomic）。purchase/renew共通。今回mainnet決済は無効で、test価格をmainnetへ流用しない。
 - 安全性判定 → x402決済 → 永続的な住所利用契約 → オンチェーン記録。
