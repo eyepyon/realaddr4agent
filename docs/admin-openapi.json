@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "RealAddr Operator API",
-    "version": "0.1.0-spec",
+    "version": "0.2.0-spec",
     "description": "Planned same-origin operator API. No implementation or deployment exists. Authentication is server-side Google OIDC plus a separate admin session. This API cannot approve human actions or force payments."
   },
   "servers": [
@@ -2084,7 +2084,11 @@
           },
           "amountAtomic": {
             "type": "string",
-            "pattern": "^(0|[1-9][0-9]*)$"
+            "enum": [
+              "550000",
+              "55000000"
+            ],
+            "description": "30-day address price in 6-decimal USDC units: event test/dev 550000; future mainnet profile 55000000 is not currently on sale. The server enforces the environment and verified asset. One-time ENS add-on fees are separate: event floor 100000/custom 300000; future mainnet floor 10000000/custom 30000000, with mainnet sales disabled."
           },
           "network": {
             "type": "string"
@@ -2095,8 +2099,7 @@
           },
           "decimals": {
             "type": "integer",
-            "minimum": 0,
-            "maximum": 36
+            "const": 6
           }
         },
         "required": [
@@ -2118,7 +2121,9 @@
           "slug": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 128
+            "maxLength": 63,
+            "pattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$",
+            "description": "Single lowercase ASCII DNS label for the ENS location namespace. No dots; letters/digits at both ends, internal hyphens allowed. The server verifies that ENSIP-15 normalization preserves this exact slug."
           },
           "displayName": {
             "type": "string"
@@ -2198,7 +2203,9 @@
           "slug": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 128
+            "maxLength": 63,
+            "pattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$",
+            "description": "Single lowercase ASCII DNS label for the ENS location namespace. No dots; letters/digits at both ends, internal hyphens allowed. The server verifies that ENSIP-15 normalization preserves this exact slug."
           },
           "displayName": {
             "type": "string"

@@ -9,7 +9,7 @@
 | 概要 | testnet/sandboxラベル、契約・未確定決済・同期保留・失敗件数、最終更新時刻 | 手動更新 |
 | 拠点 | 公開エリア、提供住所、plan、販売状態、version、発行済み契約数 | 作成、編集、販売停止・再開 |
 | 決済 | payment intent ID、仮想区画、金額、risk判定、支払い・照合状態、traceId、時刻 | 状態確認のみ |
-| 契約とENS | subscription ID、仮想区画、期限、契約状態、registry/ENS同期、mail enabledと宛先登録有無 | 状態確認のみ |
+| 契約とENS | subscription ID、仮想区画、期限、契約状態、ENS種別・canonical name・registry同期、mail enabledと宛先登録有無 | 状態確認のみ |
 | 処理と監査 | 未完了outbox/jobの安全な要約、最終error code、次回実行時刻、運営操作履歴 | 対象を指定した読取照合の再要求 |
 
 一覧はserver側でカーソルページングし、limitは1〜100、既定20件。概要は全件scanせず、権威的な状態遷移と同じtransactionで更新する小さな `ops_metrics/current` 集計documentから読む。このdocumentは `schemaVersion`、`version`、`asOf`、`locationCount`、`activeSubscriptionCount`、`uncertainPaymentCount`、`syncPendingCount`、`manualReviewCount`を持ち、`GET /v1/admin/overview` の同名fieldへ写す。`asOf` を表示し、集計が未作成・破損・更新失敗なら `available=false`、`asOf=null`、該当counterを `null` として「取得不可」と表示する。欠損を0件に見せず、古い集計は時刻を明示する。この集計を決済・権限判定に使わない。自動pollingせず手動更新する。pending、unknown、reconciling、manual_reviewを成功として表示しない。支払いはBase Sepolia、ENSとLeaseRegistryはEthereum Sepoliaと明記する。区画番号1〜65535は「仮想区画 V00042」のように表示し、物理階数と区別する。住所提供拠点の表示と、人間が入力した転送先住所は別物である。
@@ -32,7 +32,7 @@ Googleの[OpenID Connect検証手順](https://developers.google.com/identity/ope
 
 ## 書込規則
 
-拠点の `locationId` はserver生成UUID、`slug` は別の決定的unique guardで一意にする。slugは作成後常に不変。新規拠点は住所、公開エリア、plan、販売状態を登録し、`floor` の総数を個別に設定しない。active hold、settling/reconcilingのorder、または発行済み契約が一つでもある拠点の郵便番号・正確な提供住所は不変。住所を変える場合は新しい拠点を登録する。表示名、公開エリア、plan、販売状態は更新できるが、更新後のplanと住所表示は新しいpayment intentだけに使い、既存intentの固定価格・期間・住所snapshot、既存契約を変更しない。販売停止は新規予約を止める。停止前に作成済みの未払いintentも支払い前の可用性検査で止め、決済中・結果不明の照合や成立済み契約の権利は消さない。再開も安全性判定や在庫競合を迂回しない。
+拠点の `locationId` はserver生成UUID、`slug` は別の決定的unique guardで一意にする。slugは作成後常に不変。新規拠点は住所、公開エリア、固定plan参照、販売状態を登録し、`floor` の総数を個別に設定しない。運営画面で料金、期間、通貨、atomic amountを任意編集する機能は設けない。住所planは30日55/0.55 USDC、ENS初回add-onは標準10/0.10、custom30/0.30 USDC（mainnet想定 / testnet-dev、6 decimals）。plan料金は実行環境の固定設定から導出し、allowlist/network/asset/rateと一致しない場合は起動・intent作成を拒否する。testnet/dev価格をmainnetで使えず、環境変数だけでmainnetを有効化できない。ENS add-onの名前型ごとの環境設定が欠落またはchain不整合なら販売不可。表示名、公開エリア、販売状態は更新できるが、更新後のplanと住所表示は新しいpayment intentだけに使い、既存intentの固定価格・期間・住所snapshot、既存契約を変更しない。住所renewは住所30日料金のみで、購入済みENSの期限同期を含む。ENS初回料金を住所料金へ混ぜない。ENS名の変更や同一leaseへの2つ目のENSは初回購入後に許可しない。active hold、settling/reconcilingのorder、または発行済み契約が一つでもある拠点の郵便番号・正確な提供住所は不変。住所を変える場合は新しい拠点を登録する。販売停止は新規予約を止める。停止前に作成済みの未払いintentも支払い前の可用性検査で止め、決済中・結果不明の照合や成立済み契約の権利は消さない。再開も安全性判定や在庫競合を迂回しない。
 
 拠点create/update/pause/resumeは理由（3〜500文字）、`Idempotency-Key`、更新時 `expectedVersion` を必須とする。Firestore transactionでversion比較・状態更新・監査record・outboxを一緒に確定し、外部効果はtransaction外で実行する。同じキーと同じbodyは同じ結果、別bodyは409。失敗した競合は409で現在versionを返すが、他者情報は返さない。拠点の削除endpointは作らない。
 

@@ -51,6 +51,8 @@ pairwise subjectは環境/clientのsectorに依存する。pluginのsubjectと�
 
 v2、EVM `exact`を採用する。`@x402/core`、`@x402/evm`、`@x402/fetch`を候補としてT-01でAPI/バージョンを固定。CAIP-2 network、token address、decimals、facilitatorはT-00で照合して設定に保存する。
 
+住所購入・更新の価格は30日mainnet 55 USDC / testnet・dev 0.55 USDC。6 decimalsを実確認したUSDCで、それぞれatomic額55000000 / 550000を使う。mainnetは将来の価格定義であり、現行の支払いallowlistはBase Sepoliaのまま。ENS初回追加は標準名/独自名を選び、mainnet 10/30 USDC、testnet・dev 0.10/0.30 USDCを別intentで課金する（atomic額は10000000/30000000、100000/300000）。見積に名前と価格を固定し、以後の住所更新に購入済みENSの維持を含める。設定欠落・不一致なら決済を要求しない。詳細は[料金仕様](pricing.md)。
+
 HTTP wireはSDKの型・encoderを使用: server 402の`PAYMENT-REQUIRED`、client retryの`PAYMENT-SIGNATURE`、settlement情報の`PAYMENT-RESPONSE`。旧v1の`X-PAYMENT`との混在を禁止する。base64の独自実装より公式encoderを使う。
 
 ### 支払いを署名する条件
@@ -138,8 +140,8 @@ interface LeaseRegistryPort {
 
 ## 6. ENSv2
 
-[採用設計と接続契約](ensv2.md)に従う。Sepoliaの公式deployment、対応SDK/ABIをT-00で固定し、UserRegistryを取得した親名へ接続する。registry内にtokenを作っただけで名前解決可能とは判断しない。
+[採用設計と接続契約](ensv2.md)に従う。Sepoliaの公式deployment、対応SDK/ABIをT-00で固定し、取得した親名に上位UserRegistryを接続する。そこへ拠点slugを登録し、拠点専用UserRegistryをsubregistryとして接続する。`f00042.<拠点slug>.<親名>.eth` または独自labelの完全名を実階層として登録・検証する。registry内にtokenを作っただけで名前解決可能とは判断しない。
 
-LeaseRegistryもSepoliaへ配置する。MultiBaasのSepolia read/write/event利用を確認する。Base Sepoliaのx402決済とENSのgasは分離し、事業者が名前発行gasを負担する。対応SDKでUniversal Resolver read-backを行い、exact登録とcontroller bindingを照合する。
+LeaseRegistryもSepoliaへ配置し、ENS未購入の住所契約も記録する。MultiBaasのSepolia read/write/event利用を確認する。Base Sepoliaのx402追加決済とENSのgasは分離し、事業者が購入済みの名前発行・維持gasを負担する。対応SDKでUniversal Resolver read-backを行い、exact登録とcontroller bindingを照合する。ENS追加の初回料金と、再試行に追加請求しないことを区別する。
 
 ENSレコードは公開・未信頼の入力。任意gatewayやapi URLへtokenを送らず、外部recordによる支払い先変更やWorld迂回を認めない。

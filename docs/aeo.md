@@ -17,11 +17,12 @@
 本文では次を明示する。
 
 - 1拠点あたり1〜65,535の**仮想区画**を提供し、実在する階数として表示しない。
-- 基本住所契約はAgent認証、Intercepta判定、Base Sepoliaのx402決済確定後に有効となり、World承認は購入条件ではない。
+- 30日住所契約/更新はmainnet想定55 USDC、testnet/dev 0.55 USDC（6桁atomicで55,000,000 / 550,000）。今回はmainnet決済を解禁しない。ENSは初回だけ別決済で、標準名はmainnet想定10 / testnet-dev 0.10 USDC、custom名は30 / 0.30 USDC（6桁atomicで10,000,000 / 100,000と30,000,000 / 300,000）。住所renewは購入済みENSの期間同期を含む。公開価格は名前の空き・確定見積を保証せず、CLIが作成するintentの見積を正本とする。
+- 基本住所契約はAgent認証、Intercepta判定、Base Sepoliaのx402決済確定後に有効となり、World承認は購入条件ではない。住所purchase/renewは30日分、料金表示は[料金仕様](pricing.md)と実行環境に一致させる。
 - ENSv2の契約名とLeaseRegistryはEthereum Sepoliaで扱う。testnetの検証状態と契約状態を区別する。
 - 郵便機能はowner walletの証明、World認証と人間の明示承認後の「郵便転送可」表示、および人間が入力する転送先設定まで。実際の郵便受領・発送・転送や送料決済は行わない。World認証を法的KYC完了と表現しない。
 - Agentは転送先住所全文にアクセスできない。公開のENS照合は契約参照と検証結果だけを返す。住所・個人情報・World識別子・内部lease UUID・mail状態を発見用ファイル、構造化データ、公開ガイドに載せない。
-- sponsor接続やtestnet発行は、実装・実測が終わるまで「予定」または「検証中」と表示する。未確定の料金、利用可能拠点、ENS親名、成果、稼働率を断定しない。
+- sponsor接続やtestnet発行は、実装・実測が終わるまで「予定」または「検証中」と表示する。利用可能拠点、空きENS名、正式見積、ENS親名、成果、稼働率を断定しない。表示料金は実行環境の購入可能性と一致させる。
 
 `/` はサービスの範囲と利用手順、`/developers` は認証・x402・ENS照合の概説と `/openapi.json` へのリンク、`/faq` は仮想区画、World承認、郵便機能、testnetの明確な回答を載せる。ページ間は通常の `<a href>` で結ぶ。`/v1/locations` はAgent Bearerが必要なAPIとして説明し、匿名で拠点一覧を取得できると記さない。
 
@@ -39,7 +40,8 @@
 AIエージェントによる日本の住所利用契約のためのサービス。現在の実装・接続状況は公開ガイドで確認してください。
 
 - 住所契約: Agent認証、リスク判定、Base Sepolia x402決済確定後。
-- ENSv2: Ethereum Sepoliaの契約別名。検証結果は契約状態・期限とともに確認。
+- 住所料金: 30日あたりtestnet/dev 0.55 USDC。mainnet想定価格55 USDCは今回利用不可。
+- ENSv2: Ethereum Sepoliaの契約別名。標準名はtestnet/dev 0.10 USDC、custom名は0.30 USDCで住所とは別の明示的な初回購入。名前の空きと見積はCLI作成intentで確認。検証結果は契約状態・期限とともに確認。
 - 郵便: 人間承認後の設定表示と転送先入力まで。実際の郵便転送は行いません。
 - API契約: https://address.chain.tokyo/openapi.json
 - 開発者ガイド: https://address.chain.tokyo/developers

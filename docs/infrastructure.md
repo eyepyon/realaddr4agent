@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | UI + API | 公開Cloud Runサービス1個 | React/Viteと公開用prerender HTMLをFastifyから配信。同一HTTPS origin、app/admin/approvalの既知routeを配信 |
 | 非同期処理 | 非公開Cloud Runサービス1個 | 同じimageのworker entrypoint。Cloud Tasks / Schedulerから認証付きHTTPで起動 |
-| 業務データ | Firestore Native mode / Standard edition | event projectの(default) database。契約・決済・承認・暗号化宛先・outbox |
+| 業務データ | 既存projectのFirestore Native mode / Standard edition | 共有の`(default)` databaseを参照。全論理collectionに`realaddr_event_`を付け、DB本体とrulesは既存の管理主体が所有 |
 | ファイル | Cloud Storage Standard、private bucket | 匿名化したデモ証跡と、必要時の暗号化snapshot。public access prevention / uniform access |
 | 遅延実行・再送 | Cloud Tasksのqueue1個 | IDだけをpayloadにする。決済照合・MultiBaas・ENSの小さな処理単位 |
 | 取りこぼし回復 | Cloud Schedulerのjob1個 | 5分ごとにworkerのsweep endpointを呼ぶ。期限掃除・未配信outbox・照合待ちを小分けに検出 |
@@ -19,17 +19,31 @@
 
 ### Terraformとデプロイの責任境界（T-16の実装契約）
 
-`infra/bootstrap`と`infra/app`の2 rootを作る。bootstrapはGCP project・billing・GitHub repository・DNS zone/recordを作らず、既存projectで必要なAPI、Terraform state専用private GCS bucket、Artifact Registry repository、GitHub OIDC/WIF pool・providerとdeploy用service accountを管理する。初回bootstrapは管理者がローカルstateで実行し、state bucket作成後のbootstrap state移行はバックアップ・移行先確認を伴う別の手動手順として記録する。現時点ではstate作成も移行も未実施。app rootは作成済みstate bucketをGCS backendとして使い、Cloud Run 2サービス、Firestore、業務用private bucket、Tasks/Scheduler、Secret Managerのsecret metadata、IAM、予算設定を管理する。backend bucketは先に存在する必要があり、GCS backendはstate lockingに対応する。[Terraform GCS backend](https://developer.hashicorp.com/terraform/language/backend/gcs)
+`infra/bootstrap`と`infra/app`の2 rootを作る。既存の同一GCP project IDを参照し、project・billing・GitHub repository・DNS zone/record・`(default)` Firestore DB・既存予算は作成、import、管理しない。bootstrapは本アプリ専用のTerraform state用private GCS bucket、Artifact Registry repository、GitHub OIDC/WIF pool・provider、deploy用service accountを管理する。必要なproject APIの有効化は既存の管理主体と調整した共有運用手順で行い、本アプリのstateには含めない。初回bootstrapは管理者がローカルstateで実行し、state bucket作成後のbootstrap state移行はバックアップ・移行先確認を伴う別の手動手順として記録する。現時点ではstate作成も移行も未実施。app rootは専用state bucketをGCS backendとして使い、本アプリ専用のCloud Run 2サービス、業務用private bucket、Tasks/Scheduler、Secret Managerのsecret metadata、限定したIAM、`realaddr_event_` collection groupだけの複合indexとfield exemptionを管理する。backend bucketは先に存在する必要があり、GCS backendはstate lockingに対応する。[Terraform GCS backend](https://developer.hashicorp.com/terraform/language/backend/gcs)
 
-state bucketと業務用bucketは分離する。state bucketはuniform bucket-level access、public access prevention、versioning、削除防止を設定し、読書き権限をinfra管理主体だけへ絞る。versioningの保持量・費用を監視する。業務用bucketには後述の短期保持とsoft delete無効の方針を適用し、Terraform stateを置かない。Terraform変数・state・planにprovider秘密、署名鍵、World情報、宛先、支払いpayloadを入れない。secret名とIAMだけをTerraformで管理し、値は権限を持つ運用者がSecret Managerへ別途登録する。未設定のsecretを成功用の仮値で埋めない。
+state bucketと業務用bucketは分離し、他サービスのstate bucket/prefixも共有しない。state prefixはbootstrapが`realaddr/event/bootstrap`、appが`realaddr/event/app`。state bucketはuniform bucket-level access、public access prevention、versioning、削除防止を設定し、読書き権限を本アプリのinfra管理主体だけへ絞る。versioningの保持量・費用を監視する。業務用bucketには後述の短期保持とsoft delete無効の方針を適用し、Terraform stateを置かない。Terraform変数・state・planにprovider秘密、署名鍵、World情報、宛先、支払いpayloadを入れない。secret名とIAMだけをTerraformで管理し、値は権限を持つ運用者がSecret Managerへ別途登録する。未設定のsecretを成功用の仮値で埋めない。
 
 Terraform/providerの動作確認済みversionと各rootの`.terraform.lock.hcl`を管理する。`.terraform/`、local state/backup、plan、実値を含むtfvars、認証ファイルはGit対象外にし、公開用exampleにはplaceholderだけを置く。bootstrapの初回image指定とstate移行を含むコマンドは実装時に記載し、現時点で実行可能と主張しない。
 
-Firestore `(default)` databaseと請求予算はproject内の既存状態を先に確認する。既存のものをTerraformで管理する場合は、対象IDと設定を確認してimportした後に差分を審査する。存在するDBや予算を無条件で再作成しない。resource名は環境・用途を含む決定的な名前とし、実project ID、repository ID、bucket名はT-16で確定して設定値に置く。環境別のstate prefixとGitHub Environmentを分け、testnet用のservice accountから他環境のstate/secret/imageへ到達できないIAMにする。専用の常駐サービスや固定費のedge/networkは初期構成に追加しない。
+T-16の必須共存ゲートでproject内の既存Cloud Run、Firestore DB/rules/index、API、IAM、予算、bucket、Artifact Registry、Tasks、Scheduler、Secret Manager、WIF、service accountと各resourceの所有者を読み取り確認する。現時点ではlive inventoryを実施していない。共有resourceを本アプリのstateへimportしない。同名の既存resourceが本アプリ所有と確認できなければ上書き・importを止め、明示的に設定したsuffixで衝突を解消する。毎回ランダム名を生成しない。apply前のplanは本アプリ専用resourceと許可されたprefix collection indexだけに限定し、他サービスへの変更があれば停止する。
+
+基本の`RESOURCE_PREFIX=realaddr-event`と名前は次の通り。実project ID、認証主体、bucketの実値や衝突回避suffixは保護された設定manifestに置き、リポジトリへ展開しない。同名衝突でsuffixを選ぶ場合はresource名と`FIRESTORE_COLLECTION_PREFIX`の物理mapperを同じmanifestで確定し、コード・Terraform・運用手順で一致を検査する。運用開始後のprefix変更は既存documentの移行を伴うため、単純な設定変更として扱わない。
+
+| Resource | 基本名・範囲 |
+| --- | --- |
+| Cloud Run | `realaddr-event-web`、`realaddr-event-worker` |
+| Artifact Registry | `realaddr-event-images` |
+| Cloud Tasks / Scheduler | `realaddr-event-jobs` / `realaddr-event-sweep` |
+| service account | `realaddr-event-web`、`realaddr-event-worker`、`realaddr-event-deploy`、`realaddr-event-tasks`、`realaddr-event-sched` |
+| WIF | pool `realaddr-event-gh`、pool内provider `github` |
+| Secret Manager | `realaddr-event-<purpose>` |
+| GCS | `${GCP_PROJECT_ID}-realaddr-event-data`、`${GCP_PROJECT_ID}-realaddr-event-tfstate` |
+
+共有projectのIAM全体を上書きする`google_project_iam_policy`と、role単位で既存memberを置換する`google_project_iam_binding`を使わない。本アプリの追加grantは`google_project_iam_member`を必要最小限で使い、可能なものは本アプリresourceに限定する。共存ゲートで既存IAMの管理方法を確認し、別stateが同じroleのauthoritative bindingを管理する場合はmemberとの競合を避ける。既存の広いIAM grantも共存ゲートで確認する。共有Firestoreのserver IAMはcollection単位で隔離できると仮定せず、collection prefixにデータアクセスのIAM隔離効果があるとは扱わない。[Terraform Google project IAM](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_project_iam)はpolicyをproject全体、bindingをrole単位のauthoritative変更と定義する。共有APIを無効化しない。将来`google_project_service`を採用する場合も`disable_on_destroy=false`を指定し、他サービスの稼働に影響するAPI disableを禁止する。[Service Usage](https://docs.cloud.google.com/service-usage/docs/enable-disable)、[Terraform project service](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_service.html)。環境別のstate prefixとGitHub Environmentを分け、event用のservice accountに付けるstate/secret/image権限は本アプリ専用resourceへ限定する。専用の常駐サービスや固定費のedge/networkは初期構成に追加しない。
 
 Cloud Runのサービス設定とIAMはTerraformが所有し、通常のGitHub Actionsデプロイは検証済みimage digestだけを更新する。実装時にGoogle providerの対象schemaでimage属性だけの`ignore_changes`を確認・限定し、その他の設定差分はTerraform planで検出する。[Terraform lifecycle](https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle)に従い、属性全体を無視しない。webとworkerへ同じdigestを順に反映し、両revisionのdigest・min=0・invoker IAMを再読込して検証する。Cloud Run 2サービスの更新は原子的ではないため、片方だけ更新された場合は旧digestへ戻すか残りを安全に再実行し、状態を失敗として記録する。rollbackは確認済み旧digestを2サービスへ戻して再検証する。
 
-初期regionはコスト優先のus-central1。Run、Firestore、Tasks、bucket、Artifact Registryを同regionにそろえる。これは日本国内保存要件がないハッカソン用の仮定。国内保存が必要ならDB作成前にasia-northeast1へ変更して再見積もりする。Firestoreのlocation変更を通常の設定変更として扱わない。GCSの無料storage対象regionに東京は含まれない。[GCP無料枠](https://docs.cloud.google.com/free/docs/free-cloud-features)
+既存`(default)` Firestoreの実locationをT-16で確認し、本アプリから移動・再作成しない。新規Cloud Run/Tasks等のregionはDBの実配置を優先して選ぶ。DBがregionalなら原則同region、multi-regionなら公式の配置・通信条件を確認し、保存要件・遅延・通信費を見積もってから固定する。`us-central1`は未確認時の仮置き値であり適用値ではない。GCSの無料storage対象regionに東京は含まれない。[GCP無料枠](https://docs.cloud.google.com/free/docs/free-cloud-features)
 
 公開/・/developers・/faqはbuild時生成HTMLとして本文とリンクを初回応答へ含める。React/Viteの認証画面と共通部品を使い、常駐SSRは追加しない。UI assetはimageへ同梱し、GCSを別originの認証画面ホストにしない。公開originはhttps://address.chain.tokyo。ドメイン/DNS設定はユーザーが担当し、開発側はCloud Run接続先とTLS要件を提示する。ドメイン設定完了までは公開稼働済みとしない。管理画面も同じwebサービスの/adminで配信し、Google OIDCと独立した管理sessionで保護する。追加の管理用Cloud Runや認証用ロードバランサは初期構成に設けない。外部ロードバランサ、CDN、VPC connector、NAT、Redis、常時稼働VMは導入しない。
 
@@ -62,9 +76,9 @@ flowchart LR
 
 ## Firestoreのデータ契約
 
-[design.md](../.kiro/specs/realaddr/design.md)のcollection定義を使用する。documentにはschemaVersionを持たせる。時刻はFirestore Timestamp / APIではUTC ISO 8601。金額はcanonicalな10進整数文字列として保存し、演算・上限検証はbigintで行う。JS numberでtoken額を扱わない。slotは整数1..65535をrepositoryの書込境界でも検証する。
+[design.md](../.kiro/specs/realaddr/design.md)の論理collection定義を使用する。`FIRESTORE_DATABASE_ID=(default)`、基本の`FIRESTORE_COLLECTION_PREFIX=realaddr_event_`とし、repositoryの単一mapperだけが論理名を物理collection ID `realaddr_event_<logical>`へ変換する。admin、guard、outbox、session、rate limitなど例外を作らず、本アプリの全root collectionに適用する。衝突時に明示suffixを採用した場合も、そのmanifestのprefixを単一mapper・index設定・cleanupで共用する。直接のcollection名指定を他の実装箇所に散らさない。prefixは同一DB内の名前衝突を防ぐもので、IAMまたはSecurity Rulesによる隔離を保証しない。documentにはschemaVersionを持たせる。時刻はFirestore Timestamp / APIではUTC ISO 8601。金額はcanonicalな10進整数文字列として保存し、演算・上限検証はbigintで行う。JS numberでtoken額を扱わない。slotはrepositoryの書込境界でも整数1..65535を検証する。[Firestore複数DB管理](https://firebase.google.com/docs/firestore/manage-databases)によるとclient libraryは通常`(default)`へ接続するため、実行時のdatabase IDも明示的に検査する。
 
-ブラウザ/AgentからのFirestore直接アクセスは全面拒否するrulesを配置する。APIとworkerは専用service accountのIAMでserver SDKを使用する。[server SDKはSecurity Rulesを迂回する](https://firebase.google.com/docs/firestore/security/rules-conditions)ため、Security Rulesによる保護を期待せず、すべての更新を認可付きrepository経由にする。管理スクリプトも同じvalidationを使う。
+本アプリはブラウザ/AgentからFirestoreへ直接アクセスしない。既存`(default)` DB全体のSecurity Rulesは共有の管理主体が所有し、本アプリから配信・全面置換しない。T-16ではlive rulesを読み取り、Firebase clientなどRulesが適用される経路で本アプリprefixの代表パスに対する未認証・他利用者のread/write拒否を少数確認する。rulesの読取・評価ができなければ共存ゲートを通さない。server SDKやIAM認証RESTによる試行はRulesを迂回するため、この確認の代わりにならない。本アプリのprefix下が既存rulesの広い`allow`でclientからアクセス可能なら共存ゲートを失敗とし、共有管理主体が既存サービスを壊さない形で修正してから進める。重複する`allow`はORで評価され、追加の`deny`で広い許可を取り消せない。[Rules評価](https://firebase.google.com/docs/rules/rules-behavior)、[Rulesの配信](https://firebase.google.com/docs/firestore/security/get-started)。APIとworkerは専用service accountのIAMでserver SDKを使用する。[server SDKはSecurity Rulesを迂回する](https://firebase.google.com/docs/firestore/security/rules-conditions)ため、すべての更新を認可付きrepository経由にする。管理スクリプトも同じvalidationを使う。既存の広いproject IAMがあればprefix外へのserver accessも可能なので、権限の実態をT-16で確認する。
 
 ### 一意性・参照整合性
 
@@ -78,9 +92,11 @@ IDがそのまま一意性を表すものは同じdocumentに集約する。そ�
 | 支払い認可の再利用 | uniques: network + asset + payer + authorizationNonce → orderId |
 | 冪等キー | idempotency_keys/{hash(principal,method,path,key)}。bodyHashはフィールドで比較 |
 | leaseの人間binding/profile/ENS binding | human_bindings/{leaseId}、mail_profiles/{leaseId}、ens_bindings/{leaseId} |
+| ENS初回購入の排他・購入権 | ens_entitlements/{leaseId}。pending_paymentのintentIdとpaid/refundedを永続化し、送金不明では解放しない |
 | 同時有効approval | approval_heads/{leaseId}で現在approvalIdを管理し作成/適用/取消をtransaction化 |
 | OIDC state / refund / outbox | stateHash / paymentId / hash(aggregateId,version,eventType)を決定的IDにする |
-| canonical ENS名 | uniques: normalizedName → leaseId。解約しても別leaseへ再利用しない |
+| canonical ENS名 | uniques: ENSIP-15正規化完全名 → leaseId/intentId/state。追加見積と同時予約し、未払い確定した未発行予約だけ解放する。paid以降は解約・返金後も別leaseへ再利用しない |
+| 拠点ENS namespace | ens_namespaces/{buildingId}。上位registry→拠点label→拠点専用registryの接続を保持し、他拠点へ流用しない |
 
 参照先tenant/agent/leaseとversionの検査も同じtransactionで行う。外部キー相当の責任はrepositoryが負う。決済nonce、発行済みslot、名前、注文存続中の冪等キーを期限掃除で削除しない。
 
@@ -100,7 +116,7 @@ Firestore transactionは競合時にcallbackが再実行される。全readをwr
 
 ### Queryと料金を予測可能にする
 
-paginationはcursor+limit（初期20、最大100）。lease一覧はagentId+updatedAt、intent一覧はagentId+createdAt（同時刻はdocument IDで安定順序）、処理待ちはstate+availableAt、hold掃除はstatus+expiresAt、監査はresourceId+occurredAtを主要queryとし、必要な複合indexをfirestore.indexes.jsonに管理する。大きいpayload、ciphertext、bitmap、responseSnapshotはindex対象外。配列へ監査履歴やjob全件を蓄積しない。
+paginationはcursor+limit（初期20、最大100）。lease一覧はagentId+updatedAt、intent一覧はagentId+createdAt（同時刻はdocument IDで安定順序）、処理待ちはstate+availableAt、hold掃除はstatus+expiresAt、監査はresourceId+occurredAtを主要queryとする。必要な複合indexとfield exemptionは`realaddr_event_`で始まる本アプリ専用collection groupのものだけをTerraformのapp stateで管理できる。他サービスのindex削除・変更、全DB index定義の包括的なFirebase deployは禁止する。大きいpayload、ciphertext、bitmap、responseSnapshotは本アプリcollectionでindex対象外。配列へ監査履歴やjob全件を蓄積しない。
 
 sweepは各query最大20件を処理し、残りはcursor付きtaskへ分割する。常時snapshot listener、collection全走査、offset paginationは禁止。UI/CLIはpending時だけ5秒→最大30秒のbackoffでpollし、完了・非表示時は停止。rate limitは共有Firestoreの時間bucketをtransaction更新する（IPは鍵付きhash）。メモリ制限は補助とし、複数instanceで回避できないことを検証する。
 
@@ -112,7 +128,7 @@ expiresAtは毎要求で検証する。無料枠に含まれないTTL deleteは�
 2. commit後にCloud Tasks enqueueをawaitして応答する。途中停止・enqueue失敗でもoutboxが残り、Schedulerが再配信する。enqueue不能なら202と再照合状態を返す。メモリ内で後処理を継続しない。
 3. workerはoutboxのclaimOwner、claimUntil、claimGenerationをtransaction更新して処理権を取る。queue重複配信でも一度だけ状態適用する。max instances=1を排他制御の根拠にしない。
 4. 未送信のsettle実行直前に期限/slot/payer/risk freshnessを再検査する。古いriskはlive再判定し、deny/holdなら送金しない。結果不明なら元認可とchainの照合へ進み、新nonceで課金しない。
-5. 外部結果確定後、payment/lease/slot/mail/outboxをtransactionで更新。後続のMultiBaas→ENS作業を配信する。公開pay endpointの初回は202、完了後の同じpay要求は200。決済確定後の住所反映をchain名登録完了から分離する。
+5. 外部結果確定後、order kindごとにtransactionで確定する。住所購入・更新はpayment/lease/slot/mail/outboxとMultiBaas同期を更新し、ENS購入済みの場合だけENSの期限同期を配信する。ens_addonはpayment/ens_entitlements/outboxを確定し、区画の再割当や住所期限延長をしない。公開pay endpointの初回は202、完了後の同じpay要求は200。決済確定とENS名登録完了は別状態とする。
 
 **処理claimの期限切れだけで外部送金をやり直さない。** 支払いは既存のfacilitator/chain照合規則に従う。自前chain送信はsigner+nonceの永続予約と同一raw transaction/hashの暗号化保存をbroadcast前に行い、未知状態は同じtxの照会/安全な再broadcastに限定する。MultiBaas管理署名では同等のrequest ID照合が実利用できることをT-00で確認し、できないwrite方式は採用しない（自前送信+MultiBaas read/eventへ切替可）。
 
@@ -124,17 +140,17 @@ Cloud Tasksは配信をexactly-onceにしない。task IDの短期重複排除�
 - webはFirestore・Tasks enqueue・必要secret読取、workerはFirestore・必要secret・bucket限定操作・再enqueueだけを付与。invoker用主体はDB/秘密にアクセス不可。enqueueする主体のserviceAccountUserは対象invoke accountだけに限定する。
 - コード変更のCIはbuild/typecheckと変更に関係する最小チェックだけを実施する。Firestore Emulator/Foundryは決済・区画・権限など該当する重要箇所の変更時に限定し、文書だけの変更では文字コードと差分確認でよい。全suiteやlive接続を毎PRで実行しない。live秘密をfork PRへ渡さない。mainの検証済みcommitをGitHub Environment eventへdeployする。actionsはSHA pin、workflow権限は最小限とする。
 - GitHub OIDCからWorkload Identity Federationで短期credentialを得る。trust条件をrepository ID・owner ID・許可ref/environmentへ絞る。サービスアカウントJSON鍵をGitHub Secretsへ保存しない。[WIF公式手順](https://cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines)
-- DockerをActionsでbuildしArtifact Registryへpush、同じdigestを2サービスへdeployする。Cloud Buildを別途起動しない。bootstrap IAM/DB作成と通常deploy権限を分離する。schemaは後方互換追加を優先し、index readyを確認後に新queryへ切替える。
+- DockerをActionsでbuildしArtifact Registryへpush、同じdigestを2サービスへdeployする。Cloud Buildを別途起動しない。bootstrap/IAM管理と通常deploy権限を分離する。schemaは後方互換追加を優先し、本アプリ専用indexのreadyを確認後に新queryへ切替える。
 - Actionsは`ci`と手動`deploy-event`を分ける。PRの`ci`は`contents: read`のみでGCP credentialとremote stateに触れず、通常は形式検査・build/typecheckと変更に関係する最小チェックを実行する。Terraform変更時だけ対象rootの`terraform init -backend=false`、`terraform fmt -check`、`terraform validate`を追加する。全rootの`terraform test`やlive接続を毎PRの必須条件にしない。
 - `deploy-event`は`workflow_dispatch`、mainの検証済みcommit、保護されたGitHub Environmentに限定し、同一環境のconcurrencyでは進行中deployを取消さない。workflow権限は`contents: read`と`id-token: write`だけとし、project/region/environment/branch/commitをcloud認証前に照合する。WIF providerの条件はimmutableなrepository ID・owner ID、許可ref、Environment、event、workflow refへ絞り、deploy service accountのimpersonationをそのproviderだけに許可する。deploy accountは対象Artifact Registryへのpush、対象2サービスの更新、両runtime service accountへの必要なactAs、検証に必要なreadだけを持ち、Terraform state・Firestore・Secret Managerの値を読めない。infra applyは別の管理主体と手順で行う。
 - deployは固定したaction commit SHA、lockfileからのbuild、commit SHAタグのimage push、registryから取得したdigestで行う。事前に2サービスの現在digestを記録し、worker・webの更新後に両digestと設定を再確認する。公開healthと未認証worker拒否を少数のsmokeで確認する。失敗時の旧digestへの復帰手順と、片側のみ切り替わった期間を運用記録へ残す。workflowの成功は実スポンサー接続やデモ合格を意味しない。
-- infra/に再実行可能な設定とbootstrap/deploy script、Firestore rules/indexes、queue retry、Scheduler、bucket lifecycle、image cleanupを保存する。既存DBを自動初期化しない。rollbackは旧image digestへのtraffic復帰とする。
-- snapshotは必要時の手動運用案（ハッカソンの必須テスト外）: 新規書込停止→queue pause→実行中処理の収束/不明記録保存→全DB writer停止→小規模DBをページ取得して暗号化snapshotをprivate GCSへ保存→manifest/hash検証→再開。通常宛先を平文ファイルに出さない。restoreはEmulatorへ行い、uniques/shard/冪等記録を照合する。snapshot中もchainは進むため、復元後は新規settle前にchain照合が必須。無停止・時点復旧は保証しない。
-- 初期構成では有料のmanaged backup/PITRは有効化しない。snapshot以降のデータ損失リスクを運用記録に残す。商用移行時は予算を付けて別途復旧要件を決める。event snapshot保持7日、宛先はイベント後30日で削除し、snapshot内も期間内に消えることを確認する。
+- infra/に再実行可能な設定とbootstrap/deploy script、本アプリprefix限定のFirestore index/field exemption、queue retry、Scheduler、専用bucket lifecycle、image cleanupを保存する。共有DBのrulesや既存API、予算は本アプリのdeploy対象に含めず、既存DBを自動初期化しない。rollbackは旧image digestへのtraffic復帰とする。
+- snapshotは必要時の手動運用案（ハッカソンの必須テスト外）: 本アプリの新規書込停止→専用queue pause→本アプリの実行中処理の収束/不明記録保存→`realaddr_event_` collectionだけをページ取得して暗号化snapshotを専用private GCSへ保存→manifest/hash検証→本アプリを再開。他サービスを含む全DB writer停止は行わない。通常宛先を平文ファイルに出さない。restoreはまずEmulatorへ行い、本アプリのuniques/shard/冪等記録を照合する。実DBへの復元や削除は対象prefixを厳密に検証し、他サービスのdocument・bucket・queueに触れない。snapshot中もchainは進むため、復元後は新規settle前にchain照合が必須。共有DB全体の無停止・時点復旧は保証しない。
+- 共有DBのmanaged backup/PITR設定は本アプリから変更しない。本アプリの手動snapshot以降のデータ損失リスクを運用記録に残す。商用移行時は予算を付けて別途復旧要件を決める。event snapshot保持7日、宛先はイベント後30日で削除し、本アプリsnapshot内も期間内に消えることを確認する。
 
 ## 無料枠とコスト方針
 
-2026-09-25時点。無料トライアルの一時creditに依存せず、小規模event利用で無料枠中心の運用を狙う。billing accountは必要。無料枠の既存消費、region、通信先、provider料金により請求が変わるため「必ず0円」とはしない。
+2026-09-25時点。無料トライアルの一時creditに依存せず、小規模event利用で無料枠中心の運用を狙う。billing accountは必要。同じprojectの他サービスによる無料枠・quota消費を合算して確認する。region、通信先、provider料金により請求が変わるため「必ず0円」とはしない。追加の名前付きFirestore DBはデータ分離の代案だが、無料quota対象はproject内1 DBだけなので初期構成には採用しない。[Firestore無料quota](https://docs.cloud.google.com/firestore/quotas)
 
 | サービス | 主な無料枠・費用条件 | 本構成の管理方法 |
 | --- | --- | --- |
@@ -151,8 +167,8 @@ Cloud Tasksは配信をexactly-onceにしない。task IDの短期重複排除�
 
 検証用の使用量目標: 月20,000 public request・100契約・chain操作数百件、Run合計50,000 vCPU秒/25,000 GiB秒以下、Firestore日10,000 read/2,000 write/1,000 delete以下・保存0.2GiB、Tasks月30,000 operations以下、GCS保存0.1GB。Schedulerは5分ごとで月約8,640回（30日）になり、この処理も上記へ含める。これらは性能試験の結果ではなく予算上の上限目標。実測で超える場合は原因と見積もりを記録する。
 
-主要サービスはこの規模なら無料枠に収まる可能性が高い。例としてSecret Managerのsingle-location相当active版が10個なら超過4個で約$0.24/月、Artifact Registryが1GiBなら超過0.5GiBで約$0.05/月がstorageだけの概算。少額の通信料等を含む余裕としてeventのGCP予算を月$5に設定する（料金保証ではない）。Gas・ENS名・RPC・スポンサーAPI・ドメイン・開発AI利用料は別管理で、無料提供/テストネットだから永続無料とはしない。
+本アプリだけの使用量目標が無料枠内でも、共有projectの既存消費次第で課金される。例としてSecret Managerのsingle-location相当active版が10個なら超過4個で約$0.24/月、Artifact Registryが1GiBなら超過0.5GiBで約$0.05/月がstorageだけの概算。本アプリの運用目標は月$5だが、既存の請求予算は変更・importしない。共有project全体の予算通知を本アプリ単独の請求額と読み違えず、resourceごとの観測値とproject全体の請求を分けて記録する。Gas・ENS名・RPC・スポンサーAPI・ドメイン・開発AI利用料は別管理で、無料提供/テストネットだから永続無料とはしない。
 
-通常のalerts-only予算は利用停止の上限ではない。[Cloud Billing budgets](https://docs.cloud.google.com/billing/docs/how-to/budgets)。50/90/100%通知、Run instance数、queue速度/試行数、API quota、日次新規契約件数を併用する。instance上限だけで請求総額を固定できない。初期日次新規契約上限は100件としFirestoreのUTC日付budget documentで原子的に予約、確定消費を記録する。orderへ予約時のUTC日付を保存し、未払い確定の取消/期限切れは元の日付bucketの予約だけ解放、支払確定は元bucketの消費へ移す。renewは新規件数に含めない。未知決済の予約は解放しない。上限到達時は新規購入を止め、既存契約閲覧と決済照合を継続する。
+通常のalerts-only予算は利用停止の上限ではない。[Cloud Billing budgets](https://docs.cloud.google.com/billing/docs/how-to/budgets)。共有projectの管理主体による通知設定を確認し、本アプリ側はRun instance数、専用queue速度/試行数、API quota、日次新規契約件数を併用する。instance上限だけで請求総額を固定できない。初期日次新規契約上限は100件とし、本アプリprefixのFirestore UTC日付budget documentで原子的に予約、確定消費を記録する。orderへ予約時のUTC日付を保存し、未払い確定の取消/期限切れは元の日付bucketの予約だけ解放、支払確定は元bucketの消費へ移す。renewは新規件数に含めない。未知決済の予約は解放しない。上限到達時は新規購入を止め、既存契約閲覧と決済照合を継続する。
 
 [GCS soft delete](https://docs.cloud.google.com/storage/docs/soft-delete)/旧世代保持、image増殖、verbose log、日本などへの外向き通信にも費用が発生しうる。bucketはハッカソン用でversioning/soft deleteを無効とする選択を明記し、snapshot自体の7日保持で誤削除リスクを管理する。Secret版の破棄は復号/rollbackへの不要確認後のみ。無料枠を守るために鍵を公開したり、決済記録を省略したりしない。

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "RealAddr for Agents API",
-    "version": "0.5.0-spec",
+    "version": "0.7.0-spec",
     "description": "Implementation contract, not a deployed service. Hackathon mail scope is approval, enabled status and a human-entered destination; no physical forwarding. ENSv2 names on Ethereum Sepolia reference leases; public resolution does not disclose forwarding addresses."
   },
   "servers": [
@@ -980,7 +980,8 @@
     "/v1/payment-intents": {
       "post": {
         "operationId": "createLeaseOrder",
-        "summary": "Reserve a slot or create a renewal order",
+        "summary": "Create an address purchase, renewal, or one-time ENS add-on payment intent",
+        "description": "ens_addon defaults to a standard floor name; nameType custom requires a customLabel. The quoted nameType, label, canonical FQDN, pricingVersion and fee are immutable through pay. A canonical-name collision returns 409 ens_name_unavailable without disclosing the other lease. An owned active subscription and a verified environment/nameType fee are required. Missing or mismatched fee returns 503 ens_pricing_unavailable without a 402; unavailable parent-name or registry prerequisites return 503 ens_dependency_unavailable. An existing paid entitlement returns 409 ens_already_purchased; a refunded entitlement returns 409 ens_repurchase_unavailable; an in-progress add-on returns 409 ens_purchase_in_progress with its intentId as resourceId. Only a confirmed unpaid intent releases pending name and entitlement guards. Unknown or unowned subscriptions return 404; inactive subscriptions return 409 lease_not_active. The add-on inherits locationId and floor from the subscription, creates no new slot hold, and does not consume new-lease quota. Normal risk, x402, nonce, and spend limits still apply.",
         "security": [
           {
             "agentBearer": []
@@ -4729,7 +4730,7 @@
     "/v1/subscriptions/{subscriptionId}/ens": {
       "get": {
         "operationId": "getLeaseEnsStatus",
-        "summary": "Read owned lease ENS publishing status",
+        "summary": "Read optional ENS add-on purchase and publishing status for an owned subscription",
         "security": [
           {
             "agentBearer": []
@@ -5288,7 +5289,11 @@
           },
           "amountAtomic": {
             "type": "string",
-            "pattern": "^(0|[1-9][0-9]*)$"
+            "enum": [
+              "550000",
+              "55000000"
+            ],
+            "description": "30-day address price in 6-decimal USDC units: event test/dev 550000; future mainnet profile 55000000 is not currently on sale. The server validates the active environment and verified asset. ENS add-on is priced separately."
           },
           "network": {
             "type": "string"
@@ -5299,8 +5304,7 @@
           },
           "decimals": {
             "type": "integer",
-            "minimum": 0,
-            "maximum": 36
+            "const": 6
           }
         },
         "required": [
@@ -5402,6 +5406,80 @@
           "subscriptionId"
         ]
       },
+      "EnsAddonOrder": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "One-time ENSv2 add-on for an active subscription. Omitting nameType selects the standard f00042-style floor label; custom names use the same location namespace. It does not reserve a new slot or consume the daily new-lease quota. A paid add-on is never sold again for the same subscription; address renewals include ENS maintenance without another add-on charge.",
+        "properties": {
+          "kind": {
+            "const": "ens_addon",
+            "type": "string"
+          },
+          "subscriptionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "nameType": {
+            "type": "string",
+            "enum": [
+              "floor",
+              "custom"
+            ],
+            "default": "floor"
+          },
+          "customLabel": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 32,
+            "pattern": "^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$",
+            "not": {
+              "anyOf": [
+                {
+                  "pattern": "^f[0-9]+$"
+                },
+                {
+                  "enum": [
+                    "admin",
+                    "www",
+                    "api"
+                  ]
+                }
+              ]
+            },
+            "description": "Lowercase ASCII DNS label. All f followed only by digits is reserved for standard floor names. In namePolicyVersion=1, the exact service-label reservation set is admin, api and www; the server and NameController apply the same fixed policy. The server also applies ENSIP-15 canonical validation and a global normalized FQDN uniqueness guard."
+          }
+        },
+        "required": [
+          "kind",
+          "subscriptionId"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "nameType": {
+                  "const": "custom"
+                }
+              },
+              "required": [
+                "nameType"
+              ]
+            },
+            "then": {
+              "required": [
+                "customLabel"
+              ]
+            },
+            "else": {
+              "not": {
+                "required": [
+                  "customLabel"
+                ]
+              }
+            }
+          }
+        ]
+      },
       "LeaseOrderRequest": {
         "oneOf": [
           {
@@ -5409,6 +5487,9 @@
           },
           {
             "$ref": "#/components/schemas/RenewalOrder"
+          },
+          {
+            "$ref": "#/components/schemas/EnsAddonOrder"
           }
         ]
       },
@@ -5515,12 +5596,14 @@
       "Order": {
         "type": "object",
         "additionalProperties": false,
+        "description": "For kind ens_addon, fulfilled means one paid ENS entitlement and its publishing outbox are durably recorded for the existing subscription; it does not mean ENS is ready. Reconciliation of an unknown payment uses the same intent and must not request a new add-on charge.",
         "properties": {
           "kind": {
             "type": "string",
             "enum": [
               "purchase",
-              "renew"
+              "renew",
+              "ens_addon"
             ]
           },
           "status": {
@@ -5539,11 +5622,13 @@
           },
           "subscriptionId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Required for renew and ens_addon; for ens_addon this is the existing subscription receiving the one-time paid entitlement."
           },
           "amountAtomic": {
             "type": "string",
-            "pattern": "^(0|[1-9][0-9]*)$"
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "description": "For ens_addon this is the fixed one-time fee in 6-decimal USDC units: event test/dev floor 100000 or custom 300000; future mainnet floor 10000000 or custom 30000000, with mainnet sales currently disabled."
           },
           "network": {
             "type": "string"
@@ -5558,7 +5643,8 @@
           },
           "expiresAt": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "For ens_addon, at most 10 minutes after quote and no later than the current subscription expiry."
           },
           "riskAssessments": {
             "type": "array",
@@ -5571,13 +5657,14 @@
           },
           "locationId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "For ens_addon, derived server-side from subscriptionId."
           },
           "floor": {
             "type": "integer",
             "minimum": 1,
             "maximum": 65535,
-            "description": "Virtual service slot, never a physical building floor."
+            "description": "Virtual service slot, never a physical building floor. For ens_addon, derived server-side from subscriptionId without a new hold."
           },
           "payPath": {
             "type": "string",
@@ -5590,6 +5677,26 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "nameType": {
+            "type": "string",
+            "enum": [
+              "floor",
+              "custom"
+            ],
+            "description": "Present for ens_addon; fixed when the quote is created."
+          },
+          "label": {
+            "type": "string",
+            "description": "Present for ens_addon; standard floor label or validated custom label."
+          },
+          "fqdn": {
+            "type": "string",
+            "description": "Present for ens_addon; canonical ENSIP-15 name under the location namespace and configured parent."
+          },
+          "pricingVersion": {
+            "type": "string",
+            "description": "Present for ens_addon; identifies the fixed fee policy used for this quote."
           }
         },
         "required": [
@@ -5606,6 +5713,29 @@
           "floor",
           "payPath",
           "createdAt"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "ens_addon"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "required": [
+                "subscriptionId",
+                "nameType",
+                "label",
+                "fqdn",
+                "pricingVersion"
+              ]
+            }
+          }
         ]
       },
       "Pending": {
@@ -5641,6 +5771,7 @@
       "Fulfilled": {
         "type": "object",
         "additionalProperties": false,
+        "description": "For ens_addon, this confirms a durable one-time paid entitlement and publishing outbox for subscriptionId, not completed ENS registration or resolution.",
         "properties": {
           "intentId": {
             "type": "string",
@@ -6110,10 +6241,12 @@
       "EnsStatus": {
         "type": "object",
         "additionalProperties": false,
+        "description": "not_purchased means no paid ENS entitlement; an in-progress payment is tracked by its payment intent. A refunded entitlement is disabled with lastErrorCode ens_refunded and cannot be repurchased automatically in v1. A ready name requires a real registered name and resolver, never placeholders.",
         "properties": {
           "status": {
             "type": "string",
             "enum": [
+              "not_purchased",
               "pending",
               "ready",
               "error",
@@ -6123,7 +6256,8 @@
           },
           "network": {
             "type": "string",
-            "const": "eip155:11155111"
+            "const": "eip155:11155111",
+            "description": "Network for an optional ENS add-on. With status not_purchased, only status and network are returned; no placeholder name, resolver or transaction is invented. The add-on fee is quoted by POST /v1/payment-intents and cannot be purchased while pricing is unavailable."
           },
           "name": {
             "type": "string"

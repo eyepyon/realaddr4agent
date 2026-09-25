@@ -12,13 +12,14 @@ AIエージェントがx402で実住所の利用区画を契約し、ENSv2名で
 4. [API契約](docs/api.md) / [OpenAPI](docs/openapi.json)
 5. [実装タスク](.kiro/specs/realaddr/tasks.md)
 6. [受入テスト・デモ](docs/acceptance.md)
-7. [運用・設定・未確定事項](docs/operations.md)
+7. [運用・設定・未確定事項](docs/operations.md) / [未解決事項一覧](docs/open-items.md)
 8. [一次資料と確認状況](docs/sources.md)
 9. [ENSv2連携・住所契約の紐づけ](docs/ensv2.md)
 10. [GCP構成・Firestore設計・低コスト運用](docs/infrastructure.md)
 11. [画面構成・標準SaaSデザイン](docs/frontend.md)
 12. [管理画面・運用者権限](docs/admin.md) / [管理API](docs/admin-openapi.json)
 13. [公開ページ・AEO仕様](docs/aeo.md)
+14. [料金・ENS追加購入](docs/pricing.md)
 
 ## 3つの開発エージェントから使う
 
@@ -48,16 +49,20 @@ AGENTS.mdとREADME.mdから仕様を読み、.kiro/specs/realaddr/tasks.mdの
 ## スコープ
 
 - Cloud Run（最小instance数0）、Firestore、Cloud Storage、GitHub Actions。非同期処理はCloud Tasks、回復はScheduler。無料枠中心の運用を設計し、完全0円は保証しない。
+- 共有GCP projectでは `RESOURCE_PREFIX=realaddr-event` と `FIRESTORE_COLLECTION_PREFIX=realaddr_event_` を使う。既存`(default)` DB等は共有参照に限定し、Terraform stateへimport・一括管理しない。prefixはIAM境界ではなく、既存サービスと合算して無料枠/予算を評価する。実際のGCP変更は未実施。
 - 1拠点につき1〜65,535の仮想区画。住所表記は実際の建物階数と区別する。
+- 住所契約は30日ごとにmainnet想定55 USDC、testnet/dev 0.55 USDC（USDC 6 decimalsでそれぞれ55,000,000 / 550,000 atomic）。purchase/renew共通。今回mainnet決済は無効で、test価格をmainnetへ流用しない。
 - 安全性判定 → x402決済 → 永続的な住所利用契約 → オンチェーン記録。
 - World再認証と人間の明示承認 → 「郵便転送可」表示 → 人間が転送先住所を入力・保存。
 - 今回、実郵便の受領・発送・送料決済は行わない。
-- 契約ごとのENSv2名をSepoliaで発行し、名前から有効な住所契約を照合。期限・取消・編集権限を同期する。
+- ENS名は希望者が別の明示的な初回ENS add-on決済で購入する。標準名 `f00042.<拠点slug>.<parent>.eth` はmainnet想定10 USDC / testnet-dev 0.10 USDC、custom名 `<customLabel>.<拠点slug>.<parent>.eth` は30 / 0.30 USDC。住所決済では自動付与せず、未購入でも住所利用できる。価格設定欠落やnetwork不整合は販売を拒否する。名前空きと確定見積はCLIで作成するintentが正本。購入済みENSは住所renew料金に期間同期を含む。
 - World、Intercepta、MultiBaas、ENSv2の接続結果と失敗経路を画面・監査ログに表示。
 - 管理者専用の拠点・契約・決済・同期状況・監査画面。人間の承認や宛先閲覧権限とは分離する。
 - 公開HTML、FAQ、開発者向け案内、robots/sitemap/llms.txtと正確な構造化データ。
 
 公開APIは `/v1/locations`、`/v1/payment-intents`、`/v1/subscriptions` を使用します。購入時の `floor` は仮想区画の指定で、省略時は自動割当です。認証・金額・状態遷移を含む正確な契約は[API仕様](docs/api.md)と[OpenAPI](docs/openapi.json)に従います。
+
+料金の金額・購入順序・ENS add-onの制約は[料金仕様](docs/pricing.md)を参照してください。
 
 Curvegridは**Best AI Agent Project**を主対象とする設計です。RWA Tokenizationは追加候補ですが、初回スコープにNFT市場や不動産所有権の表現を追加しません。ENSは**Best Use of ENSv2**も対象とし、親名取得・Sepolia実接続は実装時に確認します。賞への適合方針は[資料一覧](docs/sources.md)を参照。
 

@@ -37,6 +37,7 @@
 - R-03.4 WHEN 同じ要求を再試行する THEN 同じ契約・領収情報を返し再決済しない SHALL。
 - R-03.5 IF 決済結果不明 THEN reconcilingとして同じ認可を照合し、新たな支払いを求めない SHALL。
 - R-03.6 WHEN 更新する THEN 同じ区画を保持し、期限内は旧期限へ30日、期限切れは確定時刻から30日を加算する SHALL。自動継続課金は対象外。
+- R-03.7 住所の新規購入・更新は30日につきmainnet 55 USDC、testnet/dev 0.55 USDCとする SHALL。6 decimalsを検証したUSDCのatomic額はそれぞれ55000000、550000。ネットワークと価格profileの不一致を拒否する。本番料金の定義はmainnet稼働の解禁を意味しない。
 
 ## R-04 Intercepta
 
@@ -99,10 +100,13 @@
 
 ## R-11 ENSv2名の発行
 
-- R-11.1 WHEN 住所契約が確定する THEN Sepoliaの公式ENSv2階層下に契約別サブネームを発行する SHALL。名称は拠点slugと区画から決定する。
-- R-11.2 WHILE 発行/照合が未完了 THEN ensStatus=pendingとし住所利用を継続できるが、ENS利用可能とは表示しない SHALL。追加のx402課金をしない。
+- R-11.1 ENSは希望者が初回のみ別料金で追加購入する SHALL。住所契約だけではensStatus=not_purchasedとし発行しない。有効な住所契約のownerが明示購入し、別のx402決済が確定してからSepoliaの公式ENSv2階層下に契約別サブネームを発行する。標準は `f00042.<拠点slug>.<親名>.eth` とし、同じ拠点の下で独自labelも選択できる。
+- R-11.2 WHILE 購入済みENSの発行/照合が未完了 THEN ensStatus=pendingとし住所利用を継続できるが、ENS利用可能とは表示しない SHALL。技術的な再試行や復旧で追加のx402課金をしない。未購入と購入済み処理待ちを区別する。
 - R-11.3 WHEN 発行する THEN 一lease一canonical名と専用resolverを作り、別契約への再利用を禁止する SHALL。
 - R-11.4 WHEN readyとする THEN 公式Universal Resolverでの実read-backとexact登録・owner・binding一致を確認する SHALL。
+- R-11.5 ENSの初回追加料金はmainnetで標準名10 USDC・独自名30 USDC、testnet/devで標準名0.10 USDC・独自名0.30 USDCとする SHALL。住所料金とは別であり、独自名30 USDCに標準名10 USDCを加算しない。設定欠落・profile不一致では追加購入を拒否し、0 USDCや住所料金で代用しない。同じleaseへの購入中・購入済みguardで二重課金を防ぐ。ENS未購入でも住所・郵便設定・LeaseRegistryを利用できる。
+- R-11.6 独自labelは初回購入時に選び、正規化後の完全名を拠点内で予約して、名前種別・完全名・価格を同じ見積に固定する SHALL。標準名用のf＋数字namespace、サービス予約語、無効label、他契約が予約・購入した名前を拒否する。送金不明の予約を期限だけで解放せず、名前を黙って変更して課金しない。既購入名の変更・二つ目の名前の追加はv1対象外。
+- R-11.7 親名→拠点名→契約名を実際のENSv2 registry階層として構成し、全階層の正規登録・subregistry参照と期限を検証する SHALL。標準のf番号は仮想区画を表し、物理階数ではない。
 
 ## R-12 名前から住所契約の照合
 
@@ -115,7 +119,7 @@
 ## R-13 権限と期限
 
 - R-13.1 WHEN Agentが編集する THEN 専用Resolverのdescriptionのみ許可し、契約pointer/addr/transfer/resolver差し替えをコントラクトで拒否する SHALL。
-- R-13.2 WHEN 契約更新する THEN 確定versionに基づき名前期限を延長し、親名・lease期限を越えない SHALL。
+- R-13.2 WHEN ENS購入済みの住所契約を更新する THEN ENS維持・期限同期を住所更新料金に含め、追加料金を請求しない SHALL。確定versionに基づき名前期限を延長し、親名・拠点namespace・lease期限を越えない。未購入なら発行せず、同一leaseの期限切れ後の更新でも購入記録を保持し同じ名前の復旧で初回料金を再請求しない。
 - R-13.3 WHEN 契約/親名/サブネームが失効または停止する THEN 照合結果を無効または保留とし、古いresolver recordで認可しない SHALL。
 - R-13.4 WHEN 再送/再起動/reorg THEN 二重名発行せず、同じname/lease/versionを照合して回復する SHALL。
 
@@ -135,6 +139,8 @@
 - R-15.6 CI/CDはOIDC/WIFで短期認証し、workerとFirestore/GCSへ未認証でアクセスできない SHALL。
 - R-15.7 無料枠・region・使用量・予算を記録し、利用増加や外部サービスを含めた完全無料を保証しない SHALL。日次上限到達後も既存決済を照合する。
 - R-15.8 再起動後の契約/設定保持と未完了処理の再開を代表ケースで確認し、未実測の可用性・料金・性能を成功扱いしない SHALL。snapshotの全面復元訓練とcold start性能試験は今回の必須検証から外す。
+- R-15.9 同一GCP project内の既存サービスと共存し、専用リソース名・Terraform state・全Firestore物理collectionを本アプリと環境の名前で分離する SHALL。共有 `(default)` DB本体・既存rules・project全体のIAM/API/予算を本アプリの所有物として上書き・削除・再importしない。
+- R-15.10 適用前に実在リソースと所有者、DB location、既存rules/IAM、無料枠の合算消費、Terraform planを確認し、他サービスの変更や未所有の同名リソースを検出したら適用を止める SHALL。名前のprefixだけで認可分離を保証しない。復旧・掃除・停止の対象も本アプリへ限定する。
 
 ## R-16 管理画面と運用者認可
 

@@ -18,12 +18,12 @@
 
 | パス | 用途・主な内容 |
 | --- | --- |
-| `/` | 公開トップ。見出し「AIエージェントの住所利用を、人間が管理できる形で。」、仕組みの3段階（契約・ENS照合・人間の転送設定承認）、仮想区画の説明、公開拠点を確認する導線、開発者向けCTA。稼働していないスポンサー連携や実住所サービスを稼働中と表示しない。 |
+| `/` | 公開トップ。見出し「AIエージェントの住所利用を、人間が管理できる形で。」、住所利用/更新は30日あたりmainnet想定55 USDC / testnet・dev 0.55 USDCと表示する。ENSは任意の初回add-onとして、標準名は10 / 0.10 USDC、custom名は30 / 0.30 USDC（mainnet想定 / testnet-dev）と表示する。mainnet決済は今回未対応。名前の空き・確定見積はCLI作成intentが正本で、公開価格表示は名前予約を確約しない。仕組み（住所契約・任意ENS照合・人間の転送設定承認）、仮想区画の説明、拠点閲覧と開発者案内を載せる。料金説明は[料金仕様](pricing.md)に従う。稼働していない連携や実サービスを稼働中と表示しない。 |
 | `/developers` | API/CLIの利用案内、wallet主体とAgent認証の概要、payment intent→人間承認URLの流れ、OpenAPIへのリンク、対応ネットワークのsandbox表示。秘密鍵を画面やpromptへ貼らない注意を短く示す。 |
 | `/faq` | 仮想区画は物理階でないこと、World認証と法的本人確認の違い、承認後にできること、実郵便を扱わないこと、テストネットと本番の違いを説明する。 |
 | `/app` | 接続walletの署名で既存Agent Bearer APIに認証する利用者概要。自分の契約、画面で取得済みの決済保留、人間承認待ちへのリンクを示す。件数は読み込んだページの範囲を明記し、全DB件数と誤認させない。空状態に「契約はまだありません」と拠点閲覧/開発者案内を示す。 |
 | `/app/subscriptions` | Agent Bearerで取得する自分の契約一覧。拠点、仮想区画番号、状態、期限、ENS状態、転送設定状態、詳細リンク。更新は既存CLI/操作への引き渡しとして案内し、ブラウザで署名・決済する未定義フローを作らない。 |
-| `/app/subscriptions/{id}` | 契約詳細。拠点表示名、仮想区画、契約状態/期限、決済receipt、ENS名とSepolia同期状態、転送設定可否と宛先登録済みフラグ。Agent向け表示/APIには宛先本文を含めない。 |
+| `/app/subscriptions/{id}` | 契約詳細。拠点表示名、仮想区画、住所契約状態/期限、住所決済receipt、ENS状態（`not_purchased` を含む）とSepolia同期状態、転送設定状態を表示する。ENS未購入時は有効契約に「ENS追加料金をCLIで確認」導線を示す。標準名は`f00042.<location-slug>.<parent>.eth`、custom名は`<customLabel>.<location-slug>.<parent>.eth`。固定価格を表示できるが、名前の空きや確定額を保証しない。追加購入の見積はENS add-on intentを作るCLI応答に委ね、名前が予約中/使用中なら別名または標準名を選び直すよう案内する。住所更新は30日分の住所料金として確認し、購入済みENSの期間同期に別料金を加算しない。Agent向け表示/APIには宛先本文を含めない。 |
 | `/app/payments` | GET `/v1/payment-intents`を使うpayment intent一覧と詳細リンク。金額、ネットワーク、作成時刻、状態、intent IDを表示する。settling/reconcilingは「確認中」と再試行目安を出し、同じintentの状態取得を促す。件数は取得ページの範囲を明記する。 |
 | `/approve/{id}` | 人間専用承認。未検証時は一般的な案内だけを表示し、URLだけで契約情報を出さない。wallet接続・所有確認→対象Agent/契約と権限の説明→fresh World認証→明示的な許可/拒否の順に進める。 |
 | `/admin` | 運用者専用の概要と主要キュー。運用者ナビゲーションは[管理画面仕様](admin.md)に従う。 |
@@ -37,6 +37,8 @@
 利用者画面のBearer認証はAPIのwallet challengeを表示し、接続walletでchallengeへ署名して既存のAgent Bearerを取得する。発行tokenは画面が開いている間だけメモリに保持し、localStorage/sessionStorage、URL、ログ、フォームに保存・表示しない。APIキー入力・発行フォームや秘密鍵入力欄は設けない。ページ再読込やtoken失効後は再接続・再署名を案内する。契約データはサーバーに永続化されているため、再認証後に再取得できる。
 
 利用者APIが返す転送先情報は有無のフラグに限る。完全な転送先は人間セッション内の人間向けフォームでだけ取得・表示する。利用者の契約更新導線はCLIなど既定の操作方法へ引き渡す。ブラウザ内支払い署名やIntercepta資格情報の配布方法は仕様化されるまで実装しない。
+
+ENS未購入契約では「ENS追加料金をCLIで確認」操作を表示する。標準名は`pnpm agent -- ens purchase --subscription <id>`、custom名は`pnpm agent -- ens purchase --subscription <id> --name-type custom --name <label>`へ引き渡す。ENS状態取得だけで名前の空きや正式見積を断定しない。CLIが`kind=ens_addon`のintent見積を作成し、種類・正規化名・料金/環境/期限を提示する。予約中・使用中なら利用者が別custom名か標準名を選び直す。暗黙の名前切替や追加課金をしない。利用者の明示確認後にだけ従来の支払経路へ進む。Web画面に新しい決済署名器を実装しない。ENS receiptは住所購入と分ける。住所契約のpurchase/renewではENSを自動購入しない。
 
 ## 操作、応答、エラー
 

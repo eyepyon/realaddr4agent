@@ -8,6 +8,8 @@ TypeScript strict / pnpm workspace。公開説明ページはbuild時にHTML生�
 
 UI/APIは同一Cloud Runサービス、workerは非公開の別Cloud Runサービス。ともにrequest-based / min instances=0。UI/APIは同じHTTPS origin。GCS、GitHub Actions、Tasks/Scheduler、Firestore実装詳細は[インフラ仕様](../../../docs/infrastructure.md)を正とする。3ツールの実利用は共通HTTP/JSON CLIで対応し、MCPを必須にしない。
 
+既存サービスと同一のGCP projectを使用する。専用リソースは `RESOURCE_PREFIX=realaddr-event` で命名し、Terraform state、実行主体、secret、image、queue、bucketを分ける。既存projectのFirestore `(default)` は参照する共有資源であり、このアプリのstateへimportせず、DB本体・既存rules・他サービスのIAMや設定を所有しない。共有資源の管理境界、衝突時の停止条件と適用前確認はインフラ仕様に従う。実環境の存在確認・変更はまだ行っていない。
+
 ```mermaid
 flowchart LR
   A[Codex / Claude Code / Kiro] --> C[CLI + policy signer]
@@ -47,6 +49,10 @@ Agent bearer=アプリ主体、x402=決済、owner wallet署名=契約制御、W
 
 UUID、Firestore Timestamp（APIはUTC ISO 8601）、schemaVersion。金額はAPI/DBとも10進整数文字列、演算はbigint。slotはrepositoryで整数1..65535を検証。FirestoreはSQL CHECK/外部キー/一意制約を提供する前提にしない。以下の「一意」「PK」は論理要件であり、決定的document IDと同一transaction内のguardで実現する。
 
+以下のcollection名と本仕様群のdocumentパスは論理名である。`packages/db` の単一mapperで、許可した論理名を `FIRESTORE_COLLECTION_PREFIX=realaddr_event_` と連結した物理名へ変換する。例: `orders/{id}` → `realaddr_event_orders/{id}`、`admin_principals/{id}` → `realaddr_event_admin_principals/{id}`。補助collection、guard、outbox、管理用collection、集計、indexのcollectionGroup、seed・掃除・snapshotにも同じ対応を適用する。HTTPのAPI名や既存document IDは変更しない。
+
+event起動時はprefix空値・不正値・設定の不一致を拒否し、未prefixのcollectionへのfallbackや本アプリ外のcollection列挙・処理をしない。DB/環境/prefixはリクエスト入力から選ばず、検証済みserver設定で固定する。運用開始後のprefix変更は空DBへの切替として扱わず、明示的な移行作業にする。prefixは名前の衝突を防ぐもので、共有DB内のIAM隔離ではない。既存Security Rulesに広い許可がある場合、追加denyでは打ち消せないため、本領域の直接アクセス拒否を確認できるまで公開しない。
+
 | Collection | 主なフィールドと論理制約 |
 | --- | --- |
 | tenants | id, status, termsVersion, termsAcceptedAt |
@@ -56,7 +62,7 @@ UUID、Firestore Timestamp（APIはUTC ISO 8601）、schemaVersion。金額はAP
 | buildings | id(UUID), slug, publicLabel, publicArea, postalAddress, plan, addressUseEnabled, policyVersion, version, updatedAt |
 | slots | buildingId, slotNumber, state, heldByOrderId, holdExpiresAt; PK(buildingId,slotNumber) |
 | leases | id, tenantId, agentId, ownerWallet, buildingId, slotNumber, addressSnapshot, status, startsAt, expiresAt, version, chainSyncStatus |
-| orders | id, agentId, createdAt, addressSnapshot, locationVersion, kind, leaseId?, slotRef?, bodyHash, amountAtomic, network, asset, payTo, expiresAt, status |
+| orders | id, agentId, createdAt, addressSnapshot, locationVersion, kind(purchase/renew/ens_addon), leaseId?, slotRef?, bodyHash, pricingVersion, ensNameSnapshot?, amountAtomic, network, asset, payTo, expiresAt, status |
 | payments | id, orderId 一意, payer, authorizationNonce, payloadHash, status, txHash, settlementEvidence; 一意(network,asset,payer,nonce) |
 | idempotency_keys | principalId, method, path, key, bodyHash, resourceId, responseSnapshot; composite 一意 |
 | risk_assessments | id, orderId, side, subjectAddress, paymentNetwork, riskNetwork, decision, reasonCodes, responseHash, checkedAt, expiresAt, policyVersion |
@@ -67,13 +73,17 @@ UUID、Firestore Timestamp（APIはUTC ISO 8601）、schemaVersion。金額はAP
 | mail_profiles | leaseId PK, status, enabledByApprovalId?, grantExpiresAt?, version, encryptedDestination?, destinationConfigured, updatedAt |
 | refunds | id, paymentId 一意, amountAtomic, destination, status, txHash?, reason |
 | outbox | id, aggregateId, version, eventType, payload, state, availableAt, attempts; 一意(aggregateId,version,eventType) |
-| ens_bindings | leaseId 一意, normalizedName 一意, nameNode, labelHash, leaseKey, ownerWallet, resolverAddress, registryAddress, controllerAddress, targetLeaseVersion, syncedLeaseVersion, status, expiry, txHash?, verifiedBlock?, lastErrorCode? |
+| ens_namespaces | buildingId PK, parentName, locationSlug, namespaceName, upperRegistry, locationRegistry, expiresAt, status, version; 拠点ごとのregistry接続と期限 |
+| ens_bindings | leaseId 一意, nameType, label, normalizedName 一意, namePolicyVersion, nameNode, labelHash, leaseKey, ownerWallet, resolverAddress, registryAddress(locationRegistry), controllerAddress, targetLeaseVersion, syncedLeaseVersion, status, expiry, txHash?, verifiedBlock?, lastErrorCode? |
+| ens_entitlements | leaseId PK, state(pending_payment/paid/refunded), intentId, nameType, label, normalizedName, namePolicyVersion, paidPaymentId?, paidAt?, pricingVersion, version; 一lease一つの初回購入と支払中の排他 |
 | chain_cursors | chainId, contract, finalizedBlock, blockHash |
 | audit_events | id, actorId, action, resourceId, oldState, newState, traceId, occurredAt, redactedDetails |
 
 すべてのresource参照でtenant/agent/leaseの整合性を検査。slotsとleaseを同一transactionで更新。発行済み(buildingId,slotNumber)は決定的slot documentを残し別leaseに使用不可。renewは同じleaseを更新する。承認はleaseごとに有効なpending/authenticatedを一つとし、approval_headsとversionのtransaction比較で直列化する。uniques、slot_shards、wallet_hold_quotas、rate_limits、daily_purchase_budgets、signer_nonces、chain_submissionsを補助collectionとする。各guardと割当algorithmはインフラ仕様に従う。管理用にadmin_principals / admin_sessions / admin_oidc_sessions / ops_metricsを追加し、権限・保存項目はadmin.mdに従う。拠点slugは一意guardで固定する。
 
 提供住所とplanはintent作成時にsnapshot化し、支払い確定時はその内容をleaseへ引き継ぐ。現在の拠点編集によって過去のintent/leaseの住所や価格を暗黙に変えない。管理画面の総数は集計時点付きmetrics documentから取得し、業務認可の根拠にしない。
+
+価格は[料金仕様](../../../docs/pricing.md)に従い、住所30日mainnet 55 USDC / testnet・dev 0.55 USDCを購入・更新へ適用する。ENS初回追加は標準名/独自名の選択ごとにmainnet 10/30 USDC、testnet・dev 0.10/0.30 USDCを別intentで課金する。独自名は30 USDCの一回分で、標準名料金を重ねない。検証済みUSDC decimals=6とnetwork別allowlistを使用し、APP_ENVだけで安い価格をmainnetへ流せないよう価格profileも検証する。mainnetは今回の起動許可対象外。設定欠落・価格profile不一致なら販売不可。管理画面から固定された料金・期間・資産条件を変更できない。見積にはkind、対象、名前選択、価格versionを固定し、支払い確定後に他商品へ読み替えない。
 
 Browser sessionはidle 15分/absolute 60分、owner proofは承認時点で10分以内とする。承認適用時とログイン成功時にsession IDをrotateする。API credentialは初期30日有効、登録/失効操作を監査する。新規challengeはIP単位毎分10件、通常Agent APIは毎分60件、未決済区画holdはwallet単位同時3件を初期上限とし、超過は429。settling/reconcilingも上限へ含め、解放目的で消さない。これらはanti-abuseの補助であり、無料wallet作成によるSybil耐性を保証するものではない。
 
@@ -164,6 +174,22 @@ sandbox proof/testnetと「実際の郵便転送は行いません」を常時�
 
 ## 9. ENSv2連携
 
-[ENSv2詳細設計](../../../docs/ensv2.md)を正とする。支払い確定→LeaseRegistry同期→契約別ENS登録→Universal Resolver read-backの順。独立したensStatusを持ち、失敗しても二重請求しない。
+[ENSv2詳細設計](../../../docs/ensv2.md)を正とする。住所購入の確定後はLeaseRegistryへ記録するが、ENSは未購入とし登録jobを作らない。ownerが `kind=ens_addon` と `subscriptionId` で別intentを明示作成し、追加料金の支払確定→購入権の永続化→LeaseRegistryの現version同期→契約別ENS登録→Universal Resolver read-backの順で進める。住所契約の期限と区画はENS決済で変更しない。独立したensStatusを持ち、購入権の保存を示すfulfilledと名前照合完了のreadyを区別する。
+
+名前は `label.<拠点slug>.<親名>.eth`。標準 `nameType=floor` では対象leaseのslotを5桁ゼロ埋めして `f00042` を生成する。独自 `nameType=custom` は `customLabel` を受け、単一の小文字ASCII label（3〜32文字、英数字と内部hyphen、先頭末尾は英数字）に限定してENSIP-15で正規化・検証する。入力中のdotと予約された `^f[0-9]+$`を拒否する。初期`namePolicyVersion=1`のサービス予約labelは正確に`admin`、`api`、`www`の3つで、見積serverとNameControllerは同じversionで検証する。v1に管理UIからの予約語編集はない。将来のpolicy変更は新規見積だけに適用し、支払済みsnapshotの旧version/nameを遡って拒否・改名・再課金しない。locationSlugとparentはserver側で固定する。同じ独自labelは異なる拠点で利用可能だが、完全名は一意である。標準名か独自名の一方だけを選び、購入後のrename・別名追加は今回提供しない。
+
+設定の `ENS_PARENT_NAME` は `.eth` を含む正規化済み完全名であり、実装では `label + "." + locationSlug + "." + ENS_PARENT_NAME` と結合する。説明用の `<親名>.eth` 表記を理由に `.eth` を二重追加しない。
+
+親名直下の上位UserRegistryに拠点slugを登録し、そのsubregistryとして拠点専用UserRegistryを接続する。契約labelは拠点registryで登録する。`ens_namespaces` は実接続先と期限を保持し、拠点slugは1〜63文字の小文字ASCII単一DNS label（英数字と内部hyphen、両端英数字、ENSIP-15正規化一致）に制限し作成後変更しない。日本語の拠点表示名はslugと別に保持できる。名前解決は親→拠点→契約の実階層とcontroller bindingを確認する。子名の期限は住所契約と拠点namespaceと親名のすべての期限以下にする。拠点namespaceの準備・更新は運営側が実行し、準備未完了ならENS購入を停止する。
+
+ENS追加intentのtransactionは対象leaseの所有者・active状態・購入guard・canonical完全名の予約guard・価格を確認し、`ens_entitlements/{leaseId}` と `uniques` の完全名guardを同時予約する。guardにはleaseId、intentId、state(reserved/paid)、expiresAtを保持する。`ensNameSnapshot={nameType,label,normalizedName,namePolicyVersion}` と価格をorderに固定し、payerへの見積表示にも使用する。名前競合は409とし別名へ勝手に変更しない。location/floorはleaseから導出し、新規slot hold・新規住所件数quotaを消費しない。見積期限は作成から10分とlease期限の早い方。設定不備、購入済み、別intent進行中は決済要求を出さない。同キーの再送は既存intentを返す。buyer/sellerのrisk、署名・nonce・決済額・日次支出上限の検査は住所と共通である。
+
+APIのOrderにはsnapshotを `nameType`、`label`、`fqdn`（内部normalizedName）、`pricingVersion`、`amountAtomic` として返す。これらはENS追加intentの必須情報であり、CLIが署名前に完全名と初回追加料金を表示・検査する。
+
+支払確定時はpayment・paid entitlement・paid完全名guard・ENS outboxを同じtransactionで保存する。送金未確定のguardを期限だけで解放せず、未払いが確定した場合だけ未発行の名前予約と購入排他を原子的に解放して次の購入を許す。pay時の名前・価格の変更は認めず、作り直す場合も元の支払い状態を先に確定させる。一度paidになった名前のguardは返金・失効・解約後も別leaseへ再利用しない。既購入を新intentで再請求しない。送金後にleaseが期限切れ・停止しても購入済み記録は失わず、名前の有効化は保留する。期限切れは同leaseの住所更新後に同じ購入権で再開し、復旧不能・取消は既存の照合/返金手順へ送り、勝手に再課金しない。返金が確定した購入はrefundedにして有効化せず、再購入はv1の自動フローに含めない。
+
+NameControllerへのpublisher要求もpaidな見積のnameType/namePolicyVersion/labelと一致させる。contractは固定した拠点registry、slot由来の標準名、独自label制約とversion 1の正確な予約label集合、一lease一名と過去の名前bindingを検査し、任意namespaceへの登録や後からの名前差替えを拒否する。支払いの確認は従来通り運営backendの証明であり、名前のhashだけでBaseの決済をEthereum上で証明したとは扱わない。詳細interfaceはENS設計を正とする。
+
+住所更新後はpaid entitlementがある場合だけENS期限を同期し、その運営側ガス代を住所更新料金に含める。未購入なら何もしない。期限切れ・取消時のENS無効化と正規binding照合は購入済み対象へ従来通り適用する。ENS機能の実装自体は提出範囲に残し、デモは住所購入→ENS追加購入→発行・解決を一件通す。
 
 公開recordsは契約pointerとAgent説明まで。本人の転送先は従来通りDB暗号化保存し、ENSへ書き出さない。名前で住所契約を取得するAPIもAgentの所有者認可を保持する。UserRegistryは事業者管理、Resolverは契約ごとに分離する。

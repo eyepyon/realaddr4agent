@@ -28,7 +28,7 @@ location/payment intent/subscription本体の識別子はid。参照先とpath p
 | DELETE /v1/auth/session | Agent | 現token失効 |
 | GET /v1/locations | Agent | 公開拠点・plan。locations/nextCursorを返す |
 | GET /v1/locations/{locationId}/floors/{floor} | Agent | 仮想区画の現在の空き状態。availableのみ返し、予約の確約はしない |
-| POST /v1/payment-intents | Agent | purchase/renew intentと区画予約 |
+| POST /v1/payment-intents | Agent | purchase/renewまたは既存契約への一回限りのens_addon intent。区画予約はpurchaseのみ |
 | GET /v1/payment-intents | Agent | 自分のintent一覧。createdAt降順、paymentIntents/nextCursor。署名payloadは返さない |
 | GET /v1/payment-intents/{intentId} | owner Agent | 状態・リスク・結果 |
 | POST /v1/payment-intents/{intentId}/pay | owner Agent | preconditions→402→決済→200/202 |
@@ -51,13 +51,19 @@ location/payment intent/subscription本体の識別子はid。参照先とpath p
 
 ## 支払いwire
 
-intent作成bodyは購入なら`{"locationId":"…","floor":42}`（floorは省略可、kind省略時はpurchase）、更新なら`{"kind":"renew","subscriptionId":"…"}`。同じAgentの同じintentへの再送は同じ結果を返す。購入時に指定floorを予約する場合も、未指定の自動割当と同じFirestore transactionで区画・quota・冪等記録を確定する。
+intent作成bodyは購入なら`{"locationId":"…","floor":42}`（floorは省略可、kind省略時はpurchase）、更新なら`{"kind":"renew","subscriptionId":"…"}`、ENS初回追加の標準名なら`{"kind":"ens_addon","subscriptionId":"…"}`、独自名なら`{"kind":"ens_addon","subscriptionId":"…","nameType":"custom","customLabel":"my-agent"}`。`nameType`省略時は`floor`で、`nameType=custom`では`customLabel`必須、`floor`では指定不可。同じAgentの同じintentへの再送は同じ結果を返す。購入時に指定floorを予約する場合も、未指定の自動割当と同じFirestore transactionで区画・quota・冪等記録を確定する。
+
+住所planは30日・USDC 6 decimalsを固定し、event test/dev価格は0.55 USDC=`550000` atomic。将来mainnet価格は55 USDC=`55000000` atomicの別profileだが、現仕様の支払いchainはBase Sepoliaだけでmainnet販売は停止する。実asset address/decimals・facilitatorの接続はT-00で検証し、一致しない環境を起動しない。ENS初回追加feeは住所planと別で、event test/devの標準名が0.10 USDC=`100000` atomic、独自名が0.30 USDC=`300000` atomic。将来mainnetの標準名は10 USDC=`10000000` atomic、独自名は30 USDC=`30000000` atomicで、mainnet販売は現在停止する。設定が選択environment/nameTypeの固定額と一致しない・欠落する場合は503 / `ens_pricing_unavailable`でintentを作らず、402も返さない。ENS追加の価格・asset・network・payTo・pricingVersion・nameType・label・canonical FQDNは作成したintentに固定して決済前に表示する。`GET /v1/subscriptions/{subscriptionId}/ens`は価格を約束せず、未購入時も`status=not_purchased`を返す。
+
+標準名のlabelは仮想区画番号を5桁ゼロ埋めした`f00042`で、`f00042.<locationSlug>.<parent>.eth`のように組み立てる。独自名も同じ拠点namespaceの`<customLabel>.<locationSlug>.<parent>.eth`を一契約のcanonical名とする。`customLabel`は小文字ASCIIのDNS label、3〜32文字、英数字で開始/終了し内部の`-`を許す。`f`に数字だけが続く全labelを標準用に予約する。初期`namePolicyVersion=1`のservice予約labelは正確に`admin`、`api`、`www`の3つで、serverは見積前にこの固定policyとENSIP-15でlabel/FQDNを検証する。見積snapshotのpolicy versionはNameControllerへ渡し、将来のpolicy変更でも支払済みの旧version/nameを遡って拒否・改名・再課金しない。正規化後のFQDNについて全契約で一意のguardを取る。衝突は409 / `ens_name_unavailable`とし、他契約情報を返さない。未払い確定のpending guardだけ原子的に解放し、結果不明/settlingは保持する。発行済み名は期限後も別leaseへ再利用しない。名前type/label/FQDN/feeは署名・pay再送時に変更できない。有料renameと二つ目の名前はv1対象外。
+
+`ens_addon`はowner Agentの有効な既存subscriptionだけを対象に、`locationId`と`floor`をserver側で導出する。新しい区画holdや日次新規契約quotaは消費しない。同一subscriptionのpaid entitlementは一回限りで、同時に進行できるaddon intentも一つ。新しい冪等キーで購入済みなら409 / `ens_already_purchased`、進行中なら409 / `ens_purchase_in_progress`と既存`intentId`を`resourceId`で返す。既存キーの同一要求は通常の冪等結果を返す。未払い確定したintentだけ排他を解除して再購入を許し、決済結果不明を時間切れだけで解除しない。返金済みentitlementの自動再購入はv1で提供せず409 / `ens_repurchase_unavailable`。所有外/未知subscriptionは404、有効でなければ409 / `lease_not_active`。親名残存期間やregistry/ENSの必須設定を確認できない場合も503 / `ens_dependency_unavailable`で販売を止め、402は返さない。addon intentの`expiresAt`は見積もりから10分とsubscription期限の早い方であり、支払い署名前に契約有効性と購入状態を再検査する。既にsettling/reconcilingなら不明決済を同じintentで照合し、新nonce・新しいENS請求を求めない。risk評価、x402、支出上限、payer/nonce/receipt照合は住所決済と同じ規則を使う。
 
 floor空き照会は`{"locationId":"…","floor":42,"available":true}`を返す。bitmapの現在状態を認可付きで読むが、照会と予約の間に他要求が入るため、購入はtransaction内で再判定する。未知locationは404、floorが整数1..65535以外なら422。他ownerや契約の情報は返さない。
 
 未払いpayは空JSON body。同じpath/body/Idempotency-KeyへPAYMENT-SIGNATUREを付けて再送する。PAYMENT-REQUIREDとPAYMENT-RESPONSEは公式x402 v2 SDKのencoder/decoderを使用する。
 
-402を冪等cacheの最終結果にしない。支払い付き初回payはFirestore outboxを保存してCloud Tasksへ配信し202、完了後の同一payは200。enqueue失敗もoutboxから回復する。settling/reconcilingの202はintentId、pollUrl、retryAfterSecondsを返す。新nonceで払い直さない。確定200はstatus=fulfilledとsubscriptionId、receiptを返す。
+402を冪等cacheの最終結果にしない。支払い付き初回payはFirestore outboxを保存してCloud Tasksへ配信し202、完了後の同一payは200。enqueue失敗もoutboxから回復する。settling/reconcilingの202はintentId、pollUrl、retryAfterSecondsを返す。新nonceで払い直さない。確定200はstatus=fulfilledとsubscriptionId、receiptを返す。`ens_addon`のfulfilledは既存subscriptionへ一回限りのpaid entitlementとENS発行outboxを永続化した意味であり、ENSがreadyになった意味ではない。settle後に契約が期限切れ/停止でもpaidを消さず発行を保留し、期限切れの同一subscriptionの住所renewで復旧する。復旧不能なら照合して返金状態へ進め、勝手に再課金しない。技術的な発行retryと以後の住所renewに伴うENS同期は再課金しない。
 
 OpenAPIのpayment headerはencoded stringとして扱い、内部payload validationは固定したx402 SDK schemaを用いる。SDK schemaを独自に推測して再定義しない。
 
@@ -74,6 +80,7 @@ Firestore予約競合のretry枯渇は503 / reservation_retry / retryable=true�
 | lease purchase --location <id> [--floor <n>] --idempotency-key <key> | reserve→screen→pay→subscription。floor省略時は自動割当 |
 | lease renew --subscription <id> --idempotency-key <key> | 同区画更新 |
 | lease status --subscription <id> | 状態/chain/転送可表示 |
+| ens purchase --subscription <id> [--name-type custom --name <label>] --idempotency-key <key> | 標準名はoption省略、独自名はlabel指定。固定見積もりを確認し同じx402経路で一回購入。衝突・設定不備・既購入・進行中は機械判定可能なエラー |
 | mail enable --subscription <id> --idempotency-key <key> | approvalUrlを返して人間待ち |
 | mail status --subscription <id> | enabledとdestinationConfiguredのみ |
 | intent status --intent <id> | 不明決済の結果回収 |
@@ -92,7 +99,9 @@ Agentにapproval.approve、mail-destination.writeを付与しない。clientのh
 
 ## ENSv2追加API
 
-詳細は[ENSv2設計](ensv2.md)。以下もOpenAPIに含める。
+詳細は[ENSv2設計](ensv2.md)。ENSを購入しなくても住所契約と郵便承認フローは利用できる。paid entitlementがないSubscriptionは`ens.status=not_purchased`を返し、進行中の支払いは別のpayment intentで確認する。返金済みentitlementは`ens.status=disabled`、`lastErrorCode=ens_refunded`とし、v1で自動再購入できない。name/resolver/txHash等を捏造しない。ENS購入済みの住所renewでは名前とlease version/期限を追加料金なしで同期する。以下もOpenAPIに含める。
+
+既存のENS GETはaddon価格や販売可否を返さない。利用者画面は架空の金額や購入可能表示を出さず、「ENS追加料金をCLIで確認」の導線を示す。CLIの`ens purchase`が作成したpayment intentの固定見積もりを署名前に表示し、料金未設定や依存設定不足は503のquote errorとして知らせる。
 
 | Method/path | 権限 | 内容 |
 | --- | --- | --- |
@@ -105,7 +114,7 @@ public responseは内部lease UUID、営業所住所、転送先、World認証�
 
 /subscriptions/by-ensのstatic routeを/subscriptions/{subscriptionId}より優先して登録する。成功したSubscription responseにはensフィールドを追加する。内部lease UUIDがsubscriptionIdであり、IDによる直接照会も使用できる。
 
-CLI追加: ens status --subscription、ens resolve --name、lease status --name、ens describe --subscription --text。describeは許可されたSepolia resolverのdescription setterだけを署名し、receipt/read-back後に成功を報告する。
+CLI追加: ens purchase --subscription、ens status --subscription、ens resolve --name、lease status --name、ens describe --subscription --text。describeは購入済みでreadyのSepolia resolverのdescription setterだけを署名し、receipt/read-back後に成功を報告する。
 
 ## 管理APIと画面の境界
 

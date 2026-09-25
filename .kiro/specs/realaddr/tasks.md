@@ -12,6 +12,7 @@
   - 成果: clean cloneから起動、health/readiness、単一HTTPS origin。対応: R-10/A-18。
 - [ ] T-02 ドメイン/DB/Agent認証/区画
   - 依存: T-01。全collection/guard/index/repository、wallet challenge、Bearer hash管理、tenant認可、冪等store。
+  - `FIRESTORE_COLLECTION_PREFIX=realaddr_event_` をrepository境界のmapperで適用し、論理名を物理collection名へ変換する。業務、admin、uniqueness guard、outboxを含む全collectionに適用し、prefix欠落や二重prefixをfail closedで拒否する。FirestoreのprefixはIAM隔離を意味しない。
   - 64shard bitmapと必要時のslot作成、floor指定時の対象区画予約・省略時の自動割当、並行予約、期限/状態遷移、reserve quota/日次予算を実装。65,535 documentをseedしない。
   - 最小確認: slot境界、同一区画の競合予約、他tenant拒否をDBで確認。A-01〜A-04、A-17/A-37/A-38は追加検証の参照。R-01/R-02/R-15。
 - [ ] T-03 World backendと人間session
@@ -35,20 +36,21 @@
   - 宛先/World subjectなどPIIをchainへ出さない。
   - 最小確認: 実write/readの一致と無権限変更の拒否。A-23/A-24は追加検証の参照。R-08。
 - [ ] T-12 ENSv2 namespaceと契約別Resolver
-  - 依存: T-00 ENS、T-01、T-07。親ENS名取得、UserRegistry deploy/親への接続、契約ごとのResolverをfactory生成。
+  - 依存: T-00 ENS、T-01、T-07。3階層registry（親→拠点slug→ENS child name）を作り、親ENS名取得、UserRegistry deploy/親への接続、契約ごとのResolverをfactory生成する。leaseごとのcanonical full name uniqueness guardとquote snapshotを実装する。
   - role bitmapを固定し、顧客descriptionだけの委任とtransfer/契約record変更拒否を実コントラクトで確認。
   - 対応: R-11/R-13、A-27/A-29/A-30。
 - [ ] T-13 ENS契約bindingとライフサイクル
-  - 依存: T-12、T-05。NameController、ens_bindings、holderCommitment検証、発行/更新/停止outbox、receipt/read-back、再送/reorgを実装。
-  - ENS発行待ちでも住所利用は可能、二重課金なし。古いresolver recordを有効証明にしない。
+  - 依存: T-12、T-05。ENS未購入契約は`not_purchased`として区別し、既存有効leaseへの明示ENS add-on intent/receipt確定後にNameController、ens_bindings、holderCommitment検証、発行/停止outbox、read-back、再送/reorgを実装する。
+  - 住所更新は購入済みENSの期限を同期し、ENSの追加課金をしない。expired leaseの再開でも同じ名前を再購入させない。失効中ENSは無効。paid後のENS同期retryは再課金せず、同じleaseの二重購入は拒否する。ENS発行待ちでも住所利用は可能、古いresolver recordを有効証明にしない。
+  - 標準名は`f` + 仮想区画の5桁ゼロ埋め（例`f00042`）。custom名は3〜32文字の小文字ASCII英数字と内部hyphenのみ、dot不可、先頭末尾hyphen不可。標準用`f`+数字namespaceとサービス予約語を拒否し、ENSIP-15正規化検査を行う。ENS初回費用は標準10/0.10 USDC、custom30/0.30 USDC（mainnet想定/testnet-dev、atomic 10000000/100000と30000000/300000）。環境別価格欠落/null/0やnetwork・asset・rate不一致はfail closed。拠点slugとの合成後canonical full name guardを原子的に確保する。予約中/使用中は名前空きなしとして別名か標準名の明示選択を促し、黙った切替・再課金をしない。購入初回だけtype/labelを選択し、既購入name変更/複数nameはv1対象外。
   - 対応: R-11/R-12/R-13、A-28/A-31〜A-34。
 - [ ] T-14 ENS HTTP/署名器/CLI
-  - 依存: T-13。public resolve、owner専用by-ens、ens status、description unsigned txと制限付き署名・read-back。
+  - 依存: T-13。`POST /v1/payment-intents` の`kind=ens_addon,subscriptionId`と名前選択から確定見積を作り、従来のpay/照合経路で支払う。標準CLI `ens purchase --subscription <id>`、custom CLI `ens purchase --subscription <id> --name-type custom --name <label>`、public resolve、owner専用by-ens、ens status、description unsigned txと制限付き署名/read-backを実装する。intent応答のcanonical name/price/receiptが正本で、status GETはname availability/quoteを返さない。
   - 転送先/World情報の非公開を維持。API/OpenAPIと実レスポンスを照合。
   - 対応: R-12/R-14、A-28/A-29/A-35/A-36。
 - [ ] T-08 UIと共通CLI
   - 依存: T-03〜T-07、T-14。ダッシュボード、risk理由、World承認ページ、住所フォーム、JSON CLI/exit code/poll/再開、ENS名と検証状態を接続する。
-  - 実API/DBから表示。pending/errorを成功に見せない。公開HTTPはlocations/payment-intents/subscriptionsとflatなerror形式を使い、内部モデルとの変換をAPI境界へ集約する。
+  - 実API/DBから表示。pending/errorを成功に見せない。住所30日料金と任意ENS add-on料金を分け、`not_purchased`に別購入導線を表示する。ENS購入UIは既存CLI `ens purchase`へ引き渡し、新しいbrowser signerを作らない。公開HTTPはlocations/payment-intents/subscriptionsとflatなerror形式を使い、内部モデルとの変換をAPI境界へ集約する。
   - 最小確認: 実APIの表示と共通CLIの状態取得。A-15/A-16/A-25は追加検証の参照。R-09。
 - [ ] T-18 管理画面と運用者API
   - 依存: T-02、T-05、T-07、T-13。docs/admin.mdと管理OpenAPIに従いGoogle OIDC/allowlist、独立session、管理の一覧/詳細、拠点管理、安全な再照合要求、監査を実装する。
@@ -60,8 +62,9 @@
   - 最小確認: 狭い/広い画面を1回確認し、no-JS GETの本文と発見用ファイル、private noindex/no-storeを確認。ドメイン到達はT-16完了後。対応: R-17/R-18、A-47〜A-49。
 - [ ] T-16 GCP基盤とGitHub Actionsデプロイ
   - 依存: T-01、T-02。docs/infrastructure.mdに沿って2つのCloud Run、Firestore、private GCS、Tasks、Scheduler、Secret Manager、Artifact Registry、WIFを定義する。
-  - `infra/bootstrap`と`infra/app`の2 rootを用意し、state専用bucketと業務bucketを分離する。既存`(default)` DB/予算は確認・import後に管理し、secret値をTerraform stateへ入れない。初回bootstrap stateの移行は手動手順を作り、実施結果を別途記録する。
-  - TerraformはCloud Run設定/IAMを所有し、通常deployだけがimage digestを更新する。対象image属性に限定したdrift除外を検証し、同じdigestを2サービスへ順次deploy、失敗時の片側復旧と旧digest rollbackを実装する。rules/index、IAM分離、永続outboxの配信/回復、min=0、retry上限、image/snapshot保持、予算通知も設定。
+  - `infra/bootstrap`と`infra/app`の2 rootを維持し、`RESOURCE_PREFIX=realaddr-event` でCloud Run、業務GCS、Terraform state bucket、WIF、service account、Secret Manager secret、queue等を専用命名する。既存`(default)` DBは必要時に共有参照のみとしapp stateへimport・管理しない。secret値をTerraform stateへ入れない。初回bootstrap stateの移行は手動手順を作り、実施結果を別途記録する。
+  - deploy前にlive inventoryからproject、resource ownership、Firestore database/rules/index、region、IAM、API有効化、予算を確認する。既存DB/rules/project IAM/API/予算の包括変更・削除は禁止。本アプリ専用SAへの限定的なIAM member追加は許可し、既存policy bindingの置換や他主体grantの削除は拒否する。index変更は本アプリのprefix付きcollection groupだけに限定する。Terraform planで本アプリ所有外の更新/削除を検知した場合は拒否する（専用SAへの上記additive IAM member追加を除く）。名前が未使用に見える場合もlive確認は省略しない。
+  - Terraformは専用Cloud Run設定と限定的IAM memberを所有し、通常deployだけがimage digestを更新する。対象image属性に限定したdrift除外を検証し、同じdigestを2サービスへ順次deploy、失敗時の片側復旧と旧digest rollbackを実装する。既存Firestore rulesは管理主体を確認して有効内容を照合し、本アプリprefix付きindexだけを管理する。IAM分離、永続outboxの配信/回復、min=0、retry上限、image/snapshot保持を設定し、既存予算通知の有無としきい値を確認する。
   - PR CIはGCP認証なしで最小チェック、Terraform変更時だけ対象rootのfmt/validate。保護されたmain手動deployはWIF条件・最小権限・同時実行制御・事前target照合と事後digest/IAM確認を実装する。bootstrap/deploy手順を記録し、提出用環境のmin=0復帰と未認証拒否を代表操作で確認する。専用`pnpm test:infra`は必要になった時に追加する。T-05/T-07/T-13の外部効果runnerをrequest駆動へ接続する。
   - 公開origin・World/admin callbackはaddress.chain.tokyoへ統一し、ユーザーへ必要なDNS/TLS接続情報を提示する。設定自体はユーザー担当。
   - 対応: R-15/R-18、A-39〜A-41/A-43/A-49。
@@ -69,7 +72,7 @@
   - 依存: T-05〜T-08、T-16、T-18、T-19。環境分離、HTTPS、代表的な停止・再起動、rate limit、ログredaction、origin allowlist。完全なsnapshot/Emulator restoreと失敗注入マトリクスは追加検証。
   - 最小確認: 永続状態・未完了jobの再開、ログ/公開応答に秘密・宛先全文がないこと。A-17〜A-19/A-26は追加検証の参照。R-10。
 - [ ] T-15 ENSv2実接続の縦断検証
-  - 依存: T-09。Sepolia実名の発行→公式解決→住所取得を確認し、禁止key拒否または失効時拒否を代表的な失敗経路として示す。残りの組合せは追加検証。
+  - 依存: T-09。住所契約（ENS未購入）→明示ENS add-on決済→Sepolia名の発行→公式解決→住所取得を確認し、add-on二重購入拒否または住所renewで追加ENS課金なしの一方と、禁止key拒否または失効時拒否を代表的な失敗経路として示す。残りの組合せは追加検証。
   - 代表ツールで名前から住所契約へ到達し、他の2ツールは共通CLIの認証・状態取得・ENS照合を疎通する。公開動画・gas・代表的な失敗証跡を保存する。
   - 対応: R-11〜R-14、A-27〜A-36は追加検証の参照。ベータ未接続を成功扱いしない。
 - [ ] T-17 使用量・Firestore実環境・復旧検証
