@@ -1,6 +1,6 @@
 # event環境の設定値と投入先
 
-この資料はT-00/T-01/T-16の設定準備用である。現時点のリポジトリは仕様のみで、`.env.example`、GitHub Actionsの`ci`/`deploy-event` workflow、Terraform、GCP resource、Secret Managerの値は未作成・未検証。ここに書いた例は実行結果でも払い出し済みの値でもない。設定の正本は[運用仕様](operations.md)、[インフラ仕様](infrastructure.md)、[管理仕様](admin.md)、[料金仕様](pricing.md)とする。実際の外部account識別子、secret、鍵、個人住所をリポジトリ文書・source comment・例・commit messageへ載せない。Terraformの保護されたstate/planにはresource metadataが必要だが、secret payload、署名鍵、個人住所を入れない。Actions logにも実値やcredentialを出力しない。
+この資料はT-00/T-01/T-16の設定準備用である。ローカル用`.env.example`とGitHub Actionsの`ci` workflowは作成済み。`deploy-event` workflow、Terraform、GCP resource、Secret Managerの値は未作成・未検証。ローカルではFirestore Emulatorへの接続と基礎DBチェックのみ実施した。ここに書いた外部設定例は払い出し済みの値を意味しない。設定の正本は[運用仕様](operations.md)、[インフラ仕様](infrastructure.md)、[管理仕様](admin.md)、[料金仕様](pricing.md)とする。実際の外部account識別子、secret、鍵、個人住所をリポジトリ文書・source comment・例・commit messageへ載せない。Terraformの保護されたstate/planにはresource metadataが必要だが、secret payload、署名鍵、個人住所を入れない。Actions logにも実値やcredentialを出力しない。
 
 ## 投入先と順序
 
@@ -8,7 +8,7 @@
 2. T-16のread-only live inventoryを行う。共有projectの所有者、既存resource、`(default)` DBのlocation/rules/index、API、IAM、予算、名前の空き、指定したdeploy service accountの所有者・binding・実効権限を確認する。Security Rulesが適用されるclientから本アプリprefixへの未認証・他利用者のread/write拒否を確認する。planが他サービスや共有DB本体・rules・project IAM等へ触れるならapplyしない。
 3. 管理主体が`infra/bootstrap`の本アプリ専用state bucket、Artifact Registry、repository制限付きWIFを作る。bootstrap stateの専用bucketへの移行は別途記録する。管理主体が`infra/app`の専用web/worker/Tasks invoker/Scheduler invoker service account、Cloud Run、queue、secret metadata、必要な限定IAMを作る。4つのservice accountは別々に新規作成し、default accountを使わない。指定されたdeploy service accountは本アプリのTerraformで作成・import・削除しない。既存bindingを保ち、確認済みの本アプリresourceへのgrantと専用WIF principalの狭いimpersonation memberだけを追加する。
 4. 権限のある運用者がsecretの**値**をSecret Managerへ別途登録し、web/workerに必要なsecret versionだけを参照させる。値をTerraform変数に渡さない。runtime主体の実IAM権限と対象外DB拒否を、業務データ投入・公開route有効化前に検証する。
-5. GitHubの保護された`event` Environmentで、mainの検証済みcommitから手動`deploy-event`を実行する設計である。WIFの短期credentialを使い、同じimage digestをworkerとwebに適用する。JSON service account keyはGitHub Secretsへ登録しない。現時点ではworkflowが存在しないため、以下を登録してもdeployは動かない。
+5. GitHubの保護された`event` Environmentで、mainの検証済みcommitから手動`deploy-event`を実行する設計である。WIFの短期credentialを使い、同じimage digestをworkerとwebに適用する。JSON service account keyはGitHub Secretsへ登録しない。`ci`は存在するが`deploy-event`は未実装のため、以下を登録してもdeployは動かない。
 
 ## GitHub Actionsへ渡す値
 
@@ -30,11 +30,12 @@ workflowでは例えば`${{ vars.GCP_PROJECT_ID }}`と`${{ secrets.DEPLOY_SERVIC
 
 ## Cloud Run runtimeへ渡す非秘密設定
 
-次のキーは[運用仕様の設定表](operations.md#設定)にある**既存の設定名**である。値は例または確定済み定数であり、未確認の外部endpoint、token address、contract addressを推測して埋めない。web/workerのどちらに必要かはT-01/T-16で実装に合わせて最小化する。設定欠落やnetwork/価格の不一致はfail closedにする。
+次のキーは運用仕様の設定表と初期実装の設定契約を合わせたものである。値は例または確定済み定数であり、未確認の外部endpoint、token address、contract addressを推測して埋めない。web/workerのどちらに必要かはT-01/T-16で実装に合わせて最小化する。設定欠落やnetwork/価格の不一致はfail closedにする。
 
 | 分野 | キーとevent用の値例・確認事項 |
 | --- | --- |
 | 環境・公開 | `APP_ENV=event`、`PUBLIC_ORIGIN=https://address.chain.tokyo`、`GCP_PROJECT_ID=<event-project-id>`、`GCP_REGION=<verified-region>`、`FIRESTORE_DATABASE_ID=(default)`、`FIRESTORE_COLLECTION_PREFIX=realaddr_event_`、`RESOURCE_PREFIX=realaddr-event` |
+| 認証・価格profile | `TERMS_VERSION=<published-terms-version>`、`PRICE_PROFILE=testnet`、`PRICING_VERSION=<reviewed-price-version>`。eventの`RATE_LIMIT_HMAC_KEY`は下の秘密設定に置く。mainnet profileを指定しても販売を開始しない |
 | app resource | `GCS_BUCKET=<app-private-bucket>`、`TASKS_QUEUE=<app-queue>`、`WORKER_URL=<private-worker-url>`、`TASK_INVOKER_SA=<new-app-task-invoker>`、`SCHEDULER_INVOKER_SA=<new-app-scheduler-invoker>`。実IDはinventory後のmanifestから取得。`ARTIFACT_REPOSITORY`はActionsのimage push先でありruntimeに不要 |
 | 上限 | `DAILY_NEW_LEASE_LIMIT=100`。`BILLING_ALERT_USD=5`は本アプリの月次運用目標であり、共有projectの既存予算通知や課金停止を設定するキーではない |
 | World・risk | `WORLD_ISSUER=<verified-issuer>`、`WORLD_CLIENT_ID=<event-client-id>`、`WORLD_REDIRECT_URI=https://address.chain.tokyo/auth/world/callback`、`INTERCEPTA_BASE_URL=<verified-live-api-url>`。World issuerとIntercepta endpoint/schemaはT-00の実接続で確定 |
@@ -43,6 +44,8 @@ workflowでは例えば`${{ vars.GCP_PROJECT_ID }}`と`${{ secrets.DEPLOY_SERVIC
 | LeaseRegistry・MultiBaas | `MULTIBAAS_URL=<verified-deployment-url>`、`MULTIBAAS_CHAIN_LABEL=<verified-sepolia-label>`、`REGISTRY_ADDRESS=<verified-contract-address>`、`REGISTRY_CHAIN_ID=11155111`、`REGISTRY_CONTRACT_LABEL=<verified-label>`。登録先と権限は実deploymentで確認 |
 | ENSv2 | `ENS_CHAIN_ID=11155111`、`ENS_RPC_URL=<verified-sepolia-rpc>`、`ENS_PARENT_NAME=<controlled-parent-name>`、`ENS_PARENT_REGISTRY=<verified-address>`、`ENS_USER_REGISTRY=<verified-address>`、`ENS_NAME_CONTROLLER=<verified-address>`、`ENS_UNIVERSAL_RESOLVER=<verified-address>`、`ENS_FACTORY=<verified-address>`、`ENS_RESOLVER_IMPLEMENTATION=<verified-address>`、`ENS_FINALITY_POLICY=<tested-policy>`。親名の制御・公式deployment/ABI・gas確認までは販売を無効にする |
 | 管理者OIDC | `ADMIN_GOOGLE_CLIENT_ID=<app-client-id>`、`ADMIN_OIDC_REDIRECT_URI=https://address.chain.tokyo/auth/admin/callback`。本アプリ専用clientの実値・callback登録を確認し、server側の保護設定から注入。World session/consentとは独立 |
+
+Web buildは`VITE_APP_ENV=local|event`と`VITE_TERMS_VERSION=<published-terms-version>`をbuild時に固定する。event buildは正式なterms versionと公開設定が確認できるまで実施しない。ブラウザへsecretを含む`VITE_`変数を渡さない。
 
 `PAYMENT_NETWORK`はBase Sepolia、`REGISTRY_CHAIN_ID`と`ENS_CHAIN_ID`はEthereum Sepoliaに対応する。両chain間のbridgeや別の決済chainを設定しない。ENSは住所購入と別の初回add-on決済であり、renewに購入済みENSの維持を含む。`FIRESTORE_EMULATOR_HOST`はlocal/CIだけに設定し、event/productionでは拒否する。ENSの拠点別registryは各拠点登録とreceipt検証で得る永続stateであり、全拠点共通の環境変数で代用しない。
 
@@ -53,6 +56,7 @@ workflowでは例えば`${{ vars.GCP_PROJECT_ID }}`と`${{ secrets.DEPLOY_SERVIC
 | 用途 | 既存キー | 入力・取扱い |
 | --- | --- | --- |
 | web session/宛先暗号化 | `SESSION_SECRET`、`DATA_ENCRYPTION_KEY_ID` | web等の必要なruntimeだけ。値や復号鍵は機密管理 |
+| 公開APIのrate limit | `RATE_LIMIT_HMAC_KEY` | eventでは64桁のhexで表した32byteの秘密。IPをHMAC化してFirestoreのrate bucketへ保存し、raw IPを保存しない。localのみ未指定時に起動ごとに生成 |
 | World/Intercepta/x402 | `WORLD_CLIENT_SECRET`、`INTERCEPTA_API_KEY`、`X402_FACILITATOR_CREDENTIAL` | providerから取得後に登録。facilitator認証が不要と確認される場合はcredentialを作らない |
 | MultiBaas | `MULTIBAAS_API_KEY` | 最小権限の実API key |
 | chain/返金署名 | `REGISTRY_SIGNER_KEY_REF`、`REFUND_SIGNER_KEY_REF`、`ENS_PUBLISHER_KEY_REF` | 役割を分離した鍵参照。署名方式と参照値の保存先は実接続で確定。復旧不能と確定した発行失敗の自動返金だけに返金鍵を使う |
@@ -62,8 +66,8 @@ workflowでは例えば`${{ vars.GCP_PROJECT_ID }}`と`${{ secrets.DEPLOY_SERVIC
 
 ## ローカル設定
 
-T-01で秘密のない`.env.example`を作り、local/CIの非秘密キーとplaceholderだけを載せる。例: `APP_ENV=local`、`FIRESTORE_EMULATOR_HOST=127.0.0.1:8080`、`FIRESTORE_COLLECTION_PREFIX=realaddr_event_`。開発者の実secret・署名鍵はリポジトリ外の環境/secret storeへ置く。test doubleはlocalと表示し、event用の実鍵をlocalから流用しない。顧客CLIの例: `AGENT_API_ORIGIN=https://address.chain.tokyo`、`AGENT_MAX_PAYMENT_ATOMIC=<reviewed-limit>`、`AGENT_DAILY_LIMIT_ATOMIC=<reviewed-limit>`、`AGENT_SIGNER_KEY_REF=<local-key-reference>`、`AGENT_INTERCEPTA_KEY=<local-secret-reference>`。上限値は利用者の資金・運用方針に合わせて確定し、署名鍵・API keyをAgentへのprompt、client bundle、ログへ渡さない。
+秘密のない`.env.example`を作成済みで、local/CIの非秘密キーとplaceholderを載せている。既存`.env`を上書きせず未追跡`.env`へ複製する。現在のEmulator設定は`APP_ENV=local`、`FIRESTORE_EMULATOR_HOST=127.0.0.1:8085`、`FIRESTORE_COLLECTION_PREFIX=realaddr_event_`、`GCP_PROJECT_ID=demo-realaddr-local`。ユーザーはMultiBaas接続値を未追跡`.env`へ登録する方針を選択したが、入力完了・値・疎通は未確認。`PAYMENT_ASSET`、`PAYMENT_PAY_TO`、`PAYMENT_DECIMALS`、`PRICING_VERSION`が未確認なら認証・healthは動作しても決済見積は無効になる。Webのlocal buildには`VITE_APP_ENV=local`と`VITE_TERMS_VERSION`を明示する。開発者の実secret・署名鍵はリポジトリ外の環境/secret storeへ置く。test doubleはlocalと表示し、event用の実鍵をlocalから流用しない。顧客CLIの例: `AGENT_API_ORIGIN=https://address.chain.tokyo`、`AGENT_CREDENTIAL_FILE=<local-untracked-file>`または`AGENT_API_TOKEN=<protected-token>`、`AGENT_SIGNER_KEY_REF=<local-key-reference>`、`AGENT_MAX_PAYMENT_ATOMIC=<reviewed-limit>`、`AGENT_DAILY_LIMIT_ATOMIC=<reviewed-limit>`、`AGENT_INTERCEPTA_KEY=<local-secret-reference>`。上限値は利用者の資金・運用方針に合わせて確定し、署名鍵・API keyをAgentへのprompt、client bundle、ログへ渡さない。
 
 ## 未確定と記録
 
-T-00でWorld/Intercepta/facilitator/USDC/MultiBaas/ENSの実endpoint・address・認証方式・finalityを確定する。T-16でproject/region、専用resourceの実ID、WIF provider・信頼条件、IAM、Secret Manager名/版とruntime割当、domain mapping対応を確定する。管理者OIDC client/初期principalはT-18前に確定する。実装開始後に作る`docs/implementation-status.md`へ作業結果と未実施を記録し、設定契約が変われば本表と`operations.md`、実装のenv validationを同時に更新する。
+T-00でWorld/Intercepta/facilitator/USDC/MultiBaas/ENSの実endpoint・address・認証方式・finalityを確定する。T-16でproject/region、専用resourceの実ID、WIF provider・信頼条件、IAM、Secret Manager名/版とruntime割当、domain mapping対応を確定する。管理者OIDC client/初期principalはT-18前に確定する。作業結果と未実施は`docs/implementation-status.md`に記録し、設定契約が変われば本表と`operations.md`、実装のenv validationを同時に更新する。

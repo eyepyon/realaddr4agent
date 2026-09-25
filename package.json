@@ -1,0 +1,23 @@
+{
+  "name": "realaddr-for-agents",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@11.19.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @realaddr/api dev",
+    "build": "pnpm -r --if-present build",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "agent": "tsx packages/agent-cli/src/index.ts",
+    "check:text": "node scripts/check-text-format.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.15",
+    "esbuild": "0.28.2",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3"
+  }
+}

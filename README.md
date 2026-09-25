@@ -2,7 +2,7 @@
 
 AIエージェントがx402で実住所の利用区画を契約し、ENSv2名で住所契約を参照し、World IDによる人間承認後に郵便転送設定を有効化するサービス。
 
-**現在の成果物は実装仕様一式です。アプリケーション、外部サービス接続、デプロイは未実装・未検証です。** 仕様作成日: 2026-09-25。初回リリースは実サービス接続と永続化を伴う縦断フローを完成させます。
+**仕様に加えて、ローカルの実行基盤、Agent認証、Firestore repository、公開ページと一部APIを実装中です。** Firestore Emulatorで基礎的なDBチェックを実施しました。x402決済、World、Intercepta、MultiBaas、ENSv2の実接続とGCPデプロイは未検証です。仕様作成日: 2026-09-25。初回リリースは実サービス接続と永続化を伴う縦断フローを完成させます。
 
 ## 読む順序
 
@@ -76,6 +76,59 @@ Worldのイベント環境は主催者側の模擬proofを利用する旨が告�
 ## ハッカソンのテスト方針
 
 テストは最小限。主要機能の実接続デモと、二重決済・区画重複・未承認操作を防ぐ少数の確認を優先します。手動確認を認め、同じデモ結果を複数の検証に再利用します。網羅的な単体テスト、負荷試験、全面的な障害注入や大規模E2E基盤は今回の必須作業にしません。詳細は[最小チェック](docs/acceptance.md)を参照してください。
+
+## ローカル起動と検証
+
+Node.js 22.21.0、pnpm 11.19.0、Java 21、Firestore Emulator 1.22.0を使用します。依存関係は`pnpm install --frozen-lockfile`で取得します。`.env.example`を未追跡の`.env`に複製し、既存の`.env`は上書きしないでください。`APP_ENV=local`と`GCP_PROJECT_ID=demo-realaddr-local`はローカルEmulator用です。`PAYMENT_ASSET`、`PAYMENT_PAY_TO`等の実設定が未確認の間、決済可能なintentは作成しません。
+
+公式Firestore Emulator 1.22.0のJARを取得し、`FIRESTORE_EMULATOR_JAR`にそのファイルのパスを設定します。この作業で照合したJARのSHA-256は`9b6498b7f62714d67f48f59b3818883cd682dbcd46b9f59511de81c97bb5166c`です。hashが一致することを確認してから、以下のEmulatorコマンドを別のターミナルで起動します。
+
+PowerShell:
+
+```powershell
+Get-FileHash -Algorithm SHA256 -Path $env:FIRESTORE_EMULATOR_JAR
+java -jar $env:FIRESTORE_EMULATOR_JAR --host 127.0.0.1 --port 8085 --project_id demo-realaddr-local --single_project_mode true
+```
+
+別のPowerShell:
+
+```powershell
+pnpm install --frozen-lockfile
+if (!(Test-Path .env)) { Copy-Item .env.example .env }
+$env:VITE_APP_ENV = 'local'
+$env:VITE_TERMS_VERSION = 'event-demo-1'
+pnpm typecheck
+pnpm build
+pnpm dev
+```
+
+POSIX shell:
+
+```sh
+sha256sum "$FIRESTORE_EMULATOR_JAR"
+java -jar "$FIRESTORE_EMULATOR_JAR" --host 127.0.0.1 --port 8085 --project_id demo-realaddr-local --single_project_mode true
+```
+
+別のshell:
+
+```sh
+pnpm install --frozen-lockfile
+test -e .env || cp .env.example .env
+VITE_APP_ENV=local VITE_TERMS_VERSION=event-demo-1 pnpm build
+pnpm typecheck
+pnpm dev
+```
+
+`pnpm dev`はAPIを`http://localhost:8080`で起動します。先にFirestore Emulatorを`127.0.0.1:8085`で起動してください。別のターミナルで`node packages/agent-cli/dist/index.js health --json`、`GET /ready`を確認できます。機械処理でJSONと終了コードを直接読む場合はbuild済みCLIを`node`で起動します。`pnpm agent`はpnpmの表示が標準出力に混ざり、終了コードもpnpm側で変換される場合があります。`/health`はプロセス、`/ready`はEmulator接続を確認します。実施済みチェックは[実装状況](docs/implementation-status.md)に記録します。`pnpm test`は通常の最小チェックです。DB transactionチェックはテスト用プロセスに`FIRESTORE_EMULATOR_HOST=127.0.0.1:8085`を設定して実行します。未設定ならそのDBチェックはskipされます。`AGENT_SIGNER_KEY_REF`はGit管理対象外の`.secrets/`内の署名鍵、`AGENT_CREDENTIAL_FILE`は`.credentials/`内のCLI tokenファイルを指すよう設定し、実値をリポジトリへ追加しないでください。
+
+```powershell
+$env:FIRESTORE_EMULATOR_HOST = '127.0.0.1:8085'
+pnpm --filter @realaddr/db test:emulator
+```
+
+```sh
+FIRESTORE_EMULATOR_HOST=127.0.0.1:8085 pnpm --filter @realaddr/db test:emulator
+```
 
 ## テキスト形式とコミット前チェック
 

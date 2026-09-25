@@ -1,0 +1,16 @@
+{
+  "name": "@realaddr/agent-cli",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "realaddr": "dist/index.js"
+  },
+  "scripts": {
+    "agent": "tsx src/index.ts",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node22 --packages=external --outfile=dist/index.js",
+    "typecheck": "tsc --project tsconfig.json"
+  },
+  "dependencies": {
+    "viem": "2.40.0"
+  }
+}
