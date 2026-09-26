@@ -22,6 +22,14 @@
 
 ## 検証の記録
 
+### 親名登録補助のMetaMask取引照合
+
+MetaMaskが直接callをEIP-7702の`redeemDelegations`へ変換したため、送信済みtest token mintの確認が`transaction_mismatch`で停止した。既存transactionは成功しており、予定token・受取owner・数量のmint eventと内側のcall完全一致を実RPCで確認した。再送や送信履歴の初期化は行っていない。
+
+登録補助だけに限定した照合を追加した。保護されたhash付きpolicyに固定したmanager・delegator・読み取り専用の残高検査enforcerを使用し、一つのroot自己委任、一つのSingleDefault call、予定to/value/dataの完全一致、receipt blockのruntime、ownerの委任先とauthorization署名、canonical receiptを検査する。任意のwrapper・追加call・別のcaveatを許可しない。公式creation transactionとmint時/現在runtimeを照合したが、配備当日の過去state照会はRPC側で利用できず未検証とした。
+
+関連11テスト、実RPCによる既存mintの修正コードでの再照合、文字形式検査が通過。元RPCのrate limit後は別提供元で同じchain/pinを検査し、送信は行わなかった。同じlocalhost origin・plan hash・保存済みtransaction hashを保持して補助画面を更新した。親名のcommit/registerとnamespace接続はこの確認には含まない。
+
 ### T-00/T-12/T-13/T-14 ENSv2の予約・照合・登録準備
 
 `EnsRepository`へ名前と料金の固定見積、canonical guardの原子的予約、支払根拠の検査、決済不明時の予約保持、一度だけのpaid反映とoutbox、未払い確定時だけの解放を追加した。支払済み名は別leaseへ再利用しない。unsigned descriptionはowner・lease version・paid/bindingの再検査と冪等保存を行い、送信完了を偽装しない。

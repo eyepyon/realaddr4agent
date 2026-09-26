@@ -1,4 +1,5 @@
 import { encodeFunctionData, encodeAbiParameters, decodeFunctionResult, decodeFunctionData, keccak256, parseAbi, stringToHex, zeroAddress, zeroHash } from 'viem';
+import { verifyExactWrapper, validateWrapperPolicy } from './ens-parent-wrapper.mjs';
 
 const registrarAbi = parseAbi([
   'function isAvailable(string label) view returns (bool)',
@@ -60,8 +61,9 @@ export function validateParentManifest(manifest) {
   return manifest;
 }
 
-export function createParentFlow({ manifest, provider, save, state = { steps: {}, unknown: false } }) {
+export function createParentFlow({ manifest, provider, save, state = { steps: {}, unknown: false }, wrapperPolicy }) {
   validateParentManifest(manifest);
+  if(wrapperPolicy) validateWrapperPolicy(wrapperPolicy);
   let busy = false;
   const rpc = (method, params = []) => provider.request({ method, params });
   const registrar = manifest.pins.ETHRegistrar.address; const token = manifest.paymentToken;
@@ -79,10 +81,21 @@ export function createParentFlow({ manifest, provider, save, state = { steps: {}
     if (!result) return false;
     const step = manifest.steps.find(step => step.action === action);
     const transaction = await rpc('eth_getTransactionByHash', [stored.hash]);
-    demand(transaction && same(transaction.from, manifest.owner) && same(transaction.to, step.transaction.to) && same(transaction.input, step.transaction.data) && BigInt(transaction.value) === 0n && same(transaction.hash, stored.hash), 'transaction_mismatch');
+    const targetPin=action==='test_token_mint' || action.includes('allowance') || action==='approve_exact_token_amount' ? manifest.pins.MockUSDC : manifest.pins.ETHRegistrar;
+    demand(same(keccak256(await rpc('eth_getCode',[targetPin.address,result.blockNumber])),targetPin.codeHash),'target_runtime_changed');
+    demand(transaction && same(transaction.from, manifest.owner) && BigInt(transaction.value) === 0n && same(transaction.hash, stored.hash), 'transaction_mismatch');
+    const direct=same(transaction.to,step.transaction.to) && same(transaction.input,step.transaction.data);
+    if(!direct) {
+      demand(!!wrapperPolicy,'transaction_mismatch');
+      await verifyExactWrapper({transaction,expected:step.transaction,owner:manifest.owner,paymentToken:manifest.paymentToken,policy:wrapperPolicy,blockNumber:result.blockNumber,rpc});
+    }
     const block = await rpc('eth_getBlockByNumber', [result.blockNumber, false]);
     demand(block && same(block.hash, result.blockHash), 'receipt_noncanonical');
-    demand(result.status === '0x1' && same(result.transactionHash, stored.hash) && same(result.from, manifest.owner) && same(result.to, step.transaction.to), 'transaction_failed');
+    demand(result.status === '0x1' && same(result.transactionHash, stored.hash) && same(result.from, manifest.owner) && same(result.to, transaction.to), 'transaction_failed');
+    if(action==='test_token_mint') {
+      const minted=result.logs?.filter(log=>same(log.address,manifest.paymentToken) && log.topics?.length===3 && same(log.topics[0],keccak256(stringToHex('Transfer(address,address,uint256)'))) && same(log.topics[1],zeroHash) && same(log.topics[2],`0x${manifest.owner.slice(2).padStart(64,'0')}`) && log.removed!==true);
+      demand(minted?.length===1 && BigInt(minted[0].data)===BigInt(step.amountAtomic),'mint_effect_mismatch');
+    }
     stored.receipt = { blockNumber: result.blockNumber, blockHash: result.blockHash, status: result.status };
     stored.confirmed = true;
     await persist();

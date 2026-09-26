@@ -171,3 +171,5 @@ description用のtxは代金の支払いではなく、AgentがSepoliaのgasを�
 `pnpm ens:check`は読み取り専用診断。`ENS_CONFIG_FILE`、`ENS_RPC_URL`、`ENS_REQUIRED_EXPIRY`を要求し、任意の`ENS_BINDING_FILE`で一契約の期待値も照合できる。未設定・未確認は非0終了。購入API、決済・ENS書込worker、返金実行は未接続のため、DB内の購入処理を実装したことだけで販売を開かない。
 
 親名取得は`scripts/ens-register-parent.mjs`で公式deploymentと価格を再取得して未署名planを作り、`scripts/ens-parent-serve.mjs`で人間のwallet承認を補助する。plan、wallet、rpc、stateは保護されたローカル設定に限定する。公式のtest tokenによる親名料金と、Base Sepoliaの本アプリENS add-on料金は別の費用である。commit待機、register、receipt/finalityを確認しても、それだけでは上位・拠点registryの接続完了や利用者向け名前発行を意味しない。
+
+MetaMaskのEIP-7702 wrapperは、`ENS_PARENT_WRAPPER_POLICY_FILE`とそのSHA-256を指定する`ENS_PARENT_WRAPPER_POLICY_HASH`で公式contract pinを固定した場合だけ照合する。一つの自己委任・SingleDefault・予定call完全一致と、許可した読み取り専用残高検査だけに制限する。policy変更は保存状態に束縛し、既存transactionを検査するために元planやhashを削除しない。`ENS_PARENT_PORT`は再起動時に同じlocalhost originを保持するための任意設定。送信済み操作はreceipt確認から再開する。

@@ -13,7 +13,7 @@ if (local && JSON.stringify(local) !== JSON.stringify(serverState)) state.unknow
 const provider = window.ethereum;
 document.querySelector('#details').textContent = JSON.stringify({ parentName: metadata.manifest.parentName, chain: 'Ethereum Sepolia testnet', owner: metadata.manifest.owner, token: metadata.manifest.paymentToken, testTokenPrice: metadata.manifest.price.totalAtomic, durationSeconds: metadata.manifest.durationSeconds, manifestHash: metadata.manifestHash, namespaceReady: false }, null, 2);
 if (!provider) throw new Error('MetaMask wallet required');
-const flow = createParentFlow({ manifest: metadata.manifest, provider, state, save: async next => {
+const flow = createParentFlow({ manifest: metadata.manifest, provider, state, wrapperPolicy: metadata.wrapperPolicy, save: async next => {
   localStorage.setItem(browserKey, JSON.stringify({ state: next, revision: revision + 1 }));
   const response = await fetch('/state', { method: 'POST', headers: { 'content-type': 'application/json', 'x-ens-helper-token': metadata.token }, body: JSON.stringify({ state: next, revision }) });
   if (!response.ok) throw new Error('state persistence failed');
@@ -24,7 +24,7 @@ function button(label, action) {
   node.addEventListener('click', async () => {
     for (const b of controls.querySelectorAll('button')) b.disabled = true;
     try { status.textContent = JSON.stringify(await action(), null, 2); }
-    catch (error) { status.textContent = error.message; }
+    catch (error) { status.textContent = error.message==='transaction_mismatch' ? 'walletが変換した取引を検証できません。送信済みのため再送しないでください。既存取引の照合が必要です。' : error.message; }
     finally { for (const b of controls.querySelectorAll('button')) b.disabled = false; }
   });
   controls.append(node);
@@ -36,4 +36,5 @@ for (const step of metadata.manifest.steps) {
   if (step.transaction) button(`${names[step.action]} receipt確認`, () => flow.check(step.action));
 }
 button('registerのfinality確認', () => flow.finalize());
-status.textContent = state.unknown ? '不明結果があるため再送禁止。履歴を照合してください。' : '未送信。各操作は人間のwallet承認が必要です。親名取得後も上位・拠点接続は別作業です。';
+const submitted=Object.entries(state.steps).filter(([,step])=>step.hash || step.started);
+status.textContent = state.unknown ? '不明結果があるため再送禁止。履歴を照合してください。' : submitted.length ? `送信履歴を復元しました。${submitted.map(([action,step])=>`${action}: ${step.confirmed?'確認済み':'receipt確認待ち'}`).join(' / ')}。送信済みの操作は再送せず、receipt確認ボタンから再開してください。` : '未送信。各操作は人間のwallet承認が必要です。親名取得後も上位・拠点接続は別作業です。';
