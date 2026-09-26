@@ -1,0 +1,167 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { configFromEnv, deploy, smoke, sourceFromEnv, verifySource } from './deploy-event.mjs';
+
+const commit = 'a'.repeat(40);
+const previousDigest = `sha256:${'b'.repeat(64)}`;
+const nextDigest = `sha256:${'c'.repeat(64)}`;
+const metadata = {
+  GCP_PROJECT_ID: 'test-realaddr-local', GCP_REGION: 'us-central1',
+  RESOURCE_PREFIX: 'realaddr-event', FIRESTORE_COLLECTION_PREFIX: 'realaddr_event_',
+  WIF_PROVIDER: 'projects/123456789012/locations/global/workloadIdentityPools/realaddr-event-gh/providers/github',
+  CLOUD_RUN_WEB_SERVICE: 'realaddr-event-web', CLOUD_RUN_WORKER_SERVICE: 'realaddr-event-worker',
+  ARTIFACT_REPOSITORY: 'realaddr-event-images', DEPLOY_SERVICE_ACCOUNT: 'realaddr-event-deploy@test-realaddr-local.iam.gserviceaccount.com',
+  TERMS_VERSION: 'published-fixture-v1', WORKER_URL: 'https://worker-fixture.run.app', DEPLOYMENT_APPROVED: 'true',
+};
+const sourceEnv = { GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_REF: 'refs/heads/main', GITHUB_SHA: commit, SELECTED_COMMIT: commit, GITHUB_REPOSITORY: 'fixture-owner/fixture-repository' };
+const environment = { ...sourceEnv, SELECTED_TERMS_VERSION: metadata.TERMS_VERSION, DEPLOY_CONFIG: JSON.stringify(metadata) };
+const config = configFromEnv(environment);
+const image = digest => `${metadata.GCP_REGION}-docker.pkg.dev/${metadata.GCP_PROJECT_ID}/${metadata.ARTIFACT_REPOSITORY}/app@${digest}`;
+const serviceName = role => `realaddr-event-${role}`;
+const account = role => `realaddr-event-${role}@${metadata.GCP_PROJECT_ID}.iam.gserviceaccount.com`;
+
+function fixture(role, currentImage) {
+  const name = serviceName(role);
+  const requiredEnv = {
+    APP_ENV: 'event', NODE_ENV: 'production', RESOURCE_PREFIX: 'realaddr-event', FIRESTORE_COLLECTION_PREFIX: 'realaddr_event_', FIRESTORE_DATABASE_ID: '(default)',
+    GCP_PROJECT_ID: metadata.GCP_PROJECT_ID, GCP_REGION: metadata.GCP_REGION, PRICE_PROFILE: 'testnet', PAYMENT_NETWORK: 'eip155:84532',
+    WORKER_URL: metadata.WORKER_URL, TASKS_QUEUE: 'realaddr-event-jobs', TASK_INVOKER_SA: account('tasks'), SCHEDULER_INVOKER_SA: account('sched'), CLOUD_TASKS_DISPATCH_ENABLED: 'false',
+    ...(role === 'web' ? { PUBLIC_ORIGIN: 'https://address.chain.tokyo', TERMS_VERSION: metadata.TERMS_VERSION } : {}),
+  };
+  const env = Object.entries(requiredEnv).map(([key, value]) => ({ name: key, value }));
+  if (role === 'web') env.push({ name: 'RATE_LIMIT_HMAC_KEY', valueFrom: { secretKeyRef: { name: 'realaddr-event-rate-limit-hmac', key: '1' } } });
+  return {
+    apiVersion: 'serving.knative.dev/v1', kind: 'Service',
+    metadata: { name, namespace: config.projectNumber, generation: 1, labels: { 'cloud.googleapis.com/location': metadata.GCP_REGION }, annotations: { 'run.googleapis.com/ingress': 'all', 'run.googleapis.com/maxScale': role === 'web' ? '2' : '1' } },
+    spec: {
+      template: { metadata: { name: `${name}-fixture`, labels: { 'client.knative.dev/nonce': 'before-update', purpose: 'fixture' }, annotations: { 'autoscaling.knative.dev/maxScale': role === 'web' ? '2' : '1', 'run.googleapis.com/cpu-throttling': 'true', 'run.googleapis.com/startup-cpu-boost': 'false' } },
+        spec: { serviceAccountName: account(role), containerConcurrency: role === 'web' ? 20 : 1, timeoutSeconds: 60, containers: [{ image: currentImage, command: ['node'], args: [role === 'web' ? 'apps/api/dist/index.js' : 'apps/worker/dist/index.js'], resources: { limits: { cpu: '1', memory: '512Mi' } }, env }] } },
+      traffic: [{ latestRevision: true, percent: 100 }],
+    },
+    status: { observedGeneration: 1, conditions: [{ type: 'Ready', status: 'True' }], latestReadyRevisionName: `${name}-fixture`, latestCreatedRevisionName: `${name}-fixture`, traffic: [{ revisionName: `${name}-fixture`, percent: 100 }], url: role === 'worker' ? metadata.WORKER_URL : 'https://web-fixture.run.app' },
+  };
+}
+function fakeSubprocess(failure, changeBefore) {
+  const services = { worker: fixture('worker', image(previousDigest)), web: fixture('web', image(previousDigest)) };
+  changeBefore?.(services);
+  const calls = [];
+  const updates = [];
+  let failureUsed = false;
+  const run = (program, args) => {
+    calls.push({ program, args });
+    if (program === 'git') return `${commit}\n`;
+    if (program === 'docker' || args[0] === 'auth' && args[1] === 'configure-docker') return '';
+    if (args[0] === 'auth') return JSON.stringify([{ account: metadata.DEPLOY_SERVICE_ACCOUNT }]);
+    if (args[0] === 'artifacts' && args[1] === 'repositories') return JSON.stringify({ name: `projects/${metadata.GCP_PROJECT_ID}/locations/${metadata.GCP_REGION}/repositories/${metadata.ARTIFACT_REPOSITORY}`, format: 'DOCKER' });
+    if (args[0] === 'artifacts') return JSON.stringify({ image_summary: { digest: nextDigest } });
+    const role = args[3]?.startsWith('realaddr-event-worker') ? 'worker' : 'web';
+    const service = services[role];
+    if (args[1] === 'services' && args[2] === 'describe') return JSON.stringify(service);
+    if (args[2] === 'get-iam-policy') return JSON.stringify({ bindings: [{ role: 'roles/run.invoker', members: role === 'worker' ? [`serviceAccount:${account('tasks')}`, `serviceAccount:${account('sched')}`] : ['allUsers'] }] });
+    if (args[1] === 'revisions') return JSON.stringify({ metadata: { name: service.status.latestReadyRevisionName, namespace: config.projectNumber }, status: { imageDigest: service.spec.template.spec.containers[0].image, conditions: [{ type: 'Ready', status: 'True' }] } });
+    if (args[2] === 'update') {
+      const target = args.find(value => value.startsWith('--image=')).slice('--image='.length);
+      updates.push({ role, image: target, args });
+      if (failure === 'rollback' && target === image(previousDigest) && role === 'worker') throw new Error('hidden_provider_response');
+      service.spec.template.spec.containers[0].image = target;
+      service.spec.template.metadata.labels['client.knative.dev/nonce'] = `update-${updates.length}`;
+      delete service.spec.template.metadata.name;
+      service.metadata.generation += 1;
+      service.status.observedGeneration = service.metadata.generation;
+      service.status.latestReadyRevisionName = `${serviceName(role)}-fixture-${updates.length}`;
+      service.status.latestCreatedRevisionName = service.status.latestReadyRevisionName;
+      service.status.traffic[0].revisionName = service.status.latestReadyRevisionName;
+      if (!failureUsed && (failure === role || failure === 'rollback' && role === 'web')) { failureUsed = true; throw new Error('hidden_uncertain_provider_response'); }
+      return '';
+    }
+    throw new Error('unexpected_fixture_command');
+  };
+  return { run, calls, updates, services };
+}
+const dependencies = fake => ({ run: fake.run, prepareContext: () => 'fixture-build-context', smokeCheck: async () => {} });
+
+test('missing configuration, wrong main SHA, unapproved deployment and mismatched terms fail before subprocesses', () => {
+  assert.throws(() => configFromEnv({ ...environment, DEPLOY_CONFIG: '' }), /deploy_configuration_required/);
+  assert.throws(() => configFromEnv({ ...environment, SELECTED_COMMIT: 'd'.repeat(40) }), /commit_must_equal_current_main/);
+  assert.throws(() => configFromEnv({ ...environment, GITHUB_REF: 'refs/heads/other' }), /deployment_not_authorized/);
+  assert.throws(() => configFromEnv({ ...environment, SELECTED_TERMS_VERSION: 'different-version' }), /published_terms_must_match/);
+  assert.throws(() => configFromEnv({ ...environment, DEPLOY_CONFIG: JSON.stringify({ ...metadata, DEPLOYMENT_APPROVED: 'false' }) }), /deployment_not_authorized/);
+});
+test('CI gate uses exact current main SHA and rejects failed latest completed run', () => {
+  const success = { id: 1, head_sha: commit, head_branch: 'main', event: 'push', head_repository: { full_name: sourceEnv.GITHUB_REPOSITORY }, status: 'completed', conclusion: 'success' };
+  const run = (program, args) => program === 'git' ? commit : JSON.stringify({ workflow_runs: [success] });
+  verifySource(sourceFromEnv(sourceEnv), run);
+  assert.throws(() => verifySource(sourceFromEnv(sourceEnv), (program, args) => program === 'git' ? commit : JSON.stringify({ workflow_runs: [success, { ...success, id: 2, conclusion: 'failure' }] })), /current_main_ci_not_successful/);
+  assert.throws(() => verifySource(sourceFromEnv(sourceEnv), (program, args) => program === 'git' ? commit : JSON.stringify({ workflow_runs: [] })), /current_main_ci_not_successful/);
+  assert.throws(() => verifySource(sourceFromEnv(sourceEnv), (program, args) => program === 'git' ? commit : JSON.stringify({ workflow_runs: [success, { ...success, id: 2, status: 'in_progress', conclusion: null }] })), /current_main_ci_not_successful/);
+});
+test('missing service and changed runtime settings refuse before build, push or update', async () => {
+  for (const scenario of ['missing', 'configuration']) {
+    const fake = fakeSubprocess(null, services => {
+      if (scenario === 'configuration') services.worker.spec.template.spec.serviceAccountName = account('web');
+    });
+    const run = (program, args) => {
+      if (scenario === 'missing' && program === 'gcloud' && args[1] === 'services' && args[2] === 'describe') throw new Error('hidden_not_found_response');
+      return fake.run(program, args);
+    };
+    await assert.rejects(deploy(config, { ...dependencies(fake), run }));
+    assert.equal(fake.calls.some(item => item.program === 'docker'), false);
+    assert.equal(fake.updates.length, 0);
+  }
+});
+test('preflight rejects a mismatched rollback pair before image build or update', async () => {
+  const fake = fakeSubprocess(null, services => { services.web.spec.template.spec.containers[0].image = image(nextDigest); });
+  await assert.rejects(deploy(config, dependencies(fake)), /rollback_pair_digest_mismatch/);
+  assert.equal(fake.calls.some(item => item.program === 'docker'), false);
+  assert.equal(fake.updates.length, 0);
+});
+test('success builds event image and updates worker then web with only immutable image', async () => {
+  const fake = fakeSubprocess();
+  assert.deepEqual(await deploy(config, dependencies(fake)), { status: 'deployed' });
+  assert.deepEqual(fake.updates.map(item => [item.role, item.image]), [['worker', image(nextDigest)], ['web', image(nextDigest)]]);
+  for (const update of fake.updates) assert.deepEqual(update.args.slice(4), [`--image=${image(nextDigest)}`, `--project=${metadata.GCP_PROJECT_ID}`, `--region=${metadata.GCP_REGION}`, '--format=json', '--quiet']);
+  const build = fake.calls.find(item => item.program === 'docker' && item.args[0] === 'build');
+  assert.ok(build.args.includes('VITE_APP_ENV=event'));
+  assert.ok(build.args.includes(`VITE_TERMS_VERSION=${metadata.TERMS_VERSION}`));
+});
+test('uncertain worker failure restores attempted worker and verifies unchanged web', async () => {
+  const fake = fakeSubprocess('worker');
+  await assert.rejects(deploy(config, dependencies(fake)), /deployment_failed_rolled_back/);
+  assert.deepEqual(fake.updates.map(item => [item.role, item.image]), [['worker', image(nextDigest)], ['worker', image(previousDigest)]]);
+});
+test('uncertain web failure restores both services in reverse order', async () => {
+  const fake = fakeSubprocess('web');
+  await assert.rejects(deploy(config, dependencies(fake)), /deployment_failed_rolled_back/);
+  assert.deepEqual(fake.updates.map(item => [item.role, item.image]), [['worker', image(nextDigest)], ['web', image(nextDigest)], ['web', image(previousDigest)], ['worker', image(previousDigest)]]);
+});
+test('rollback failure remains a failure with no provider metadata disclosure', async () => {
+  const fake = fakeSubprocess('rollback');
+  await assert.rejects(deploy(config, dependencies(fake)), { message: 'deployment_failed_rollback_unverified' });
+});
+test('environment or IAM drift stays fail closed despite regenerated nonce and revision names', async () => {
+  for (const scenario of ['environment', 'iam', 'user-label']) {
+    const fake = fakeSubprocess();
+    const run = (program, args) => {
+      const result = fake.run(program, args);
+      if (program === 'gcloud' && args[2] === 'update') {
+        if (scenario === 'environment' && fake.updates.length === 1) fake.services.worker.spec.template.spec.containers[0].env.push({ name: 'UNEXPECTED_FLAG', value: 'changed' });
+        if (scenario === 'user-label') fake.services.worker.spec.template.metadata.labels.purpose = 'changed';
+      }
+      if (scenario === 'iam' && fake.updates.length > 0 && program === 'gcloud' && args[2] === 'get-iam-policy') {
+        const policy = JSON.parse(result);
+        policy.bindings.push({ role: 'roles/run.viewer', members: [`serviceAccount:${account('web')}`] });
+        return JSON.stringify(policy);
+      }
+      return result;
+    };
+    await assert.rejects(deploy(config, { ...dependencies(fake), run }), { message: 'deployment_failed_rollback_unverified' });
+    assert.ok(fake.updates.some(item => item.image === image(previousDigest)));
+  }
+});
+test('smoke checks public health and unauthenticated worker denial without returning body', async () => {
+  const calls = [];
+  await smoke(config, async (url, options) => { calls.push({ url, options }); return url.endsWith('/health') ? { status: 200, json: async () => ({ status: 'ok' }) } : { status: 403 }; });
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].options.headers.Authorization, undefined);
+  await assert.rejects(smoke(config, async url => url.endsWith('/health') ? { status: 200, json: async () => ({ status: 'ok' }) } : { status: 200 }), /unauthenticated_worker_not_denied/);
+});

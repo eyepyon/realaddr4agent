@@ -1,6 +1,6 @@
 # eventインフラ準備（T-16）
 
-`bootstrap/`はTerraformの初期基盤rootで、専用state bucket、Docker repository、専用GitHub WIF pool/providerと既存deploy service accountへの限定的なimpersonation memberだけを定義する。認証済みlive inventoryと実planを確認済み。実planは5 create・0 update・0 destroyで、bootstrap applyと5件の初期登録は完了し、GCS state移行は完了。`app/`の基盤applyとコンテナ準備は完了した。deploy workflowは未実装で、このrootだけでサービスは稼働しない。
+`bootstrap/`はTerraformの初期基盤rootで、専用state bucket、Docker repository、専用GitHub WIF pool/providerと既存deploy service accountへの限定的なimpersonation memberだけを定義する。認証済みlive inventoryと実planを確認済み。実planは5 create・0 update・0 destroyで、bootstrap applyと5件の初期登録は完了し、GCS state移行は完了。`app/`の基盤applyとコンテナ準備は完了した。通常更新用deploy workflowを追加したが実行は未検証で、このrootだけでサービスは稼働しない。
 
 Terraform 1.14.6、Google provider 8.4.0を固定し、Windows上でfmt、validate、mock test 2件を確認した。lockfileには公式署名を検証したWindows/Linux amd64 packageのchecksumを含む。Linuxでの実行は未検証。作成後のlive metadata確認は下記に記録する。
 
@@ -31,7 +31,7 @@ mock testはGCP認証・通信を行わず、resource設定を検査する。pro
 
 bootstrap applyは終了code 0で成功し、専用state bucket、Docker repository、無効WIF pool/provider、限定impersonation memberの5件を作成した。live再取得でbucketのuniform bucket-level access=true・public access prevention=enforced・versioning=true、repositoryのDOCKER、WIF pool/providerのdisabled=true、追加memberと既存deploy accountの全従前memberの保持を確認した。local stateと別時刻のbackupは保護されたリポジトリ外にあり、GCSへのstate移行は完了。
 
-初期登録は完了したがT-16全体とアプリ稼働は未完了。Cloud Run/Scheduler配備、deploy workflow、GitHub event Environment、未検証のCloud Run/Tasks/Scheduler権限と実Firebase他利用者client試験は残件。適用後Terraform planはdetailed exit code 0で差分なし。修正した5型CAI filterのlive検索は終了code 0・metadata 34件を取得した。CAIのeventual freshnessと他regionのScheduler coverageは引き続き確認対象。
+初期登録は完了したがT-16全体とアプリ稼働は未完了。Cloud Run/Scheduler配備、deploy workflowの実検証、GitHub event Environment、未検証のCloud Run/Tasks/Scheduler権限と実Firebase他利用者client試験は残件。適用後Terraform planはdetailed exit code 0で差分なし。修正した5型CAI filterのlive検索は終了code 0・metadata 34件を取得した。CAIのeventual freshnessと他regionのScheduler coverageは引き続き確認対象。
 
 ## GCS backendとapp準備
 
@@ -60,6 +60,18 @@ docker build --build-arg VITE_APP_ENV=local --build-arg VITE_TERMS_VERSION=event
 ```
 
 これはlocal検証用commandで、今回Docker daemonが利用できず未実行。既存Node toolingによるlocalの型検査/API/worker/Web buildは通過した。event imageは正式なterms versionと公開設定が確定するまでbuildしない。実image build/run、image push、Cloud Run配備、スポンサー接続、DNSは未実施。
+
+## 通常更新用deploy workflow
+
+`deploy-event.yml`と`scripts/deploy-event.mjs`は既存2サービスのimage更新用であり、初回作成には使わない。正式terms・Secret Manager実version・worker origin・runtime gateを確定してTerraformで初回配備し、web公開とworker専用invokerを実確認してから使用する。現在はその前提が未完了で、workflowを実行していない。
+
+保護された`event` Environmentの`DEPLOY_CONFIG` Secretへ、[設定契約](../docs/deployment-configuration.md#github-actionsへ渡す値)のtarget metadataをJSONで登録する。runtime secret値やservice account鍵は含めない。専用Artifact Registryのpush権限とruntime actAs・Run更新/検証権限を実確認し、既存bindingを保持したままWIFを別工程で有効化する。EnvironmentやWIFをworkflow自身で作成・有効化しない。
+
+手動実行時の`commit`は選択したmainの完全SHA、`terms_version`は正式versionとする。cloud権限なしのgate jobで同SHAのCI成功を確認し、deploy jobはcloud認証前に保護設定との一致を確認する。既存2サービスの名前・project/region・専用runtime/invoker・default DB/prefix・料金network・terms・numeric secret version・上限・Ready revisionへの100% traffic・旧digestの一致を検査する。不在・不一致ならimage build前に停止する。
+
+検証済みcommitの許可sourceだけを一時build contextへ取り出し、Linux runnerのDockerでbuild/pushする。registryから得た同一digestをworker、webの順にimage属性だけ更新し、IAMと他設定の保持、両Ready revisionのdigest、公開healthと未認証worker拒否を再確認する。更新結果が不明な側も含め、失敗時には試みたサービスを逆順で旧digestへ戻して再照合する。復帰確認の成功・未確認を区別してworkflowは失敗する。runner消失やjob強制終了では復帰処理の実行を保証できないため、live revision/trafficを照合してから再開する。mock検査は実配備・実rollback成功の証拠ではない。
+
+GCPへ接続しない`container-check.yml`はlocal demo設定でimage buildと内部loopback smokeを実施する。こちらの成功や通常CI成功だけでデプロイ完了とは扱わない。
 
 ## app基盤の実登録結果
 

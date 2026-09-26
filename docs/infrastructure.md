@@ -2,7 +2,7 @@
 
 決定日: 2026-09-25。ユーザー指定によりCloud Run / Cloud Firestore / Cloud Storage / GitHub Actionsを採用する。これは実装仕様であり、billing有効を読み取り確認したが、bootstrapの5件を作成済みで、アプリデプロイは未実施。
 
-実装状況: `infra/bootstrap`の専用state bucket・Artifact Registry・WIFと限定IAM定義、`scripts/gcp-inventory.ps1`のmetadata読取を追加した。ローカル検証は[infra手順](../infra/README.md)と[実装状況](implementation-status.md)を参照。`infra/app`の基盤・条件付きサービス定義を追加し、基盤applyは完了したが、deploy workflowは未実装。認証済みlive inventoryと実plan（5 create・0 update・0 destroy）は確認済み。bootstrap applyは成功し、GCS state移行は完了したが、runtime/clientのgateは残る。
+実装状況: `infra/bootstrap`の専用state bucket・Artifact Registry・WIFと限定IAM定義、`scripts/gcp-inventory.ps1`のmetadata読取を追加した。ローカル検証は[infra手順](../infra/README.md)と[実装状況](implementation-status.md)を参照。`infra/app`の基盤・条件付きサービス定義を追加し、基盤applyは完了したが、通常更新用deploy workflowを追加したが、実行は未検証。認証済みlive inventoryと実plan（5 create・0 update・0 destroy）は確認済み。bootstrap applyは成功し、GCS state移行は完了したが、runtime/clientのgateは残る。
 
 ## 採用理由と配置
 
@@ -155,7 +155,7 @@ Cloud Tasksは配信をexactly-onceにしない。task IDの短期重複排除�
 - GitHub OIDCからWorkload Identity Federationで短期credentialを得る。trust条件をrepository ID・owner ID・許可ref/environmentへ絞る。サービスアカウントJSON鍵をGitHub Secretsへ保存しない。[WIF公式手順](https://cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines)
 - DockerをActionsでbuildしArtifact Registryへpush、同じdigestを2サービスへdeployする。Cloud Buildを別途起動しない。bootstrap/IAM管理と通常deploy権限を分離する。schemaは後方互換追加を優先し、本アプリ専用indexのreadyを確認後に新queryへ切替える。
 - Actionsは`ci`と手動`deploy-event`を分ける。PRの`ci`は`contents: read`のみでGCP credentialとremote stateに触れず、通常は形式検査・build/typecheckと変更に関係する最小チェックを実行する。Terraform変更時だけ対象rootの`terraform init -backend=false`、`terraform fmt -check`、`terraform validate`を追加する。全rootの`terraform test`やlive接続を毎PRの必須条件にしない。
-- `deploy-event`は`workflow_dispatch`、mainの検証済みcommit、保護されたGitHub Environmentに限定し、同一環境のconcurrencyでは進行中deployを取消さない。workflow権限は`contents: read`と`id-token: write`だけとし、project/region/environment/branch/commitをcloud認証前に照合する。WIF providerの条件はimmutableなrepository ID・owner ID、許可ref、Environment、event、workflow refへ絞り、本アプリ用に追加するimpersonation許可は当該providerの限定principalに絞り、指定したデプロイ用service accountの他のtrust設定を変更しない。本アプリで追加するgrantは対象Artifact Registryへのpush、対象2サービスの更新、両runtime service accountへの必要なactAs、検証に必要なreadだけに限定する。現在のgrantをinventoryし、state・Firestore・Secret Managerの値へのアクセス不可は実権限を確認するまで主張しない。infra applyは別の管理主体と手順で行う。
+- `deploy-event`は`workflow_dispatch`、mainの検証済みcommit、保護されたGitHub Environmentに限定し、同一環境のconcurrencyでは進行中deployを取消さない。cloud deploy jobの権限は`contents: read`と`id-token: write`だけとし、別のCI確認jobに限って`contents: read`と`actions: read`を与える。CI確認jobへcloud認証とEnvironment Secretを渡さず、project/region/environment/branch/commitをcloud認証前に照合する。WIF providerの条件はimmutableなrepository ID・owner ID、許可ref、Environment、event、workflow refへ絞り、本アプリ用に追加するimpersonation許可は当該providerの限定principalに絞り、指定したデプロイ用service accountの他のtrust設定を変更しない。本アプリで追加するgrantは対象Artifact Registryへのpush、対象2サービスの更新、両runtime service accountへの必要なactAs、検証に必要なreadだけに限定する。現在のgrantをinventoryし、state・Firestore・Secret Managerの値へのアクセス不可は実権限を確認するまで主張しない。infra applyは別の管理主体と手順で行う。
 - deployは固定したaction commit SHA、lockfileからのbuild、commit SHAタグのimage push、registryから取得したdigestで行う。事前に2サービスの現在digestを記録し、worker・webの更新後に両digestと設定を再確認する。公開healthと未認証worker拒否を少数のsmokeで確認する。失敗時の旧digestへの復帰手順と、片側のみ切り替わった期間を運用記録へ残す。workflowの成功は実スポンサー接続やデモ合格を意味しない。
 - infra/に再実行可能な設定とbootstrap/deploy script、本アプリprefix限定のFirestore index/field exemption、queue retry、Scheduler、専用bucket lifecycle、image cleanupを保存する。共有DBのrulesや既存API、予算は本アプリのdeploy対象に含めず、既存DBを自動初期化しない。rollbackは旧image digestへのtraffic復帰とする。
 - snapshotは必要時の手動運用案（ハッカソンの必須テスト外）: 本アプリの新規書込停止→専用queue pause→本アプリの実行中処理の収束/不明記録保存→`realaddr_event_` collectionだけをページ取得して暗号化snapshotを専用private GCSへ保存→manifest/hash検証→本アプリを再開。他サービスを含む全DB writer停止は行わない。通常宛先を平文ファイルに出さない。restoreはまずEmulatorへ行い、本アプリのuniques/shard/冪等記録を照合する。実DBへの復元や削除は対象prefixを厳密に検証し、他サービスのdocument・bucket・queueに触れない。snapshot中もchainは進むため、復元後は新規settle前にchain照合が必須。共有DB全体の無停止・時点復旧は保証しない。
@@ -194,7 +194,7 @@ Cloud Tasksは配信をexactly-onceにしない。task IDの短期重複排除�
 
 bootstrap applyは終了code 0で成功し、専用state bucket、Docker repository、無効WIF pool/provider、限定impersonation memberの5件を作成した。live再取得でbucketのuniform bucket-level access=true・public access prevention=enforced・versioning=true、repositoryのDOCKER、WIF pool/providerのdisabled=true、追加memberと既存deploy accountの全従前memberの保持を確認した。local stateと別時刻のbackupは保護されたリポジトリ外にあり、GCSへのstate移行は完了。
 
-初期登録は完了したがT-16全体とアプリ稼働は未完了。Cloud Run/Scheduler配備、deploy workflow、GitHub event Environment、未検証のCloud Run/Tasks/Scheduler権限と実Firebase他利用者client試験は残件。適用後Terraform planはdetailed exit code 0で差分なし。修正した5型CAI filterのlive検索は終了code 0・metadata 34件を取得した。CAIのeventual freshnessと他regionのScheduler coverageは引き続き確認対象。
+初期登録は完了したがT-16全体とアプリ稼働は未完了。Cloud Run/Scheduler配備、deploy workflowの実検証、GitHub event Environment、未検証のCloud Run/Tasks/Scheduler権限と実Firebase他利用者client試験は残件。適用後Terraform planはdetailed exit code 0で差分なし。修正した5型CAI filterのlive検索は終了code 0・metadata 34件を取得した。CAIのeventual freshnessと他regionのScheduler coverageは引き続き確認対象。
 
 ## T-16追加準備の現在地
 

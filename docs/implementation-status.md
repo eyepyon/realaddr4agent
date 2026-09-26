@@ -229,3 +229,13 @@ APIのevent起動はresource/collection prefixと共有default DBの明示設定
 Docker Desktopは内部ingest socketのrename/accessエラーでbackendが停止した。既存Desktopの起動を確認したが、reset、state削除、OS設定変更は実施していない。local設定の型検査・API/worker/Web buildは通過した。実コンテナ検査用に`container-check.yml`を追加し、GCP認証なしのLinux runnerでlocal demo imageをbuildする。起動containerはネットワークを無効にし、内部loopbackだけでweb health 200、worker未認証401/no-store、未知roleの拒否を検査する。DB/queue操作は行わず、作成したcontainerとimageだけを削除する。script構文検査は通過、実build/runはCI実行待ち。
 
 正式termsは引き続き未確定で、event image作成・push・Cloud Run配備は行わない。CI成功とデプロイ成功を区別し、T-16を完了扱いしない。
+
+最初のLinux container checkでは、pnpmがesbuildの実行fileをnative binaryへ最適化するため、Node経由のCLI起動が失敗した。固定済みesbuildのJavaScript APIで同じbundle設定を実行する形へ修正し、local型検査・API/worker/Web buildは通過した。通常CIは成功、修正後のLinux image検査は再実行待ち。
+
+## T-16 手動更新workflowの実装
+
+`deploy-event.yml`と専用scriptを追加した。main手動実行・同SHAのCI成功・保護されたevent設定・正式terms一致を必要とし、CI照会jobだけに`actions: read`、deploy jobだけに`id-token: write`を付与する。target metadataはEnvironment Secret `DEPLOY_CONFIG`のJSON契約へ統一し、runtime secret値や鍵を含めない。初回Run作成・IAM設定・WIF有効化は別工程で、既存サービスがなければbuild前に停止する。
+
+旧2digestの一致、既存のruntime設定・IAM・Ready revision/trafficを検査し、同一digestをworker→webへimage属性だけ更新する。更新結果不明も含め試みた側を旧digestへ戻し、復帰確認失敗を成功にしない。gcloudが生成するrevision名・nonce等のmetadataと業務設定を区別し、env/IAM/user labelの変更を検出する。runner強制終了時の復帰は保証せずlive再照合を必要とする。
+
+`node --test scripts/deploy-event.test.mjs`は10件通過。設定欠落、branch/SHA/terms/CI拒否、サービス不在・設定違反で副作用なし、同digest更新、worker/webの不明結果からのrollback、rollback失敗、env/IAM/labelの変更検出、公開health/worker拒否をfake subprocessで検査した。この結果は実GCP更新・rollbackの証拠ではない。公式actionのtagとcommit SHAを照合して固定した。正式terms、初回event image/Run配備、Environment登録・WIF有効化、実デプロイ・実rollback・スポンサー接続は引き続き未完了。T-16に完了チェックを付けない。

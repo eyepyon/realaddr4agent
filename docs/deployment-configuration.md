@@ -1,6 +1,6 @@
 # event環境の設定値と投入先
 
-この資料はT-00/T-01/T-16の設定準備用である。ローカル用`.env.example`、GitHub Actionsの`ci` workflow、[Terraform bootstrap](../infra/README.md)と[read-only inventory](gcp-inventory.md)は作成済み。bootstrap5件の初期登録とlive設定確認は完了した。`infra/app`の基盤・条件付きサービス定義とコンテナ準備を追加し、GCS state移行は完了した。app基盤applyは完了した。`deploy-event` workflow、Cloud Run/Scheduler、Secret Managerの値は未作成・未検証。ローカル検証結果は[実装状況](implementation-status.md)へ記録する。ここに書いた外部設定例は払い出し済みの値を意味しない。設定の正本は[運用仕様](operations.md)、[インフラ仕様](infrastructure.md)、[管理仕様](admin.md)、[料金仕様](pricing.md)とする。実際の外部account識別子、secret、鍵、個人住所をリポジトリ文書・source comment・例・commit messageへ載せない。Terraformの保護されたstate/planにはresource metadataが必要だが、secret payload、署名鍵、個人住所を入れない。Actions logにも実値やcredentialを出力しない。
+この資料はT-00/T-01/T-16の設定準備用である。ローカル用`.env.example`、GitHub Actionsの`ci` workflow、[Terraform bootstrap](../infra/README.md)と[read-only inventory](gcp-inventory.md)は作成済み。bootstrap5件の初期登録とlive設定確認は完了した。`infra/app`の基盤・条件付きサービス定義とコンテナ準備を追加し、GCS state移行は完了した。app基盤applyは完了した。`deploy-event` workflowを追加したが、実行は未検証。Cloud Run/Scheduler、Secret Managerの値は未作成。ローカル検証結果は[実装状況](implementation-status.md)へ記録する。ここに書いた外部設定例は払い出し済みの値を意味しない。設定の正本は[運用仕様](operations.md)、[インフラ仕様](infrastructure.md)、[管理仕様](admin.md)、[料金仕様](pricing.md)とする。実際の外部account識別子、secret、鍵、個人住所をリポジトリ文書・source comment・例・commit messageへ載せない。Terraformの保護されたstate/planにはresource metadataが必要だが、secret payload、署名鍵、個人住所を入れない。Actions logにも実値やcredentialを出力しない。
 
 ## 投入先と順序
 
@@ -8,25 +8,28 @@
 2. T-16のread-only live inventoryを行う。共有projectの所有者、既存resource、`(default)` DBのlocation/rules/index、API、IAM、予算、名前の空き、指定したdeploy service accountの所有者・binding・実効権限を確認する。Security Rulesが適用されるclientから本アプリprefixへの未認証・他利用者のread/write拒否を確認する。planが他サービスや共有DB本体・rules・project IAM等へ触れるならapplyしない。
 3. 管理主体が`infra/bootstrap`の本アプリ専用state bucket、Artifact Registry、repository制限付きWIFを作る。bootstrap stateの専用bucketへの移行は別途記録する。管理主体が`infra/app`の専用web/worker/Tasks invoker/Scheduler invoker service account、Cloud Run、queue、secret metadata、必要な限定IAMを作る。4つのservice accountは別々に新規作成し、default accountを使わない。指定されたdeploy service accountは本アプリのTerraformで作成・import・削除しない。既存bindingを保ち、確認済みの本アプリresourceへのgrantと専用WIF principalの狭いimpersonation memberだけを追加する。
 4. 権限のある運用者がsecretの**値**をSecret Managerへ別途登録し、web/workerに必要なsecret versionだけを参照させる。値をTerraform変数に渡さない。runtime主体の実IAM権限と対象外DB拒否を、業務データ投入・公開route有効化前に検証する。
-5. GitHubの保護された`event` Environmentで、mainの検証済みcommitから手動`deploy-event`を実行する設計である。WIFの短期credentialを使い、同じimage digestをworkerとwebに適用する。JSON service account keyはGitHub Secretsへ登録しない。`ci`は存在するが`deploy-event`は未実装のため、以下を登録してもdeployは動かない。
+5. GitHubの保護された`event` Environmentで、mainのCI成功済みcommitから手動`deploy-event`を実行する。これは既存2サービスのimage更新用であり、初回のCloud Run作成はTerraformで別途実施する。WIFの短期credentialを使い、同じimage digestをworkerとwebに適用する。JSON service account keyはGitHub Secretsへ登録しない。workflowを追加したが、Environment・WIFの有効化と実配備は未実施。
 
 ## GitHub Actionsへ渡す値
 
-GitHub repositoryの **Settings → Environments → event** で保護規則を設定し、次のEnvironment Variables/Secretsを登録する。表の値は保護manifestで確認した実値へ置き換える。Environment Variableはsecretのような自動maskを前提にせず、workflowで出力しない。PRの`ci`にはGCP credentialとremote stateへのアクセスを与えない。下表は今回の**予定workflow入力契約**であり、workflow実装時に名前・参照・検証を同期する。[GitHub Environmentの公式手順](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments)
+GitHub repositoryの **Settings → Environments → event** でmain限定の保護規則を設定し、Environment Secret **`DEPLOY_CONFIG`** に以下のキーを持つJSON objectを登録する。全値は文字列とする。runnerがstepの環境変数やaction入力を表示するため、従来案の個別Environment Variableではなく、target metadataも保護された一つの入力へまとめる。runtimeのsecret値は含めない。PRの`ci`にはGCP credentialとremote stateへのアクセスを与えない。[GitHub Environmentの公式手順](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments)
 
-| キー | `event`の登録先 | 値の例・決め方 |
-| --- | --- | --- |
-| `GCP_PROJECT_ID` | Environment Variable | `<event-project-id>`。live inventoryで確定 |
-| `GCP_REGION` | Environment Variable | `<verified-region>`。既存DB配置と直接domain mapping対応を確認後に確定。`us-central1`を未確認の既定値として適用しない |
-| `RESOURCE_PREFIX` | Environment Variable | `realaddr-event`。Terraform/runtimeにも別途渡す |
-| `FIRESTORE_COLLECTION_PREFIX` | Environment Variable | `realaddr_event_`。Terraform/runtimeにも別途渡す。衝突時の変更はmanifest・mapper・index・cleanupと同期 |
-| `WIF_PROVIDER` | Environment Variable | `projects/<project-number>/locations/global/workloadIdentityPools/realaddr-event-gh/providers/github`。専用bootstrap出力でproject numberと所有権を確認 |
-| `CLOUD_RUN_WEB_SERVICE` | Environment Variable | `realaddr-event-web`。live所有権と確定suffixを照合 |
-| `CLOUD_RUN_WORKER_SERVICE` | Environment Variable | `realaddr-event-worker`。live所有権と確定suffixを照合 |
-| `ARTIFACT_REPOSITORY` | Environment Variable | `realaddr-event-images`。本アプリ専用repositoryの確定IDを照合 |
-| `DEPLOY_SERVICE_ACCOUNT` | Environment Secret | `<deploy-sa>@<project-id>.iam.gserviceaccount.com`。既存deploy accountの識別子を保護設定として扱う。Terraform lifecycle対象外で、所有者・binding・実効権限を確認 |
+| JSONキー | 値の例・決め方 |
+| --- | --- |
+| `GCP_PROJECT_ID` | `<event-project-id>`。live inventoryで確定 |
+| `GCP_REGION` | `<verified-region>`。既存DB配置とdomain接続方式を確認後に確定 |
+| `RESOURCE_PREFIX` | `realaddr-event` |
+| `FIRESTORE_COLLECTION_PREFIX` | `realaddr_event_` |
+| `WIF_PROVIDER` | `projects/<project-number>/locations/global/workloadIdentityPools/realaddr-event-gh/providers/github`。専用bootstrap出力で所有権を確認 |
+| `CLOUD_RUN_WEB_SERVICE` | `realaddr-event-web` |
+| `CLOUD_RUN_WORKER_SERVICE` | `realaddr-event-worker` |
+| `ARTIFACT_REPOSITORY` | `realaddr-event-images` |
+| `DEPLOY_SERVICE_ACCOUNT` | `<deploy-sa>@<project-id>.iam.gserviceaccount.com`。既存accountの所有者・binding・実効権限を確認。Terraform lifecycle対象外 |
+| `TERMS_VERSION` | 確定済み正式version。手動入力`terms_version`と既存web runtimeに一致し、local demo versionを使用しない |
+| `WORKER_URL` | 初回配備後に確認した専用workerの実HTTPS `run.app` origin |
+| `DEPLOYMENT_APPROVED` | 配備前レビューを済ませてから文字列`true`を指定。未設定時はcloud認証前に停止 |
 
-workflowでは例えば`${{ vars.GCP_PROJECT_ID }}`と`${{ secrets.DEPLOY_SERVICE_ACCOUNT }}`で読む。`APP_ENV=event`と`PUBLIC_ORIGIN=https://address.chain.tokyo`は**Actions Environmentへ別途登録不要**で、Cloud Run runtimeの設定として渡す。GitHubのrepository名だけをWIF信頼条件にせず、repository/ownerのimmutable IDと許可ref/Environment/event/workflow refを保護manifestからprovider条件へ反映する。deploy workflowは`contents: read`と`id-token: write`、main/`event`/手動起動、同時実行制御、事前target照合、事後digest・IAM確認を必要とする。WIFの短期credentialを使用し、JSON service account keyは作成・登録しない。[Google Cloud WIF公式手順](https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines)
+workflowは`${{ secrets.DEPLOY_CONFIG }}`を読み、認証actionへ渡す識別子を個別maskして同job内のstep outputへ設定する。手動入力`commit`は実行時のmain commit SHAと完全一致させる。gate jobは`contents: read`とCI照会用`actions: read`だけで、cloud認証やEnvironment Secretを持たない。deploy jobだけが保護された`event` Environmentへ入り、`contents: read`と`id-token: write`を持つ。`APP_ENV=event`と`PUBLIC_ORIGIN=https://address.chain.tokyo`はCloud Run側で固定する。repository/ownerのimmutable IDと許可ref/Environment/event/workflow refをWIF条件へ反映し、JSON service account keyは作成・登録しない。[Google Cloud WIF公式手順](https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines)
 
 ## Cloud Run runtimeへ渡す非秘密設定
 
@@ -77,6 +80,6 @@ T-00でWorld/Intercepta/facilitator/USDC/MultiBaas/ENSの実endpoint・address�
 
 ## 現実装の起動とapp opt-in
 
-コンテナは`VITE_APP_ENV`と`VITE_TERMS_VERSION`を必須build引数とし、同一imageを`web`/`worker`引数で使う。現実装のweb起動には`APP_ENV=event`、`GCP_PROJECT_ID`、上表の`PUBLIC_ORIGIN`、正式な`TERMS_VERSION`、実`RATE_LIMIT_HMAC_KEY`が必要。worker起動は環境・project・prefix・default databaseと、実`WORKER_URL`・専用Tasks/Scheduler invokerを必要とする。provider secretは現在の閉じた起動経路では必須でなく、値を仮置きして販売を開かない。APIのdatabase明示検査とkey credential拒否はworkerと同等ではなく、runtime gateの残件である。
+コンテナは`VITE_APP_ENV`と`VITE_TERMS_VERSION`を必須build引数とし、同一imageを`web`/`worker`引数で使う。現実装のweb起動には`APP_ENV=event`、`GCP_PROJECT_ID`、上表の`PUBLIC_ORIGIN`、正式な`TERMS_VERSION`、実`RATE_LIMIT_HMAC_KEY`が必要。worker起動は環境・project・prefix・default databaseと、実`WORKER_URL`・専用Tasks/Scheduler invokerを必要とする。provider secretは現在の閉じた起動経路では必須でなく、値を仮置きして販売を開かない。APIもeventでは専用prefixと共有default databaseの明示設定を要求し、demo project、不正project、Emulator、鍵credentialの環境変数を拒否する。
 
 `infra/app`では非秘密設定を固定し、`secret_versions`でweb/workerごとの既存numeric versionだけを指定する。`secret_purposes`はmetadata作成対象で、payload/version作成を行わない。service配備・runtime ready・公開・Scheduler・dispatch・共有Firestore grantのopt-inは全て既定false。初期基盤applyとその後のruntime gateは別工程である。backend設定は保護されたbucketと専用prefixを使い、`TF_DATA_DIR`も保護directoryへ分ける。bootstrapはGCS移行済みで、cloneは既存remote stateへ接続する。[初期化手順](../infra/README.md)を参照。

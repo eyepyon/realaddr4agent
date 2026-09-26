@@ -1,0 +1,83 @@
+name: Deploy event
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: CI-verified current main commit SHA
+        required: true
+        type: string
+      terms_version:
+        description: Published terms version approved for event
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: realaddr-event-deploy
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.21.0
+      - name: Verify current main and completed CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SELECTED_COMMIT: ${{ inputs.commit }}
+        run: node scripts/deploy-event.mjs gate
+
+  deploy:
+    needs: gate
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    environment: event
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.21.0
+      - name: Validate protected target configuration before cloud authentication
+        id: target
+        env:
+          DEPLOY_CONFIG: ${{ secrets.DEPLOY_CONFIG }}
+          SELECTED_COMMIT: ${{ inputs.commit }}
+          SELECTED_TERMS_VERSION: ${{ inputs.terms_version }}
+        run: node scripts/deploy-event.mjs inputs
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          workload_identity_provider: ${{ steps.target.outputs.WIF_PROVIDER }}
+          service_account: ${{ steps.target.outputs.DEPLOY_SERVICE_ACCOUNT }}
+          project_id: ${{ steps.target.outputs.GCP_PROJECT_ID }}
+          create_credentials_file: true
+          export_environment_variables: true
+          cleanup_credentials: true
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+        with:
+          version: 586.0.0
+      - name: Verify existing services and update the same image digest
+        env:
+          DEPLOY_CONFIG: ${{ secrets.DEPLOY_CONFIG }}
+          SELECTED_COMMIT: ${{ inputs.commit }}
+          SELECTED_TERMS_VERSION: ${{ inputs.terms_version }}
+        run: node scripts/deploy-event.mjs deploy
