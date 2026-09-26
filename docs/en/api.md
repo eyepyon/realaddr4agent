@@ -42,11 +42,14 @@ node packages/agent-cli/dist/index.js auth login --json
 node packages/agent-cli/dist/index.js locations list --json
 node packages/agent-cli/dist/index.js lease status --subscription '<subscription-id>' --json
 node packages/agent-cli/dist/index.js intent status --intent '<intent-id>' --json
+node packages/agent-cli/dist/index.js mail request --subscription '<subscription-id>' --idempotency-key '<idempotency-key>' --json
 node packages/agent-cli/dist/index.js mail status --subscription '<subscription-id>' --json
 node packages/agent-cli/dist/index.js ens status --subscription '<subscription-id>' --json
 ```
 
 Quoted placeholders must be replaced with IDs returned by the API; quotes prevent angle brackets from becoming shell syntax. Set non-secret event terms with `$env:TERMS_VERSION = 'realaddr-v1'` in Windows PowerShell or `export TERMS_VERSION=realaddr-v1` in WSL/macOS. Inject credentials and key references through protected OS-local configuration, rather than pasting secrets into shell history. Authentication signs a login challenge; it does not sign a payment. `mail status` returns status and destination-configured information, never the full address.
+
+`mail request --subscription <id> --idempotency-key <key> [--force-reauth] --json` calls the existing mail-approval endpoint and returns a same-origin human approval URL and expiry, or the already-applied status. Replace the subscription placeholder with a UUID and the key with 8–128 letters, digits, underscores or hyphens. Preserve the same key on retry. Use `--force-reauth` explicitly to return through human authentication to an existing consent/destination form. The CLI never approves consent or reads/writes the forwarding address.
 
 Implemented ENS commands also include `ens resolve --name`, `lease status --name`, and `ens purchase`. The purchase command requests an intent; it does not provide a connected payment signer, and the current public API rejects sale. It requires `--subscription` and `--idempotency-key`; custom names additionally use `--name-type custom --name <label>`.
 

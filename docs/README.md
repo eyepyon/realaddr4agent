@@ -6,6 +6,8 @@ RealAddr for Agentsの機能、構成、API、開発・運用手順を目的別�
 
 ## 目的別の入口
 
+ETHGlobalの4賞向けには、[日英の応募回答・コード行・デモ手順](submission.md)と[スポンサーfeedback](feedback.md)を参照してください。
+
 | 目的 | 日本語の正本・手順 | 英語ガイド |
 | --- | --- | --- |
 | 概要とローカル起動 | [README](../README.md) | [English README](../README.en.md) |

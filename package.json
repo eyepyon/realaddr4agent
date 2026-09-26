@@ -1,6 +1,7 @@
 {
   "name": "realaddr-for-agents",
   "private": true,
+  "license": "MIT",
   "version": "0.1.0",
   "packageManager": "pnpm@11.19.0",
   "engines": {

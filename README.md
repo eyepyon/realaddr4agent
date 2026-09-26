@@ -176,3 +176,33 @@ node scripts/check-text-format.mjs --staged
 ## 提出前に揃えるもの
 
 起動・テストの実コマンド、公開デモURL、デプロイ情報、コントラクト、各スポンサー呼び出し箇所、チーム紹介・SNS、実測した連携フィードバック。
+
+## ETHGlobalの4つの応募先
+
+| 賞 | 実装の役割・コード入口 |
+| --- | --- |
+| World — Best Use of World ID for Agents | [fresh OIDC検証](packages/world/src/index.ts#L79)、[人間専用の明示承認](apps/api/src/world.ts#L84)、Agentからの `mail request` |
+| ENS — Best Use of ENSv2 | [階層・契約別resolver](contracts/src/RealAddrNameController.sol#L133)、[Universal Resolverとbinding照合](packages/ens/src/index.ts#L209)、開発者ページの名前照合 |
+| Curvegrid — Best AI Agent Project | [共通Agent CLI](packages/agent-cli/src/index.ts)、[MultiBaasとfinalized blockの照合](apps/worker/src/registry-reader.ts#L90) |
+| Intercepta — Safe Agent-to-Agent Payments with x402 | [Quick Scan呼び出し](packages/intercepta/src/index.ts#L65)、[payTo・payerによる決済準備gate](apps/api/src/payment-screening.ts#L39) |
+
+[フォームに貼る日本語・英語の回答、コード行、デモの順序](docs/submission.md)と[スポンサー別feedback](docs/feedback.md)を用意しています。動作確認の記録と次に接続する処理は[実装状況](docs/implementation-status.md)に集約しています。setup・testingは本READMEと[OS別開発手順](docs/development.md)を参照してください。
+
+### Intercepta feedback
+
+- 認証付きQuick ScanでHTTP 200とschema一致を確認し、一回の成功応答は約1.6秒でした。
+- typed adapterで危険trait・未知の応答・通信失敗を、決済準備を止める理由へ変換しました。
+- スコアの意味とendpoint別mainnet coverageの説明が、判定policyの確定に必要です。
+- 安全・危険の参照例、推奨policy、testnet決済のmainnet照会例をまとめたガイドを提案します。
+
+### MultiBaas feedback
+
+ABI登録・contract link・read-backを確認できました。deployment UIでtransactionが返らずwallet promptが開かないケースでは、署名とreceiptの独立照合を分けて対処しました。transaction生成失敗・署名待ち・結果不明を区別するUIとhistorical block指定例を提案します。
+
+### チーム
+
+チーム紹介と公開SNSは、メンバーが指定した公開情報を掲載します。運営者情報を開発チームの個人プロフィールとして推定しません。
+
+### ライセンス
+
+独自コードは[MIT License](LICENSE)で公開します。依存ライブラリと外部由来コードの著作権表示・ライセンスは各配布元の条件を維持します。

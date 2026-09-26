@@ -31,7 +31,7 @@
 | パス | 用途・主な内容 |
 | --- | --- |
 | `/` | 公開トップ。見出しは英語「Real-world address rights for AI agents」、日本語「AIエージェントにリアルな住所利用の権利を」、住所利用/更新は30日あたりmainnet想定55 USDC / testnet・dev 0.55 USDCと表示する。ENSは任意の初回add-onとして、標準名は10 / 0.10 USDC、custom名は30 / 0.30 USDC（mainnet想定 / testnet-dev）と表示する。mainnet決済は今回未対応。名前の空き・確定見積はCLI作成intentが正本で、公開価格表示は名前予約を確約しない。仕組み（住所契約・任意ENS照合・人間の転送設定承認）、仮想区画の説明、拠点閲覧と開発者案内を載せる。料金説明は[料金仕様](pricing.md)に従う。稼働していない連携や実サービスを稼働中と表示しない。 |
-| `/developers` | API/CLIの利用案内、wallet主体とAgent認証の概要、payment intent→人間承認URLの流れ、OpenAPIへのリンク、対応ネットワークのsandbox表示。秘密鍵を画面やpromptへ貼らない注意を短く示す。 |
+| `/developers` | API/CLIの利用案内、wallet主体とAgent認証の概要、payment intent→人間承認URLの流れ、OpenAPIへのリンク、対応ネットワークのsandbox表示。ENS名の読取照合フォームは既存GET `/v1/ens/resolve`を呼び、実応答の`verified` / `pending` / `invalid`と、利用不可・不正応答の`blocked`を日英で表示する。検証済み参照情報は公開fieldだけを表示し、契約住所はowner認証へ案内する。照合操作で購入・発行・署名は行わず、namespace停止時の応答を成功に置換しない。秘密鍵を画面やpromptへ貼らない注意を短く示す。 |
 | `/faq` | 仮想区画は物理階でないこと、World認証と法的本人確認の違い、承認後にできること、実郵便を扱わないこと、テストネットと本番の違いを説明する。 |
 | `/terms` | [利用規約バージョン1](terms.md)（`realaddr-v1`）の全文を初期HTMLで表示する。公開nav/footerと利用者認証前の同意欄からリンクする。正式version一致時は本文への明示同意を求める。local demoの認証条件や過去の署名を正式規約への同意とみなさない。 |
 | `/app` | 接続walletの署名で既存Agent Bearer APIに認証する利用者概要。自分の契約、画面で取得済みの決済保留、人間承認待ちへのリンクを示す。件数は読み込んだページの範囲を明記し、全DB件数と誤認させない。空状態に「契約はまだありません」と拠点閲覧/開発者案内を示す。 |

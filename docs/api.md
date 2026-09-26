@@ -94,7 +94,7 @@ Firestore予約競合のretry枯渇は503 / reservation_retry / retryable=true�
 | lease renew --subscription <id> --idempotency-key <key> | 同区画更新 |
 | lease status --subscription <id> | 状態/chain/転送可表示 |
 | ens purchase --subscription <id> [--name-type custom --name <label>] --idempotency-key <key> | 標準名はoption省略、独自名はlabel指定。固定見積もりを確認し同じx402経路で一回購入。衝突・設定不備・既購入・進行中は機械判定可能なエラー |
-| mail enable --subscription <id> --idempotency-key <key> | approvalUrlを返して人間待ち |
+| mail request --subscription <id> --idempotency-key <key> [--force-reauth] | 実装済み。mail-approvalを作成し、同一originのapprovalUrl・期限を返して人間待ち。既適用時は状態のみ。人間の承認・宛先操作はしない |
 | mail status --subscription <id> | enabledとdestinationConfiguredのみ |
 | intent status --intent <id> | 不明決済の結果回収 |
 

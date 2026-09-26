@@ -1,6 +1,6 @@
 # 一次資料・確認状況
 
-確認日: 2026-09-25（JST）。リンク先は変更されるため実装開始・提出前にも再確認する。公式資料の事実と、このリポジトリ独自の設計判断を区別する。
+初回確認日: 2026-09-25（JST）、4賞の条件再確認: 2026-09-27。リンク先は変更されるため提出前にも確認する。公式資料の事実と、このリポジトリ独自の設計判断を区別する。接続後の実施記録は[実装状況](implementation-status.md)、応募用の説明は[提出資料](submission.md)を参照する。
 
 ## 賞への対応
 
@@ -22,19 +22,19 @@ Worldにはproofのmock化告知がある。公式event環境への実接続を�
 - [公式agent plugin](https://github.com/worldcoin/world-id-agent-plugin): Codex/Claude Codeのsandbox MCPと開発者向けclient登録、HTTPS callbackを確認。pluginの利用とアプリ自身の認可は別。
 - [OIDC Core](https://openid.net/specs/openid-connect-core-1_0.html): World docsが参照する標準。実装時に採用OIDCライブラリの検証範囲も確認する。
 
-公開docs/discoveryの確認のみ。client登録、token交換、World本人の操作は未実施。plugin READMEとイベントmock告知の差は当日確認項目として残す。
+client/callbackの設定とevent配備後の拒否経路は確認済み。公式賞ページの最新案内はproofをmockし、sandbox appを必須としない。成功したtoken交換とpaid leaseでの明示承認は[実接続の仕上げ](submission.md#before-submitting--提出前の仕上げ)として追跡する。
 
 ## 決済と安全性
 
 - [x402 buyer quickstart](https://docs.x402.org/getting-started/quickstart-for-buyers): 公式クライアント/署名器/支出制御の入口。
 - [x402 seller quickstart](https://docs.x402.org/getting-started/quickstart-for-sellers): 402要求とEVM exact方式。永続orderと二重課金防止は本アプリ側設計。
-- [Intercepta API key](https://intercepta.io/ethglobal): 賞ページから案内されている取得先。未申請。
+- [Intercepta API key](https://intercepta.io/ethglobal): 賞ページから案内されている取得先。認証付きQuick ScanのHTTP 200とschema一致を確認済み。
 - [Quick Scan Address](https://docs.web3antivirus.io/reference/quick-scan-address): payTo/payerの高速評価。
 - [Deep Scan Address](https://docs.web3antivirus.io/reference/scan-address): 詳細なwallet risk。
 - [Scan Message](https://docs.web3antivirus.io/reference/scan-message): EIP-712解析。
 - [Scan Token](https://docs.web3antivirus.io/reference/scan-token): token risk、chainId指定。
 
-Interceptaの認証付きレスポンスschemaや既知危険アドレスの当日リストは未取得。実装時に固定して契約テスト化する。scoreやrisk enumを想像で決めない。
+認証付きQuick Scanのschemaは実装へ固定した。公式資料だけではscoreの許可条件とendpoint単位のmainnet attributionを確定できないため、policy reviewとスポンサー指定の既知危険例を追跡する。scoreやrisk enumを想像で決めない。
 
 ## Curvegrid
 
@@ -67,7 +67,7 @@ Interceptaの認証付きレスポンスschemaや既知危険アドレスの当�
 - [SDK readiness](https://docs.ens.domains/web/ensv2-readiness/): 対応版を選定してlockfileへ固定。
 - [ENSIP-26](https://docs.ens.domains/ensip/26/): draft。agent-context/agent-endpointは追加候補で、今回の必須契約pointerとは別。
 
-公開資料の確認に基づく実装可能性判断。親名取得・read/write実接続は未検証。独自text keyやNameController interfaceを公式ENS標準の機能と混同しない。
+親名取得・上位registry接続・NameControllerの最終確定を確認した。拠点接続、支払済み名前の発行と公式解決は実演の仕上げとして追跡する。独自text keyやNameController interfaceを公式ENS標準の機能と混同しない。
 
 ## GCP・GitHub Actions（ユーザー指定構成）
 

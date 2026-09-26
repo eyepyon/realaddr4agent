@@ -22,6 +22,14 @@
 
 ## 検証の記録
 
+### T-03/T-06/T-08/T-11/T-14 賞対応の操作導線と提出資料
+
+2026-09-27。DevelopersにENS名の読取照合フォームを追加し、既存GET `/v1/ens/resolve`の実応答を日英で表示する。`verified`の参照fieldとname/network/dateを検査し、不正応答・利用不可を`blocked`として扱う。停止中namespaceを成功表示に置換せず、購入・発行・署名は行わない。共通CLIに`mail request --subscription <id> --idempotency-key <key> [--force-reauth] --json`を追加した。同一originの人間承認URL・期限または既適用状態を返すだけで、人間の同意・宛先読書きは行わない。
+
+全workspace型検査、event build、ENS応答parser 3件・新World CLI wire検査1件・World adapter 7件の計11件が通過した。agent-cli package全体の2件（ENS、World）も通過した。ブラウザではローカルAPIの`ens_dependency_unavailable`表示と、日英切替で入力名・結果が維持されることを確認した。fixture/wire検査は公式provider成功の証拠ではない。MITライセンスと提出・feedback記入用資料を追加したが、実測値やteam紹介を補完したものではない。
+
+残件は実有料leaseでのWorld認証・明示承認・宛先保存、有料ENS発行と公式resolve、Interceptaのscore/traits/coverage方針回答と実allow/deny、公開x402 pay経路の接続・成功決済、team biosである。提出説明は操作と取得済み結果を中心とし、未実施の成功を主張しない。T-00/T-03/T-04/T-05/T-10/T-11/T-12/T-15の全体完了チェックは変更しない。
+
 ### T-08/T-18/T-19 フロントの日英切替
 
 公開ページ、利用者画面、人間承認画面、管理画面へ共通の英語・日本語切替を追加した。英語を既定とし、明示的な`lang` queryを優先して保存済みの選好を復元する。切替は既存componentのstateを保持し、署名原文・認証callback・API payloadを変更しない。公開4ページは両言語の初期HTML、metadata、canonical/hreflang、sitemap、llmsを生成する。採用済み規約は日本語原本を保持し、英語UIから原本であることを案内する。

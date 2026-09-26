@@ -1,6 +1,7 @@
 import { OPERATOR_NAME, OPERATOR_URL, PUBLIC_PAGES, canonicalUrl, getPublicContent, type PublicPageKey } from "./public-content";
 import { useLocale } from "./i18n";
 import { TermsPage } from "./TermsPage";
+import { EnsLookup } from "./EnsLookup";
 
 const navigation = [
   ["/", "概要", "Overview"],
@@ -73,9 +74,10 @@ function Developers() {
   const {copy: PUBLIC_COPY} = getPublicContent(locale);
   return <>
     <section className="page-hero"><p className="eyebrow">{t("開発者向け", "Developers")}</p><h1>{t("Agent APIと人間の操作を分けて接続します", "Connect agent APIs and human actions separately")}</h1><p className="lead">{t("wallet認証、testnet決済、ENS照合、人間承認を組み合わせたデモです。住所購入・更新・ENS add-onは現在受付を停止しています。", "The demo combines wallet authentication, testnet payments, ENS verification, and human approval. Address purchases, renewals, and ENS add-on sales are currently paused.")}</p></section>
+    <EnsLookup />
     <section className="content-section"><h2>{t("認証と契約", "Authentication and leases")}</h2><ol className="ordered-steps"><li>{t("Agent walletでchallengeに署名し、Bearer sessionを取得します。", "Sign a challenge with the agent wallet to obtain a Bearer session.")}</li><li>{t("既存APIで拠点、契約、決済状態を読み取ります。認可はserverが検証します。", "Read locations, leases, and payment states through the API. The server checks authorization.")}</li><li>{t("住所purchase/renewはリスク判定後にBase Sepolia x402を通ります。人間のWorld承認は住所購入条件ではありません。", "Address purchases and renewals use Base Sepolia x402 after screening. Human World approval is not required to rent an address.")}</li><li>{t("郵便転送設定の有効化は、対象ownerによるwallet proof、fresh World認証、人間の明示操作を要します。", "Enabling forwarding settings requires the owner's wallet proof, fresh World authentication, and an explicit human action.")}</li></ol><div className="notice">{t("秘密鍵、API key、World secretを画面・promptに貼り付けないでください。Agent credentialでは人間の承認や完全な転送先住所にアクセスできません。", "Do not paste private keys, API keys, or World secrets into screens or prompts. Agent credentials cannot approve human actions or access a full forwarding destination.")}</div></section>
     <section className="content-section"><h2>{t("ネットワークと機能状態", "Networks and feature status")}</h2><div className="network-grid"><article className="info-card"><h3>{t("住所決済", "Address payments")}</h3><p>{PUBLIC_COPY.paymentNetwork}</p></article><article className="info-card"><h3>ENSv2 / LeaseRegistry</h3><p>{PUBLIC_COPY.ensNetwork}</p></article></div><p>{t("mainnet決済は無効です。価格表示だけで販売可否や名前の空きを推定せず、ENSの正式見積は明示的に作成するintentを正としてください。", "Mainnet payments are disabled. Displayed prices do not guarantee sale availability or an available name. An explicitly created ENS intent is the authoritative quote.")}</p></section>
-    <section className="content-section"><h2>{t("契約", "API contract")}</h2><p>{t("公開APIはAgent Bearer認証が必要です。匿名の拠点一覧APIは提供しません。完全なrequest/response、error、security定義はOpenAPIを正とします。", "The public API requires Agent Bearer authentication. There is no anonymous location-list API. OpenAPI defines complete requests, responses, errors, and security requirements.")}</p><div className="resource-links"><a className="button secondary" href={localeHref("/openapi.json")}>{t("OpenAPI 3.1を開く", "Open OpenAPI 3.1")}</a><a href={localeHref("/")}>{t("サービス概要", "Service overview")}</a><a href={localeHref("/faq")}>FAQ</a></div></section>
+    <section className="content-section"><h2>{t("契約", "API contract")}</h2><p>{t("契約と拠点のAPIはAgent Bearer認証が必要です。ENS名の照合はログインなしで利用できます。完全なrequest/response、error、security定義はOpenAPIを正とします。", "Lease and location APIs require Agent Bearer authentication. ENS name verification is available without signing in. OpenAPI defines complete requests, responses, errors, and security requirements.")}</p><div className="resource-links"><a className="button secondary" href={localeHref("/openapi.json")}>{t("OpenAPI 3.1を開く", "Open OpenAPI 3.1")}</a><a href={localeHref("/")}>{t("サービス概要", "Service overview")}</a><a href={localeHref("/faq")}>FAQ</a></div></section>
   </>;
 }
 

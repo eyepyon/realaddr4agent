@@ -137,3 +137,33 @@ On WSL/macOS, use `chmod +x .githooks/pre-commit` if the hook is not executable.
 - [Infrastructure (Japanese)](docs/infrastructure.md), [operations (Japanese)](docs/operations.md), [operator authorization (Japanese)](docs/admin.md), and [open items (Japanese)](docs/open-items.md)
 
 Codex, Claude Code, and Kiro share `AGENTS.md`, the specifications, and the same CLI/HTTP contract. Follow task dependencies and the hackathon acceptance gate when implementing the next task.
+
+## Four ETHGlobal prize tracks
+
+| Prize | Integration and source entry point |
+| --- | --- |
+| World — Best Use of World ID for Agents | [Fresh OIDC validation](packages/world/src/index.ts#L79), [explicit human approval](apps/api/src/world.ts#L84), and the agent `mail request` handoff |
+| ENS — Best Use of ENSv2 | [Hierarchy and dedicated resolvers](contracts/src/RealAddrNameController.sol#L133), [Universal Resolver/binding checks](packages/ens/src/index.ts#L209), and the developer page's name lookup |
+| Curvegrid — Best AI Agent Project | [Shared agent CLI](packages/agent-cli/src/index.ts) and [MultiBaas finalized-block read-back](apps/worker/src/registry-reader.ts#L90) |
+| Intercepta — Safe Agent-to-Agent Payments with x402 | [Live Quick Scan call](packages/intercepta/src/index.ts#L65) and [recipient/payer settlement-preparation gate](apps/api/src/payment-screening.ts#L39) |
+
+Use the [bilingual form answers, code links, and demo sequence](docs/submission.md) and [integration feedback](docs/feedback.md). Execution evidence and remaining connected flows are tracked in [implementation status](docs/en/implementation-status.md). Setup and testing commands are above and in the [OS-specific development guide](docs/en/development.md).
+
+### Intercepta feedback
+
+- An authenticated Quick Scan returned HTTP 200 and matched the schema; one successful request took about 1.6 seconds.
+- A typed adapter converts prohibited traits, unknown responses, and transport failures into reasons to stop settlement preparation.
+- Policy configuration needs a clear mapping between score semantics and each endpoint's mainnet coverage.
+- We suggest one guide with safe/risky reference cases, recommended policies, and mainnet screening for testnet payments.
+
+### MultiBaas feedback
+
+ABI registration, contract linking, and read-back worked in our setup. A deployment UI attempt returned no transaction or wallet prompt, so we separated signing from independent receipt verification. Clearer generation-failure, signature-waiting, and unknown-submission states, plus a historical-block example, would help.
+
+### Team
+
+The team biography and social handles will use the public details supplied by the members. Operator information is not substituted for a developer biography.
+
+### License
+
+Original project code is published under the [MIT License](LICENSE). Third-party copyright notices and licenses remain governed by their respective distributions.

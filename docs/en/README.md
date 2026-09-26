@@ -6,6 +6,8 @@ Explore RealAddr for Agents through its features, architecture, API, and develop
 
 ## Reading guide
 
+For the four ETHGlobal tracks, see the [bilingual submission answers, code links, and demo sequence](../submission.md) and [sponsor feedback](../feedback.md).
+
 | Document | Contents |
 | --- | --- |
 | [English README](../../README.en.md) | Product overview, scope, development setup, and entry points |

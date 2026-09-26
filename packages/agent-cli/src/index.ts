@@ -45,7 +45,7 @@ function exitFor(error: string, status: number): number {
   if (status === 422 || status === 400) return 2;
   return 6;
 }
-async function call(path: string, init: RequestInit = {}, authenticated = true): Promise<Json> {
+async function call(path: string, init: RequestInit = {}, authenticated = true, redactErrors = false): Promise<Json> {
   const headers = new Headers(init.headers);
   headers.set('Accept', 'application/json');
   if (init.body) headers.set('Content-Type', 'application/json');
@@ -63,7 +63,10 @@ async function call(path: string, init: RequestInit = {}, authenticated = true):
     data = JSON.parse(body) as Json;
   }
   catch { return result({ error: 'invalid_api_response', message: 'API returned invalid JSON', retryable: true }, 6); }
-  if (!response.ok) return result(data, exitFor(String(data.error ?? 'api_error'), response.status));
+  if (!response.ok) {
+    const error = typeof data.error === 'string' && /^[a-z][a-z0-9_]{0,80}$/.test(data.error) ? data.error : 'api_error';
+    return result(redactErrors ? { error, retryable: data.retryable === true } : data, exitFor(error, response.status));
+  }
   return data;
 }
 async function main(): Promise<never> {
@@ -99,6 +102,21 @@ async function main(): Promise<never> {
     const name = option('--name'), id = option('--subscription');
     if ((!name && !id) || (name && id)) inputError('Specify exactly one of --subscription or --name');
     return result(await call(name ? '/v1/subscriptions/by-ens?name=' + encodeURIComponent(name) : '/v1/subscriptions/' + encodeURIComponent(id!)));
+  }
+  if (group === 'mail' && action === 'request') {
+    const id = requireOption('--subscription'), key = requireOption('--idempotency-key');
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) || !/^[A-Za-z0-9_-]{8,128}$/.test(key)) inputError('Use a subscription UUID and an 8–128 character idempotency key');
+    const data = await call(`/v1/subscriptions/${encodeURIComponent(id)}/mail-approval`, { method: 'POST', headers: { 'Idempotency-Key': key }, body: JSON.stringify({ forceReauth: args.includes('--force-reauth') }) }, true, true);
+    if (typeof data.approvalUrl === 'string' && typeof data.approvalId === 'string' && typeof data.status === 'string') {
+      let url: URL;
+      try { url = new URL(data.approvalUrl); } catch { return result({ error: 'invalid_api_response' }, 6); }
+      if (url.origin !== origin || url.pathname !== `/approve/${data.approvalId}` || url.search || url.hash || url.username || url.password || !/^[0-9a-f-]{36}$/i.test(data.approvalId) || !['pending', 'authenticated', 'applied', 'denied'].includes(data.status) || !(data.expiresAt === null && data.status === 'applied' || data.status !== 'applied' && typeof data.expiresAt === 'string' && Number.isFinite(Date.parse(data.expiresAt)))) return result({ error: 'invalid_api_response' }, 6);
+      if (data.status === 'denied' || data.status !== 'applied' && Date.parse(data.expiresAt as string) <= Date.now()) return result({ subscriptionId: id, approvalId: data.approvalId, status: data.status === 'denied' ? 'denied' : 'expired', expiresAt: data.expiresAt, humanActionRequired: false });
+      if (data.status === 'applied' && !args.includes('--force-reauth')) return result({ error: 'invalid_api_response' }, 6);
+      return result({ subscriptionId: id, approvalId: data.approvalId, status: data.status, expiresAt: data.expiresAt, approvalUrl: data.approvalUrl, humanActionRequired: true });
+    }
+    if (['enabled', 'disabled', 'suspended'].includes(String(data.status)) && typeof data.destinationConfigured === 'boolean' && data.physicalForwardingAvailable === false) return result({ subscriptionId: id, status: data.status, destinationConfigured: data.destinationConfigured, physicalForwardingAvailable: false, humanActionRequired: false });
+    return result({ error: 'invalid_api_response' }, 6);
   }
   if (group === 'mail' && action === 'status') {
     const id = requireOption('--subscription');

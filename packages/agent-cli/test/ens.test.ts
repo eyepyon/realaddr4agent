@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { test } from 'node:test';
-import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 function run(args: string[], origin: string): Promise<{
     code: number | null;
     data: Record<string, unknown>;
-}> { return new Promise((resolveResult, reject) => { const child = spawn(process.execPath, ['--import', 'tsx', resolve('packages/agent-cli/src/index.ts'), ...args], { env: { ...process.env, AGENT_API_ORIGIN: origin, AGENT_API_TOKEN: 'local-test-token' }, stdio: ['ignore', 'pipe', 'pipe'] }); let output = '', errors = ''; child.stdout.on('data', chunk => output += chunk); child.stderr.on('data', chunk => errors += chunk); child.on('error', reject); child.on('close', code => { try {
+}> { return new Promise((resolveResult, reject) => { const child = spawn(process.execPath, ['--import', 'tsx', fileURLToPath(new URL('../src/index.ts', import.meta.url)), ...args], { env: { ...process.env, AGENT_API_ORIGIN: origin, AGENT_API_TOKEN: 'local-test-token' }, stdio: ['ignore', 'pipe', 'pipe'] }); let output = '', errors = ''; child.stdout.on('data', chunk => output += chunk); child.stderr.on('data', chunk => errors += chunk); child.on('error', reject); child.on('close', code => { try {
     resolveResult({ code, data: JSON.parse(output) });
 }
 catch {
