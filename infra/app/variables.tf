@@ -95,8 +95,8 @@ variable "firestore_rules_reviewed" {
 }
 variable "retain_legacy_default_access" {
   type        = bool
-  default     = true
-  description = "Preserve the existing app-owned default IAM members through migration; set false only after successful realaddr cutover."
+  default     = false
+  description = "Explicit migration opt-in to preserve existing app-owned default IAM members; leave false for named deployments and after successful cutover."
 }
 variable "secret_purposes" {
   type    = set(string)

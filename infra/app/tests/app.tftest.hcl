@@ -15,9 +15,23 @@ variables {
   firestore_database_id  = "(default)"
 }
 
+run "named_setup_has_no_legacy_access_without_opt_in" {
+  command = plan
+  variables {
+    firestore_database_id                 = "realaddr"
+    firestore_database_ownership_reviewed = true
+    firestore_access_reviewed             = true
+  }
+  assert {
+    condition     = length(google_project_iam_member.firestore) == 0 && length(google_project_iam_member.firestore_realaddr) == 2
+    error_message = "Named setup must omit legacy default access unless explicitly opted in."
+  }
+}
+
 run "named_database_additive_migration" {
   command = plan
   variables {
+    retain_legacy_default_access          = true
     firestore_database_id                 = "realaddr"
     firestore_database_ownership_reviewed = true
     firestore_access_reviewed             = true
@@ -42,7 +56,7 @@ run "named_cutover_revokes_only_legacy_members" {
     firestore_database_id                 = "realaddr"
     firestore_database_ownership_reviewed = true
     firestore_access_reviewed             = true
-    retain_legacy_default_access           = false
+    retain_legacy_default_access          = false
   }
   assert {
     condition     = length(google_project_iam_member.firestore) == 0 && length(google_project_iam_member.firestore_realaddr) == 2
@@ -71,14 +85,15 @@ run "foundation_closed" {
 run "reviewed_services_private" {
   command = plan
   variables {
-    deploy_services           = true
-    runtime_ready             = true
-    firestore_access_reviewed = true
-    image_digest              = "registry.example.invalid/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-    worker_url                = "https://worker.example.invalid"
-    terms_version             = "test-terms"
-    secret_purposes           = ["rate-limit-hmac"]
-    secret_versions           = { web = { RATE_LIMIT_HMAC_KEY = { purpose = "rate-limit-hmac", version = "1" } }, worker = {} }
+    deploy_services              = true
+    runtime_ready                = true
+    firestore_access_reviewed    = true
+    retain_legacy_default_access = true
+    image_digest                 = "registry.example.invalid/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    worker_url                   = "https://worker.example.invalid"
+    terms_version                = "test-terms"
+    secret_purposes              = ["rate-limit-hmac"]
+    secret_versions              = { web = { RATE_LIMIT_HMAC_KEY = { purpose = "rate-limit-hmac", version = "1" } }, worker = {} }
   }
   assert {
     condition     = length(google_cloud_scheduler_job.sweep[0].retry_config) == 0
@@ -102,16 +117,17 @@ run "reject_unready_runtime" {
 run "public_mapping_requires_review" {
   command = plan
   variables {
-    web_public                = true
-    domain_mapping_reviewed   = false
-    deploy_services           = true
-    runtime_ready             = true
-    firestore_access_reviewed = true
-    image_digest              = "registry.example.invalid/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-    worker_url                = "https://worker.example.invalid"
-    terms_version             = "test-terms"
-    secret_purposes           = ["rate-limit-hmac"]
-    secret_versions           = { web = { RATE_LIMIT_HMAC_KEY = { purpose = "rate-limit-hmac", version = "1" } }, worker = {} }
+    web_public                   = true
+    domain_mapping_reviewed      = false
+    deploy_services              = true
+    runtime_ready                = true
+    firestore_access_reviewed    = true
+    retain_legacy_default_access = true
+    image_digest                 = "registry.example.invalid/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    worker_url                   = "https://worker.example.invalid"
+    terms_version                = "test-terms"
+    secret_purposes              = ["rate-limit-hmac"]
+    secret_versions              = { web = { RATE_LIMIT_HMAC_KEY = { purpose = "rate-limit-hmac", version = "1" } }, worker = {} }
   }
 
   assert {
@@ -123,16 +139,17 @@ run "public_mapping_requires_review" {
 run "reviewed_public_mapping" {
   command = plan
   variables {
-    web_public                = true
-    domain_mapping_reviewed   = true
-    deploy_services           = true
-    runtime_ready             = true
-    firestore_access_reviewed = true
-    image_digest              = "registry.example.invalid/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-    worker_url                = "https://worker.example.invalid"
-    terms_version             = "test-terms"
-    secret_purposes           = ["rate-limit-hmac"]
-    secret_versions           = { web = { RATE_LIMIT_HMAC_KEY = { purpose = "rate-limit-hmac", version = "1" } }, worker = {} }
+    web_public                   = true
+    domain_mapping_reviewed      = true
+    deploy_services              = true
+    runtime_ready                = true
+    firestore_access_reviewed    = true
+    retain_legacy_default_access = true
+    image_digest                 = "registry.example.invalid/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    worker_url                   = "https://worker.example.invalid"
+    terms_version                = "test-terms"
+    secret_purposes              = ["rate-limit-hmac"]
+    secret_versions              = { web = { RATE_LIMIT_HMAC_KEY = { purpose = "rate-limit-hmac", version = "1" } }, worker = {} }
   }
 
   assert {

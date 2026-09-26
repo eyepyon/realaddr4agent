@@ -20,11 +20,15 @@
 
 ## 検証の記録
 
-### T-02/T-16 専用Firestoreへの移行準備
+### T-02/T-16 専用Firestoreへの切替
 
-利用者指定により接続契約をnamed DB `realaddr`へ変更し、API・worker・repositoryは設定欠落や`(default)`へのfallbackを拒否する。作成直前のlive inventoryで対象名の不存在と、本アプリの36 collection中、rate limit記録だけの存在を確認した。共有DBは保持し、専用DB・索引・DB限定IAM member 2件だけの4 create計画をレビューした。クラウド作成・Rules確認・データ引継ぎ・imageと環境変数の同時切替は進行中であり、切替完了を意味しない。
+利用者指定により接続契約をnamed DB `realaddr`へ変更し、API・worker・repositoryは設定欠落や`(default)`へのfallbackを拒否する。作成直前のlive inventoryで対象名の不存在と、本アプリの36 collection中、rate limit記録だけの存在を確認した。共有DBは保持し、専用DB・outbox索引・DB限定IAM member 2件の4 create計画を適用した。後続で契約・注文一覧の複合索引2件を追加し、3索引のreadyを確認した。DBは削除保護付き。named Rulesのsource一致、10件のDENY期待engine試験、未認証GET/POSTの403、probe document不在、共有default releaseの不変を確認した。
 
-検証: named Firestore EmulatorでDB重点25件、API/worker重点15件が全件通過・skip 0。API/worker/DB型検査、Terraform validateとmock 7件、deploy guard 22件も通過した。実クラウドのRulesとruntime IAMは別gateで確認する。
+webを一時非公開にして未認証403を確認し、既存requestの終了後に36 collectionを再照合した。rate limit記録1件をコピーし、typed fieldの一致を読み戻し確認した。worker→webの順に同一immutable imageとDB環境変数を同時更新し、両revisionがready・全trafficを受けることを確認した。非公開状態で認証付きreadinessが成功した後、公開を再開してhealth/readiness/termsの200を確認した。共有DBの元データ・Rules、Cloud Runのsecret参照・実行アカウント・CPU/scale等は保持されている。旧DB向け本アプリIAM member 2件だけを除去し、保護設定とローカル設定を`realaddr`へ更新した。旧DBアクセスは通常設定で無効、移行時だけ明示opt-inにする。
+
+検証: named Firestore EmulatorでDB重点25件、API/worker重点15件が全件通過・skip 0。workspace型検査・local build、Terraform validateとmock 8件、deploy guard 23件も通過した。配備archiveのIntercepta依存漏れを修正し、workspace依存とprivate設定の除外を検査する回帰試験を追加した。修正後のCI・Linux container checkとevent image build/pushは成功した。実クラウドのRulesとruntime IAMは別gateで確認する。
+
+切替後の実runtime IAM検査では、web/workerの短期tokenで`realaddr`のCREATE/GET/PATCH/DELETEが成功し、旧`(default)`へのGETはPERMISSION_DENIEDだった。IAM反映待ちの初回token発行拒否後、同じ期限条件のまま再試行して成功した。合成documentと15分限定の一時grantは削除済み。既存service account memberと、承認された旧DB向け2 member以外のproject IAM memberの保持を照合した。queue権限もweb=create、worker=create/getを保持した。後続Terraform planは差分0。公開readiness 200、private APIの未認証401、workerの未認証403を再確認した。実Firebase利用者tokenによるRules client検査、Tasks/Scheduler実配信、スポンサー業務統合は引き続き残件であり、T-16全体の完了を意味しない。
 
 ### T-00/T-04 Interceptaの認証付きlive診断
 

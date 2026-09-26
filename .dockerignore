@@ -43,11 +43,6 @@
 !packages/intercepta/tsconfig.json
 !packages/intercepta/src/
 !packages/intercepta/src/**
-!packages/intercepta/
-!packages/intercepta/package.json
-!packages/intercepta/tsconfig.json
-!packages/intercepta/src/
-!packages/intercepta/src/**
 !docs/
 !docs/openapi.json
 !docs/terms.md

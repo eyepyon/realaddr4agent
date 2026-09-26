@@ -20,13 +20,17 @@ command失敗、権限不足、API無効、JSON解析失敗は`summary.json`の`
 
 inventoryだけでT-16を完了しない。Asset Inventoryの対応asset type・反映遅延・location coverageを確認し、他regionのresourceと所有者を補完する。共有resourceの所有権、名前衝突、祖先からのgrant・IAM condition・denyを含むdeploy accountの実効権限、account管理主体、既存budget管理は別途確認する。project IAMとservice account IAMの列挙は実効権限評価ではない。
 
-live Rulesの取得・公式engine評価と実未認証read/create拒否は確認済み。実Firebase利用者tokenのclient試験、専用runtime identityのIAM・対象外DB拒否検証はpendingを維持する。既存DB、Rules、project IAM、API、budgetをTerraform管理へ取り込まない。権限不足や読取不能を「resourceなし」「名前が空いている」と扱わない。認証済みの読み取りinventoryは実施済みだが、deployは未実施である。
+named `realaddr` Rulesの取得・公式engine評価と匿名GET/POST拒否は確認済み。実Firebase利用者tokenのclient試験、専用runtime IAM・対象外DB拒否は別gateとして記録する。共有`(default)` DB/Rules/index、project IAM/API/budgetはTerraformへimportしない。権限不足や読取不能を「resourceなし」「名前が空いている」と扱わない。古いread-only inventoryと現在のnamed DB作成・適用記録は別時点の証拠である。
 
 ローカル検証ではGoogle Cloud CLI 586.0.0の20 commandのhelpを確認し、fixture test 4件が通過した。liveの読み取り結果は次節に記録する。fixtureだけで実権限を証明したとは扱わない。
 
-## 現在の切替状態
+## 現在のnamed DB状態
 
-後続のfresh inventory時点では、named `realaddr` DBはまだ存在せず、候補regionは既存サービスの配置と一致することを確認した。app Terraformの4-resource planはレビュー済みでapply進行中だが、live creation完了は未確認。実アプリのruntime設定契約は`FIRESTORE_DATABASE_ID=realaddr`で、`(default)`へのfallbackは禁止。Terraformでのnamed DB作成、delete protection / `prevent_destroy`、deny-all client Rules、専用runtime IAM、データ照合・保守移行・joint image/env rolloutとcutoverは未完了である。既存の業務IDや顧客データはrepositoryへ記録しない。
+Fresh inventoryで`realaddr`が未作成であることと、候補regionが既存servicesと一致することを確認後、専用named database `realaddr`を作成した。Database delete protectionとTerraform `prevent_destroy` / `ABANDON`を設定し、共有`(default)` DBは変更・import・管理していない。Runtime contractは`FIRESTORE_DATABASE_ID=realaddr`で、`(default)`へのfallbackは禁止。
+
+専用runtime IAMはnamed DBに限定する。web/workerの短期tokenでrealaddrのCREATE/GET/PATCH/DELETEと、旧(default)へのGET拒否を確認した。試験documentと一時grantは削除済みで、既存IAM memberの保持を確認した。named Rulesはdeny-allで、匿名・合成した他利用者によるget/list/create/update/delete計10件がDENY期待のSUCCESS、未認証Firestore REST GET/POSTは403だった。共有(default)のRulesは保持されている。outbox・orders・leasesの必要な複合索引3件はすべてready。実Firebase利用者tokenによるclient試験は未実施。
+
+切替は完了した。webの書き込みを一時停止し、既存rate limit記録1件をコピー・読み戻し確認した。元データは保持した。worker→webの順に同じimmutable imageとDB環境変数を更新し、最新のready revisionへ100%のtrafficを割り当てた。非公開状態でwebのDB readinessを確認してから公開を再開し、health/readiness/正式規約の200、private APIの未認証401、workerの未認証403を確認した。旧DB向け本アプリIAM member 2件だけを除去した。既存runtime設定、共有Rules・元データの保持、切替後Terraform planの差分0も確認した。CI・container検査は通過し、実識別子や顧客データをリポジトリへ記録していない。
 
 ## 過去時点のlive読み取り結果（`(default)`）
 
