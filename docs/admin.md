@@ -40,6 +40,8 @@ Firestoreの `admin_principals/{emailGuard}` は正規化emailの決定的hash�
 
 Googleの[OpenID Connect検証手順](https://developers.google.com/identity/openid-connect/openid-connect)は署名・issuer・audience・expiryのserver検証を要求し、[OIDC claim仕様](https://developers.google.com/identity/openid-connect/reference)は変更可能なemailでなく安定したsubjectを識別子に使うよう示す。[web server OAuth手順](https://developers.google.com/identity/protocols/oauth2/web-server)に従いcallback前のstateを照合する。使用SDKとmethodはT-00/T-18で実際のversionを検証して固定する。
 
+Google callbackの`iss`がある場合は、固定したGoogle issuerと完全一致する単一文字列でなければ、state消費・code交換の前に拒否する。`iss`省略時も署名済みID tokenのissuer検証は必須。`scope`・`authuser`・`prompt`・`hd`は補助情報として受け付けるだけで認可に使わない。callbackの重複パラメータや非文字列値を拒否し、未知のquery名も受け付けない。
+
 ## 書込規則
 
 拠点の `locationId` はserver生成UUID、`slug` は別の決定的unique guardで一意にする。slugは作成後常に不変。新規拠点は住所、公開エリア、server導出の固定plan参照、`paused`販売状態を登録し、`floor` の総数を個別に設定しない。運営画面で料金、期間、通貨、atomic amountを任意編集する機能は設けない。住所planは30日55/0.55 USDC、ENS初回add-onは標準10/0.10、custom30/0.30 USDC（mainnet想定 / testnet-dev、6 decimals）。plan料金は実行環境の固定設定から導出し、allowlist/network/asset/rateと一致しない場合は起動・intent作成を拒否する。testnet/dev価格をmainnetで使えず、環境変数だけでmainnetを有効化できない。ENS add-onの名前型ごとの環境設定が欠落またはchain不整合なら販売不可。表示名、公開エリア、販売状態は更新できるが、実行環境の固定planと更新後の住所表示は新しいpayment intentだけに使い、既存intentの固定価格・期間・住所snapshot、既存契約を変更しない。住所renewは住所30日料金のみで、購入済みENSの期限同期を含む。ENS初回料金を住所料金へ混ぜない。ENS名の変更や同一leaseへの2つ目のENSは初回購入後に許可しない。active hold（期限経過だけでは解放しないものを含む）、settling/reconciling/manual_review/refund_pendingのorder、または発行済み契約が一つでもある拠点の郵便番号・正確な提供住所は不変。住所を変える場合は新しい拠点を登録する。販売停止は新規予約を止める。停止前に作成済みの未払いintentも支払い前の可用性検査で止め、決済中・結果不明の照合や成立済み契約の権利は消さない。再開も安全性判定や在庫競合を迂回しない。

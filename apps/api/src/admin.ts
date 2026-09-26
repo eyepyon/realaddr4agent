@@ -3,7 +3,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { DomainError } from '@realaddr/domain';
 import { AdminRepository, type RealAddrRepository } from '@realaddr/db';
 import type { ApiConfig } from './config.js';
-import { AdminOidcClient, AdminOidcError, createPkce } from './admin-oidc.js';
+import { AdminOidcClient, AdminOidcError, GOOGLE_ISSUER, createPkce } from './admin-oidc.js';
 import { open, seal } from './world-crypto.js';
 
 const sessionName = 'realaddr_admin_session';
@@ -59,7 +59,8 @@ export function registerAdminRoutes(app: FastifyInstance, config: ApiConfig, adm
   });
   app.get('/auth/admin/callback', async (request, reply) => {
     const loginCookie = cookie(request, loginName); enabled(); await throttle(request, 'admin_login');
-    const q = object(request.query, ['state', 'code', 'scope', 'authuser', 'prompt', 'error', 'error_description']);
+    const q = object(request.query, ['state', 'code', 'scope', 'authuser', 'prompt', 'hd', 'iss', 'error', 'error_description']);
+    if (Object.values(q).some(value => typeof value !== 'string' || value.length > 4096) || (q.iss !== undefined && q.iss !== GOOGLE_ISSUER)) throw new DomainError('admin_authentication_failed', 403);
     if (typeof q.state !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(q.state)) throw new DomainError('admin_authentication_failed', 403);
     const stateHash = adminHash(q.state);
     const login = await admin!.consumeLogin(stateHash, adminHash(loginCookie));

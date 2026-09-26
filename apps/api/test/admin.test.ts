@@ -4,6 +4,8 @@ import Fastify from 'fastify';
 import { DomainError } from '@realaddr/domain';
 import type { AdminRepository, RealAddrRepository } from '@realaddr/db';
 import { registerAdminRoutes, adminHash, adminCsrf } from '../src/admin.js';
+import { seal } from '../src/world-crypto.js';
+import { AdminOidcClient, GOOGLE_ISSUER } from '../src/admin-oidc.js';
 import { createApp } from '../src/server.js';
 import type { ApiConfig } from '../src/config.js';
 const token='a'.repeat(43),key=Buffer.alloc(32,1);
@@ -40,4 +42,23 @@ test('server exposes only validated currentVersion for admin version conflict',a
  for(const [path,currentVersion] of [['/v1/admin/conflict',7],['/v1/admin/malformed','private'],['/v1/public-conflict',7]] as const)app.get(path,async()=>{const error=Object.assign(new DomainError('version_conflict',409),{currentVersion,privateValue:'hidden'});throw error;});
  const response=await app.inject({url:'/v1/admin/conflict'});assert.equal(response.statusCode,409);assert.equal(response.json().currentVersion,7);assert.equal(response.json().privateValue,undefined);
  for(const path of ['/v1/admin/malformed','/v1/public-conflict'])assert.equal((await app.inject({url:path})).json().currentVersion,undefined);await app.close();
+});
+
+function callbackFixture() {
+ const app=Fastify(),calls:string[]=[];
+ app.setErrorHandler((error,_request,reply)=>reply.code(error instanceof DomainError?error.status:503).send({error:error instanceof DomainError?error.code:'dependency_unavailable'}));
+ const admin={consumeLogin:async(stateHash:string,cookieHash:string)=>{assert.equal(stateHash,adminHash(token));assert.equal(cookieHash,adminHash(token));calls.push('consume');return {nonceHash:adminHash('nonce'),encryptedVerifier:seal(key,'admin-pkce',stateHash,'v'.repeat(43))};},bindAndIssueSession:async(claims:Record<string,unknown>)=>{assert.equal(claims.issuer,GOOGLE_ISSUER);calls.push('bind');return {displayName:'Operator',expiresAt:'2026-09-27T01:00:00Z',principalId:'principal'};}} as unknown as AdminRepository;
+ const client={exchangeAndVerify:async(input:{code:string;verifier:string;nonceHash:string})=>{assert.equal(input.code,'code');assert.equal(input.verifier,'v'.repeat(43));assert.equal(input.nonceHash,adminHash('nonce'));calls.push('exchange');return {issuer:GOOGLE_ISSUER,subject:'operator',email:'operator@example.invalid',displayName:'Operator'};}} as unknown as AdminOidcClient;
+ registerAdminRoutes(app,config,admin,{consumeRateLimit:async()=>{}} as unknown as RealAddrRepository,client);return {app,calls};
+}
+test('Google callback accepts exact optional response issuer and informational metadata',async()=>{
+ for(const suffix of ['', '&iss='+encodeURIComponent(GOOGLE_ISSUER), '&iss='+encodeURIComponent(GOOGLE_ISSUER)+'&scope=openid%20email%20profile&authuser=0&prompt=consent&hd=example.invalid']){
+  const {app,calls}=callbackFixture();const response=await app.inject({url:'/auth/admin/callback?state='+token+'&code=code'+suffix,headers:{cookie:'__Host-realaddr_admin_login='+token}});
+  assert.equal(response.statusCode,302);assert.equal(response.headers.location,'/admin');assert.deepEqual(calls,['consume','exchange','bind']);assert.match(String(response.headers['set-cookie']),/realaddr_admin_session=/);await app.close();
+ }
+});
+test('Google callback rejects mismatched or duplicate issuer and duplicate parameters before exchange',async()=>{
+ for(const suffix of ['&iss=https%3A%2F%2Fother.example','&iss=accounts.google.com','&iss=', '&iss='+encodeURIComponent(GOOGLE_ISSUER)+'&iss='+encodeURIComponent(GOOGLE_ISSUER),'&iss='+encodeURIComponent(GOOGLE_ISSUER)+'&iss=https%3A%2F%2Fother.example','&hd=one&hd=two','&state='+token]){
+  const {app,calls}=callbackFixture();assert.equal((await app.inject({url:'/auth/admin/callback?state='+token+'&code=code'+suffix,headers:{cookie:'__Host-realaddr_admin_login='+token}})).statusCode,403);assert.deepEqual(calls,[]);await app.close();
+ }
 });

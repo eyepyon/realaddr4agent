@@ -22,6 +22,12 @@
 
 ## 検証の記録
 
+### T-18 Google callbackの標準issuer対応
+
+callbackのquery許可項目にGoogleの`iss`が欠け、標準応答を`invalid_request`で拒否していた。公開環境への架空state/cookie/codeだけの比較で、issuerなしはstate検証の403、正しいissuer付きはquery検証の400となることを再現した。`iss`と補助情報`hd`を受け付け、issuerがある場合の完全一致と全query値の単一文字列検査をstate消費前に追加した。補助情報は運営者認可に使用しない。
+
+検証: `node node_modules/tsx/dist/cli.mjs --test apps/api/test/admin.test.ts apps/api/test/admin-oidc.test.ts`の9件、API型検査、API bundle build、text formatが通過。正しいissuer・省略時のcallbackからsession発行までをfixtureで確認し、issuer不一致・重複queryをcode交換前に拒否した。実Google token交換・本人のログイン成功は未確認であり、配備後の再ログインで検証する。
+
 ### T-18 管理ログインと限定運営API
 
 既存管理UIに対し、拒否専用だったrouteをGoogle OIDC/PKCE/state・nonceの一回限り検証、暗号化PKCE、DB allowlistへのsubject固定、opaque session、Origin/CSRF/idempotency検査へ接続した。sessionはidle15分・absolute60分で、各requestとmutation transaction内で運営者失効を再確認する。Agent/World資格情報は管理認証に使わない。初回allowlist用bootstrapは既存のbindingや失効を上書きしない。
