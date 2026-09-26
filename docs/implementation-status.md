@@ -12,7 +12,7 @@
 | T-05 住所更新 | 部分実装・ローカル検証済み | 同一leaseの更新排他、固定見積、確定支払いの一度だけの反映、結果不明保持、保存済みreceiptからのworker復旧。公開更新API・実決済・chain/ENS同期は未接続 |
 | T-00/T-04 Intercepta | 初期client・内部gate実装、live疎通確認済み | 認証付きQuick ScanでHTTP 200・schema一致を確認。危険traitのdeny・未知holdと購入/更新の検査を実装。安全基準・coverage未確認でallowは無効。公開pay・実署名器は未接続 |
 | T-07 LeaseRegistry | 配備済み・DB/worker読み取り照合を部分実装、全体未完了 | 初期権限とMultiBaas紐づけを確認済み。購入・更新のpaid provenance、永続identity、claim/version付き確定block照合を実装しローカル検証。照合は既定無効。実lease記録・取消、event有効化、indexed eventsと永続cursor/reorg回復は未完了 |
-| T-00/T-12/T-13/T-14 ENSv2 | 部分実装・ローカル検証、公式Sepolia読み取り確認済み | 名前予約・一回限りの購入権、controller、exact hierarchy照合、公開/owner API、CLIを実装。親名取得とreceipt最終確定は確認済み。namespace構築、書込worker、paid leaseでのlive発行・権限拒否は残件。販売とevent ENS照合は既定無効 |
+| T-00/T-12/T-13/T-14 ENSv2 | 部分実装・ローカル検証、公式Sepolia読み取り確認済み | 名前予約・一回限りの購入権、controller、exact hierarchy照合、公開/owner API、CLIを実装。親名・上位接続・controller配備は最終確定確認済み。永続buildingKeyと拠点5操作helperを追加し、拠点の実取引・公式解決・書込worker・paid lease発行は残件。販売とevent ENS照合は既定無効 |
 | T-02/T-08 所有者向け状態取得 | 部分実装・ローカル検証済み | 注文・契約の一覧と詳細、ENS購入状態をFirestoreから返す。所有権、応答の公開field制限、署名付きcursor、既存CLIの状態取得を確認 |
 | T-05/T-16 worker・outbox | 部分実装・ローカル検証済み | Firestore claim/generation/期限、保存済み支払いからの発行復旧、Cloud Tasks REST配信・結果照合とSchedulerの永続cursor。実送金・eventのchain照合・実Cloud Tasks/Scheduler接続は未検証 |
 | T-08/T-18/T-19 UI | 管理UI・認証・限定APIをevent配備、本人のログイン成功報告あり | Google OIDC/専用session、許可運営者の固定binding、拠点の登録・更新とbounded一覧を接続。停止状態での拠点登録に必要な固定testnet料金設定を追加。販売再開・読取再照合の実接続は残件 |
@@ -22,7 +22,13 @@
 
 ## 検証の記録
 
-### T-12 NameController配備と拠点namespaceの接続準備
+### T-12 NameController配備と拠点namespaceの署名準備
+
+拠点の5操作を扱う専用flow/client/loopback serverを追加した。固定planの再導出、latest/finalizedのcode pin・階層・owner・期限・controller参照と権限、段階ごとの最小root権限と総roleCount、token owner権限0、canonical receiptと前操作の最終確定を照合する。controller配備からのboundedな設定event履歴と、最後の正確な`NamespaceConfigured` event・`getNamespace`を検査する。既存の固定MetaMask wrapper照合を使い、拠点登録だけ上位registryのERC1155 token guardを検査する。送信前のstarted保存、返却hashの保存、unknown時の再送禁止、別操作での明示拒否解除とCASを維持する。全5操作が確定しても`namespaceReady=false`とする。
+
+`ensureNamespaceBuildingKey`を追加し、期待slug/version、停止状態、全仮想区画未使用を照合する。初回保存ではleaseなしを検査してrandomな永続identityと監査記録を原子的に保存する。既存identityを置換せず、後のLeaseRegistry同期で再利用する。専用live DBの対象拠点へ保存し、読戻しを確認した。料金・販売状態は変更していない。DB registryのEmulator重点6件、location plan/flow/client/serverの重点20件、全workspace型検査とbuildが通過した。buildは`VITE_APP_ENV=event`・`VITE_TERMS_VERSION=realaddr-v1`を指定した。通常CIへlocation検査を追加し、テキスト形式検査も通過した。単体fixtureをlive接続の証拠として扱わない。
+
+NameControllerの人間による配備取引は、独立RPCでexact CREATE、完全runtime、7 immutable、getterと権限、canonical成功receiptを照合し、その後に最終確定を確認した。拠点接続準備では8 code pin、現在の階層と未設定のcontroller履歴、factoryによる作成の読み取り専用simulationとgas見積を照合した。5操作の未署名planを固定し、ローカルhelperのHTTP 200と初期stateのrevision 0・送信済み操作なし・unknown falseを確認した。拠点の実取引は未実施。公式解決・アプリnamespace設定・paid leaseへの名前発行・権限拒否の実接続は残件であり、T-12全体の完了チェックは付けない。
 
 上位接続後のNameController配備用に、専用plan/flow/client/loopback serverを追加した。固定compilerのASTとartifactから7種類・21箇所のimmutableをconstructor値で埋め、完全なruntimeをCREATE simulationの戻り値と比較する。初期admin/publisherは既存ownerに固定し、8引数・直接CREATE・nonceから導出するcontract address・完全runtime・getter・2つのrole event・canonical receipt・latest/finalized状態を検査する。wrapperへの読み替えは許可せず、started/hashの永続化、unknown時の再送禁止、明示拒否だけの別操作による解除を維持する。
 
@@ -30,7 +36,7 @@
 
 検証: controller plan/flow/client/serverとlocation planの重点22件、固定compilerによるNameControllerの5件、全workspace型検査が通過した。全体buildは初回にevent用terms指定不足を拒否し、承認済み`VITE_APP_ENV=event`・`VITE_TERMS_VERSION=realaddr-v1`を指定した再実行で成功。`forge build --ast`とartifact export、実HTTP経由のbrowser bundle・Host/Origin/CSRF/CAS・保存競合・読み戻し失敗時の送信停止も検査した。
 
-liveでは最終確定blockの上位接続、7 code pin、owner・期限・逆向き親情報・最小権限・現在のimplementationを確認した。NameControllerのfinalized/latest CREATE simulationが同じ期待runtimeを返し、未署名計画と別の初期状態を保存してローカル画面の200を確認した。controllerの人間による署名・配備receipt、拠点registryの作成・接続、paid leaseへの名前発行は未実施。販売と`namespaceReady`は無効のまま維持する。
+配備準備時のlive検証では、最終確定blockの上位接続、7 code pin、owner・期限・逆向き親情報・最小権限・現在のimplementationを確認した。NameControllerのfinalized/latest CREATE simulationが同じ期待runtimeを返し、未署名計画と別の初期状態を保存してローカル画面の200を確認した。この時点ではcontroller署名・receiptも未実施だった。後続の配備取引検証は上の記録を参照。拠点registryの作成・接続、paid leaseへの名前発行は未実施で、販売と`namespaceReady`は無効のまま維持する。
 
 上位3取引の実送信後、独立RPCで完全なcall・wrapper・receipt blockの状態を照合した。最後の接続取引もcanonical成功receiptを返し、finalizedが到達したことを別途確認した。過去状態を保持しないRPCと利用制限により再照会が失敗するケースを観測し、履歴対応RPCによる既取得の検証証拠と最新のreceipt・接続照合を分けて保存した。ユーザーのhelper送信履歴は書き換えていない。
 

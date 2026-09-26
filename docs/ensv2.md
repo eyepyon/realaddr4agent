@@ -1,6 +1,6 @@
 # ENSv2と住所契約の紐づけ — 採用設計
 
-更新: 2026-09-27。ENSv2機能の実装・Sepolia接続とデモ検証は初回リリースの対象とするが、利用者への名前発行は希望者だけが初回追加料金を支払う任意オプション。住所契約だけで利用できる。名前予約・購入権のDB処理、照合adapter、NameController、API/CLI接続を実装中。公式Sepolia deployment、人間署名による親名取得と上位registry接続の最終確定を確認した。controller配備の未署名計画と専用画面、拠点接続plannerを準備した。拠点registry接続・controller実配備・実paid leaseでの名前発行は未実施。料金境界は[pricing.md](pricing.md)に従う。
+更新: 2026-09-27。ENSv2機能の実装・Sepolia接続とデモ検証は初回リリースの対象とするが、利用者への名前発行は希望者だけが初回追加料金を支払う任意オプション。住所契約だけで利用できる。名前予約・購入権のDB処理、照合adapter、NameController、API/CLI接続を実装中。公式Sepolia deployment、人間署名による親名取得と上位registry接続の最終確定を確認した。controller配備取引も独立検証でcanonical receiptと期待runtime・権限に一致し、最終確定を確認した。拠点接続の5操作を扱うplannerとローカル署名画面、永続buildingKeyの準備を追加し、liveの接続・code pin・未設定履歴と初回作成simulationを検査した。拠点の実取引・公式解決・実paid leaseでの名前発行は未実施で、`namespaceReady=false`を維持する。料金境界は[pricing.md](pricing.md)に従う。
 
 ## 1. 使い方
 
@@ -52,6 +52,12 @@ receipt照合では予定callとの完全一致または固定済みMetaMask pol
 NameControllerは通常のCREATE transactionで配備し、`to`を持つwrapper callへ読み替えない。送信前の永続保存、不明結果の再送禁止、別操作による明示拒否の解除、canonical receipt・実nonceからのCREATE address・完全runtime・constructor getter・初期role eventを照合する。最新状態と最終確定状態も一致してから配備完了とする。確定待ちには今回取得したreceiptとblock時刻を表示し、保存済みの過去receiptだけで今回の確認成功としない。controller配備だけではnamespaceや販売を有効にしない。
 
 拠点接続用の`planLocationNamespace`は検査済みsnapshotから5つの未署名callを生成する。専用UserRegistryの作成、逆向き親情報設定、controllerへのregister/unregister/renew権限付与、上位registryへの拠点登録、controllerへのbuildingKey/slug/registry固定の順とする。初期adminにはsetParentと必要3権限のgrant/revokeだけを与え、拠点tokenのowner roleは0とする。現plannerは新規controllerに限定し、配備からsnapshotまでの完全な`NamespaceConfigured` event照会で未設定を確認する。存在しないslug-binding getterで代用しない。予測アドレスとslugの未使用、階層・期限・権限を検査するが、署名・receipt照合・公式解決は別の工程である。
+
+拠点接続前の`RegistryRepository.ensureNamespaceBuildingKey`は、拠点UUID・期待slug・現在versionを照合し、停止中・住所利用無効・全区画未使用・leaseなしの拠点へrandomな32-byteの非ゼロbuildingKeyをFirestore transactionで一度だけ保存する。既存の正当なbuildingKeyは保持し、不正値・version競合・使用済み拠点では拒否する。初回保存と監査記録を原子的に行い、後のLeaseRegistry同期も同じidentityを使う。価格、販売状態、拠点versionを変更せず、秘密の保護設定から実行する準備操作であり、公開APIで任意拠点のidentityを変更する機能ではない。
+
+`node scripts/ens-location-serve.mjs`は拠点接続専用のローカル署名画面。`ENS_LOCATION_PLAN_FILE`・`ENS_LOCATION_PLAN_HASH`・`ENS_LOCATION_STATE_FILE`、`ENS_LOCATION_WRAPPER_POLICY_FILE`・`ENS_LOCATION_WRAPPER_POLICY_HASH`と任意の`ENS_LOCATION_PORT`を保護設定で指定する。親名・上位接続・controller配備のstateを流用しない。固定planから5操作と予測proxyを再導出し、前操作の取引がcanonicalかつ最終確定するまで次のwallet承認へ進まない。送信前はlatest/finalizedでcode pin、owner、期限、階層、controller参照と権限、拠点slugと予測アドレス、段階ごとのroot権限を再検査する。
+
+receiptは固定callの完全一致、または既存の固定MetaMask policyが認める一つの内側callとして照合する。ERC1155 guardを受け入れるのは拠点登録操作だけで、上位registryの実tokenId・ownerをreceipt blockで一致させる。controllerの配備blockからの設定履歴は最大8192 blockを1024 blockずつ読み、未設定段階はeventなし、最終段階は今回のbuildingKey・slug・registryに一致するevent一つを要求する。範囲外や過去状態を読めないRPCでは停止する。started/hash保存、結果不明時の再送禁止、明示的なwallet拒否だけの別操作による解除、Host/Origin/CSRFとCAS保存を維持する。`locationConnected=true`は5操作の最終確定とlatest/finalized接続一致だけを示し、公式Universal Resolver照合、アプリ設定、paid lease発行が未完了の間は`namespaceReady=false`と販売停止を維持する。
 
 ## 4. 名前・識別子
 

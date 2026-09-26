@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import type { Firestore, Transaction } from '@google-cloud/firestore';
 import { encodeAbiParameters, keccak256, type Hex } from 'viem';
-import { DomainError, normalizeWallet, sha256, validateFloor } from '@realaddr/domain';
+import { DomainError, normalizeSlug, normalizeWallet, SCHEMA_VERSION, sha256, SLOT_CAPACITY, validateFloor } from '@realaddr/domain';
 import { CollectionMapper } from './collections.js';
 import { assertCurrentOutboxClaim, type OutboxClaim } from './outbox.js';
 
@@ -42,6 +42,33 @@ export class RegistryRepository {
     this.now = options.now ?? (() => new Date());
     this.registryAddress = normalizeWallet(options.registryAddress);
     if (/^0x0+$/.test(this.registryAddress)) throw new DomainError('registry_unavailable', 503);
+  }
+
+  async ensureNamespaceBuildingKey(input: { buildingId: string; expectedSlug: string; expectedVersion: number }): Promise<{ buildingKey: Hex; created: boolean }> {
+    if (!input || typeof input.buildingId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(input.buildingId) || typeof input.expectedSlug !== 'string' || normalizeSlug(input.expectedSlug) !== input.expectedSlug || !Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 1) throw new DomainError('invalid_namespace_building', 422);
+    const candidate = key(), occurredAt = this.now();
+    const buildingRef = this.collections.doc('buildings', input.buildingId);
+    const eventId = sha256(JSON.stringify(['namespace_prepare', input.buildingId]));
+    const auditRef = this.collections.doc('audit_events', eventId);
+    return this.db.runTransaction(async tx => {
+      const building = (await tx.get(buildingRef)).data();
+      if (!building || building.schemaVersion !== SCHEMA_VERSION || building.id !== input.buildingId || building.slug !== input.expectedSlug || !Number.isSafeInteger(building.version) || building.version < 1) throw new DomainError('namespace_building_inconsistent', 503);
+      if (building.version !== input.expectedVersion) throw new DomainError('version_conflict', 409);
+      if (building.status !== 'paused' || building.addressUseEnabled !== false || building.capacity !== SLOT_CAPACITY || building.availableSlots !== SLOT_CAPACITY) throw new DomainError('namespace_building_not_pristine', 409);
+      if (building.buildingKey !== undefined) {
+        if (!hex32(building.buildingKey)) throw new DomainError('registry_identity_invalid', 503);
+        return { buildingKey: building.buildingKey, created: false };
+      }
+      const [leases, audit] = await Promise.all([
+        tx.get(this.collections.collection('leases').where('buildingId', '==', input.buildingId).limit(1)),
+        tx.get(auditRef),
+      ]);
+      if (!leases.empty) throw new DomainError('namespace_building_not_pristine', 409);
+      if (audit.exists) throw new DomainError('registry_identity_invalid', 503);
+      tx.update(buildingRef, { buildingKey: candidate });
+      tx.create(auditRef, { schemaVersion: SCHEMA_VERSION, eventId, actorId: sha256(JSON.stringify(['system', 'namespace_prepare'])), action: 'namespace_prepare', targetType: 'location', targetId: input.buildingId, reason: 'Prepare namespace building identity', beforeVersion: building.version, afterVersion: building.version, idempotencyKeyHash: eventId, result: 'applied', traceId: '', occurredAt });
+      return { buildingKey: candidate, created: true };
+    });
   }
 
   private async inspect(tx: Transaction, claim: OutboxClaim) {

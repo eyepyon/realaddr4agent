@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import { FieldValue, Firestore } from '@google-cloud/firestore';
-import { DomainError, sha256 } from '@realaddr/domain';
+import { DomainError, SCHEMA_VERSION, sha256, SLOT_CAPACITY } from '@realaddr/domain';
 import { RegistryRepository, OutboxRepository, type RegistryChange, type RegistryReadbackEvidence } from '../src/index.js';
 
 const emulator = process.env.FIRESTORE_EMULATOR_HOST;
@@ -94,5 +94,74 @@ test('registry rejects altered paid expiry, slot ownership and partial identitie
     await s.doc('buildings', 'building').update({ buildingKey: building.buildingKey });
     await s.doc('leases', id).update({ leaseKey: FieldValue.delete(), holderSalt: FieldValue.delete(), holderCommitment: FieldValue.delete(), registryEvidence: { finalityVerified: true } });
     await assert.rejects(s.registry.prepare(claim), code('registry_identity_invalid'));
+  } finally { await s.db.terminate(); }
+});
+
+async function namespaceSetup() {
+  const db = new Firestore({ projectId: `demo-realaddr-${randomUUID()}`, databaseId: 'realaddr' });
+  const buildingId = randomUUID();
+  const ref = db.collection(prefix + 'buildings').doc(buildingId);
+  const building = { schemaVersion: SCHEMA_VERSION, id: buildingId, slug: 'demo-place', version: 1, status: 'paused', addressUseEnabled: false, capacity: SLOT_CAPACITY, availableSlots: SLOT_CAPACITY, updatedAt: now };
+  await ref.create(building);
+  const input = { buildingId, expectedSlug: building.slug, expectedVersion: 1 };
+  return { db, ref, building, input, registry: new RegistryRepository(db, prefix, { registryAddress: address, now: () => now }) };
+}
+
+test('namespace building identity converges concurrently without changing business state', { skip: !emulator }, async () => {
+  const s = await namespaceSetup();
+  try {
+    const results = await Promise.all(Array.from({ length: 4 }, () => s.registry.ensureNamespaceBuildingKey(s.input)));
+    assert.equal(new Set(results.map(r => r.buildingKey)).size, 1);
+    assert.equal(results.filter(r => r.created).length, 1);
+    const first = results[0]!;
+    assert.match(first.buildingKey, /^0x[0-9a-f]{64}$/);
+    assert.notEqual(first.buildingKey, `0x${sha256(s.input.buildingId)}`);
+    assert.deepEqual(await s.registry.ensureNamespaceBuildingKey(s.input), { buildingKey: first.buildingKey, created: false });
+    const stored = (await s.ref.get()).data()!;
+    assert.deepEqual({ ...stored, updatedAt: stored.updatedAt.toDate() }, { ...s.building, buildingKey: first.buildingKey });
+    const audit = await s.db.collection(prefix + 'audit_events').get();
+    assert.equal(audit.size, 1);
+    assert.equal(audit.docs[0]!.id, guard('namespace_prepare', s.input.buildingId));
+    assert.equal(audit.docs[0]!.data().action, 'namespace_prepare');
+    assert.equal(audit.docs[0]!.data().beforeVersion, 1);
+    assert.equal(audit.docs[0]!.data().afterVersion, 1);
+    for (const collection of ['leases', 'orders', 'payments', 'ens_namespaces', 'outbox']) assert.equal((await s.db.collection(prefix + collection).get()).size, 0);
+    await s.ref.update({ buildingKey: FieldValue.delete() });
+    await assert.rejects(s.registry.ensureNamespaceBuildingKey(s.input), code('registry_identity_invalid'));
+  } finally { await s.db.terminate(); }
+});
+
+test('namespace preparation preserves an existing valid random identity', { skip: !emulator }, async () => {
+  const s = await namespaceSetup();
+  try {
+    await s.ref.update({ buildingKey: hash });
+    assert.deepEqual(await s.registry.ensureNamespaceBuildingKey(s.input), { buildingKey: hash, created: false });
+    assert.equal((await s.db.collection(prefix + 'audit_events').get()).size, 0);
+  } finally { await s.db.terminate(); }
+});
+
+test('namespace preparation rejects malformed identities, changed targets and non-pristine buildings', { skip: !emulator }, async () => {
+  const s = await namespaceSetup();
+  try {
+    for (const invalid of [null, '', `0x${'0'.repeat(64)}`, 'not-a-key']) {
+      await s.ref.update({ buildingKey: invalid });
+      await assert.rejects(s.registry.ensureNamespaceBuildingKey(s.input), code('registry_identity_invalid'));
+    }
+    await s.ref.update({ buildingKey: FieldValue.delete() });
+    await assert.rejects(s.registry.ensureNamespaceBuildingKey({ ...s.input, expectedVersion: 2 }), code('version_conflict'));
+    await assert.rejects(s.registry.ensureNamespaceBuildingKey({ ...s.input, expectedSlug: 'other-place' }), code('namespace_building_inconsistent'));
+    for (const patch of [{ status: 'active' }, { addressUseEnabled: true }, { availableSlots: SLOT_CAPACITY - 1 }, { capacity: SLOT_CAPACITY - 1 }]) {
+      await s.ref.set({ ...s.building, ...patch });
+      await assert.rejects(s.registry.ensureNamespaceBuildingKey(s.input), code('namespace_building_not_pristine'));
+    }
+    for (const patch of [{ schemaVersion: 2 }, { id: randomUUID() }]) {
+      await s.ref.set({ ...s.building, ...patch });
+      await assert.rejects(s.registry.ensureNamespaceBuildingKey(s.input), code('namespace_building_inconsistent'));
+    }
+    await s.ref.set(s.building);
+    await s.db.collection(prefix + 'leases').doc('existing').create({ buildingId: s.input.buildingId, status: 'expired' });
+    await assert.rejects(s.registry.ensureNamespaceBuildingKey(s.input), code('namespace_building_not_pristine'));
+    assert.equal((await s.ref.get()).data()?.buildingKey, undefined);
+    assert.equal((await s.db.collection(prefix + 'audit_events').get()).size, 0);
   } finally { await s.db.terminate(); }
 });
