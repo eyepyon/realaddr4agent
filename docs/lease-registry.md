@@ -1,6 +1,16 @@
 # LeaseRegistryのローカルartifactと手動登録
 
-T-07のcontract準備と手動登録手順。Ethereum Sepoliaへ人間承認のwallet署名でdeployし、独立した公開RPC検査でreceipt、runtime code、初期rolesを照合した。MultiBaasでもalias作成・contract linkと設定read-backを確認した。MultiBaasのindexed events、LeaseRegistryのrecord/revoke write、chain worker接続は未完了で、T-07は未完了。
+T-07のcontract準備と手動登録手順。Ethereum Sepoliaへ人間承認のwallet署名でdeployし、独立した公開RPC検査でreceipt、runtime code、初期rolesを照合した。MultiBaasでもalias作成・contract linkと設定read-backを確認した。DB/outboxとworkerの読み取り照合を実装したが、実環境での有効化、indexed events、record/revoke write、永続cursorによるreorg回復は未完了で、T-07は未完了。
+
+## workerによる確定状態の照合
+
+`REGISTRY_READBACK_ENABLED`は既定でfalse。有効化には`REGISTRY_CHAIN_ID=11155111`、`MULTIBAAS_CHAIN_LABEL=ethereum`、`REGISTRY_FINALITY_POLICY=finalized`と、保護された`REGISTRY_ADDRESS`、`REGISTRY_CONTRACT_LABEL`、`REGISTRY_CONTRACT_VERSION`、`REGISTRY_RUNTIME_CODE_HASH`、`REGISTRY_RPC_URL`、`MULTIBAAS_URL`、`MULTIBAAS_API_KEY`が必要。runtime hashは検証済みdeployed bytecodeのKeccak-256で、export manifestのSHA-256とは異なる。MultiBaas URLはHTTPSの単一deployment host、redirect不可とする。
+
+購入・更新の確定transactionは、対象leaseへ最新の`registryPaymentOrderId`を保存する。workerはoutboxのclaimとversion、確定payment・注文・receipt guard・区画所有・支払いから導く期限を再検査する。初回prepareでランダムな`buildingKey`、`leaseKey`、`holderSalt`とholder commitmentを原子的に保存し、更新・再実行でも保持する。欠損した既存identityは再生成せず停止する。内部ID・住所・World情報は照合要求へ含めない。
+
+RPCの`finalized` blockを取得し、そのblockのruntime codeと`getLease`を検証する。同じblock番号をMultiBaasにも指定し、6つの戻り値とcanonical block hashが一致する場合だけ、claimと現在versionを再検査して`chainSyncStatus=synced`にする。古いversionのjobはsupersededとし、新しい状態を上書きしない。外部呼び出しはFirestore transactionの外で行い、照合全体の期限は20秒。失敗・不一致は既存の上限付きretry/manual reviewに残す。
+
+MultiBaasのblock指定には[公式APIのhistorical blocks機能](https://github.com/curvegrid/multibaas-sdk-typescript/blob/main/docs/PostMethodArgs.md)が必要。利用不可なら照合成功にしない。このhandlerは読み取り専用で、署名・送信は行わない。購入・更新の照合準備を対象とし、取消の業務状態遷移とpublisher、実leaseのwrite/read、イベント同期は別の残件。runtime設定の追加やこの実装だけでevent環境の処理を有効化しない。
 
 ## Buildとexport
 

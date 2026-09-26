@@ -9,15 +9,23 @@
 | T-01 実行基盤 | 実装中 | pnpm workspace、strict TypeScript、Fastify、web/worker、共通CLI、CI workflowとローカル`.env.example`を作成。全経路の起動確認は未完了 |
 | T-02 認証・Firestore・区画 | 部分実装 | wallet challenge、Bearer hash、collection prefix、64 shard予約に加え、住所購入の決済受付・不明状態保持・確定後の契約発行・未払い確定後のhold解放をrepositoryへ実装。外部の検証済み結果を受け取る内部DB境界であり、実決済・外部照合・返金は未実装。更新の内部DB処理はT-05として追加 |
 | T-05 住所更新 | 部分実装・ローカル検証済み | 同一leaseの更新排他、固定見積、確定支払いの一度だけの反映、結果不明保持、保存済みreceiptからのworker復旧。公開更新API・実決済・chain/ENS同期は未接続 |
-| T-07 LeaseRegistry | Sepolia配備・初期権限・MultiBaas紐づけ確認済み、全体未完了 | 実コードとadmin/writer権限、MultiBaas経由の状態照会・初期イベント2件のreceiptを確認。イベント一覧APIは空で、実lease記録・取消、DB/outbox/worker接続は未完了 |
+| T-07 LeaseRegistry | 配備済み・DB/worker読み取り照合を部分実装、全体未完了 | 初期権限とMultiBaas紐づけを確認済み。購入・更新のpaid provenance、永続identity、claim/version付き確定block照合を実装しローカル検証。照合は既定無効。実lease記録・取消、event有効化、indexed eventsと永続cursor/reorg回復は未完了 |
 | T-02/T-08 所有者向け状態取得 | 部分実装・ローカル検証済み | 注文・契約の一覧と詳細、ENS購入状態をFirestoreから返す。所有権、応答の公開field制限、署名付きcursor、既存CLIの状態取得を確認 |
-| T-05/T-16 worker・outbox | 部分実装・ローカル検証済み | Firestore claim/generation/期限、保存済み支払いからの発行復旧、Cloud Tasks REST配信・結果照合とSchedulerの永続cursor。実送金・chain同期・実Cloud Tasks/Scheduler接続は未検証 |
+| T-05/T-16 worker・outbox | 部分実装・ローカル検証済み | Firestore claim/generation/期限、保存済み支払いからの発行復旧、Cloud Tasks REST配信・結果照合とSchedulerの永続cursor。実送金・eventのchain照合・実Cloud Tasks/Scheduler接続は未検証 |
 | T-08/T-18/T-19 UI | 部分着手 | 公開HTML/AEO、標準SaaSの画面、実APIへの接続。業務統合・実管理者ログインは別途 |
 | T-02/T-08/T-19 利用規約 | v1正式採用・event配信確認済み | realaddr-v1として15条を正式採用。単一Markdownから/termsへ初期HTML配信し、正式versionの同意欄・API/build/deploy設定を一致させる。提供開始準備と実利用者の同意確認は別途 |
-| T-00 外部連携 | 一部のread-only疎通を確認・全体未完了 | MultiBaas status APIでEthereum Sepolia (chain ID 11155111)との一致を確認。registry設定、contract権限とread/write/event操作は未確認。World、Intercepta、x402、ENS、管理者OIDCの必要設定も揃っていない |
+| T-00 外部連携 | 一部のread-only疎通を確認・全体未完了 | MultiBaasのSepolia status、registry linkと初期権限のreadを確認。実lease write/read・indexed eventsは未確認。World、Intercepta、x402、ENS、管理者OIDCの必要設定も揃っていない |
 | T-16 GCP | 独自ドメインHTTPS確認済み・全体未完了 | WIFとeventイメージbuild/push、runtime IAM検査、初回Cloud Run配備、公開後100項目と後続plan差分0を確認。TLS発行・独自ドメイン8経路の表示と拒否を確認。Tasks/Schedulerの実配信、実Firebase利用者client試験、外部業務連携は残件 |
 
 ## 検証の記録
+
+### T-07 DB/outboxと読み取り照合worker
+
+`RegistryRepository`に支払い根拠・receipt guard・区画所有・期限の検査、永続random identity、claim/version付きprepare/confirmを実装した。購入・更新の確定処理は最新支払いorderへのpointerを同時保存する。workerはtransactionの外でRPCのfinalized blockとMultiBaasの同block指定getLeaseを比較し、runtime hash・6 field・canonical block hashが一致したときだけsyncedにする。確定時にもclaim期限/versionを再検査し、古いjobはsupersededへ移す。外部処理の総期限は20秒で、不一致や依存停止は上限付きretry/manual reviewを維持する。外部へ渡すのは固定contractと公開可能な32-byte keys等のみで、住所・内部lease ID・World情報・holder saltは含めない。
+
+`REGISTRY_READBACK_ENABLED=false`が既定。秘密値を含むevent設定や署名方式の追加、worker配備・dispatch有効化は未実施。このhandlerは署名・送信を行わず、未記録のleaseを成功にしない。取消の業務遷移・publisher、実lease write/read、indexed eventsと永続cursorによるreorg回復は残件で、T-07の完了チェックは付けない。
+
+検証: `pnpm typecheck`、local設定の`pnpm build`が通過。workerの設定/runner/HTTP認可の11件と、RPC・MultiBaas readerの5件が通過した。Firestore Emulator 1.22.0とJava 21でregistry/renewalの9件が通過し、実repositoryの購入確定→照合prepare→更新確定→新versionの照合confirm→owner readを含む。provider evidenceはこのDB試験に限りtest doubleで、実支払い・chain writeの証明ではない。最終の関連テストでは購入・更新・registry・owner DB/API・workerの8 test filesをEmulator有効でまとめて実行し、33件成功・失敗0・skip 0だった。URL設定エラーから入力値を除く修正後のworker重点3件と型検査も通過。未検証: 実leaseへの確定block readback、署名/送信、event worker、event cursorの永続化と再起動回復。
 
 ### T-07 LeaseRegistryのコントラクトと登録準備
 

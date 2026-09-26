@@ -5,6 +5,7 @@ import { Firestore } from '@google-cloud/firestore';
 import { DomainError, sha256, type PricingConfig } from '@realaddr/domain';
 import {
   OutboxRepository,
+  RegistryRepository,
   OwnerReadRepository,
   RealAddrRepository,
   type AgentPrincipal,
@@ -94,6 +95,34 @@ async function prepare(fixture: Fixture, order: Record<string, unknown>) {
 async function data(fixture: Fixture, collection: Parameters<RealAddrRepository['collections']['doc']>[0], id: string) {
   return (await fixture.repo.collections.doc(collection, id).get()).data()!;
 }
+
+test('fulfilled purchase and renewal supply registry paid provenance and preserve chain identities', { skip: !emulator }, async () => {
+  const f = await makeFixture();
+  try {
+    const leaseId = await purchased(f);
+    const registry = new RegistryRepository(f.db, 'realaddr_event_', { registryAddress: pricing.payTo });
+    const outbox = new OutboxRepository(f.db, 'realaddr_event_');
+    const firstJobId = sha256(JSON.stringify([leaseId, '1', 'lease.registry_sync_requested']));
+    const firstClaim = await outbox.claim(firstJobId, 'registry-test'); assert.ok(firstClaim);
+    const first = await registry.prepare(firstClaim); assert.equal(first.status, 'ready'); if (first.status !== 'ready') return;
+    assert.equal((await data(f, 'leases', leaseId)).registryPaymentOrderId, leaseId);
+    const order = await renew(f, leaseId);
+    const inputs = await prepare(f, order);
+    await f.repo.confirmRenewalPayment({ orderId: order.id as string, receipt: inputs.receipt });
+    assert.equal((await data(f, 'leases', leaseId)).registryPaymentOrderId, order.id);
+    const secondJobId = sha256(JSON.stringify([leaseId, '2', 'lease.registry_sync_requested']));
+    const secondClaim = await outbox.claim(secondJobId, 'registry-test'); assert.ok(secondClaim);
+    const second = await registry.prepare(secondClaim); assert.equal(second.status, 'ready'); if (second.status !== 'ready') return;
+    assert.equal(second.change.leaseKey, first.change.leaseKey);
+    assert.equal(second.change.holderCommitment, first.change.holderCommitment);
+    assert.equal(second.change.buildingKey, first.change.buildingKey);
+    await registry.confirm(secondClaim, { change: second.change, chainId: 11155111, registryAddress: pricing.payTo as `0x${string}`, blockNumber: '123', blockHash: `0x${'a'.repeat(64)}`, finalityVerified: true });
+    const publicLease = await new OwnerReadRepository(f.db, 'realaddr_event_').getSubscription(f.principal, leaseId);
+    assert.equal(publicLease.chain.status, 'synced');
+    assert.equal(Object.hasOwn(publicLease, 'holderSalt'), false);
+    assert.equal(Object.hasOwn(publicLease, 'registryEvidence'), false);
+  } finally { await f.db.terminate(); }
+});
 
 test('active and expired renewals apply once to the same lease and slot without new quota or budget', { skip: !emulator }, async () => {
   const f = await makeFixture();

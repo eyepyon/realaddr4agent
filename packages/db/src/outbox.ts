@@ -139,8 +139,8 @@ export class OutboxRepository {
     });
   }
 
-  async retry(claim: OutboxClaim, reason: 'handler_unavailable' | 'issuance_inconsistent' | 'processing_failed' = 'processing_failed'): Promise<'pending' | 'manual_review'> {
-    if (reason !== 'handler_unavailable' && reason !== 'issuance_inconsistent' && reason !== 'processing_failed') throw new DomainError('invalid_outbox_retry_reason', 422);
+  async retry(claim: OutboxClaim, reason: 'handler_unavailable' | 'issuance_inconsistent' | 'processing_failed' | 'registry_readback_unconfirmed' | 'registry_readback_failed' = 'processing_failed'): Promise<'pending' | 'manual_review'> {
+    if (reason !== 'handler_unavailable' && reason !== 'issuance_inconsistent' && reason !== 'processing_failed' && reason !== 'registry_readback_unconfirmed' && reason !== 'registry_readback_failed') throw new DomainError('invalid_outbox_retry_reason', 422);
     const ref = this.collections.doc('outbox', claim.id);
     return this.db.runTransaction(async tx => {
       const snap = await tx.get(ref);

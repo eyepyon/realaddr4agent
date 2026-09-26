@@ -543,7 +543,7 @@ export class RealAddrRepository {
       const leaseExpiresAt = new Date(confirmedAt.getTime() + 30 * 86_400_000);
       const registryOutboxId = guardId(leaseId, '1', 'lease.registry_sync_requested');
       if (!recovering) tx.create(receiptGuardRef, { schemaVersion: SCHEMA_VERSION, kind: 'payment_transfer', network: receipt.network, txHash: receipt.txHash.toLowerCase(), transferLogIndex: receipt.transferLogIndex, orderId: input.orderId, paymentId: input.orderId });
-      tx.create(leaseRef, { schemaVersion: SCHEMA_VERSION, id: leaseId, tenantId: order.tenantId, agentId: order.agentId, ownerWallet: order.ownerWallet, buildingId: order.buildingId, slotNumber: order.slotNumber, addressSnapshot: order.addressSnapshot, status: 'active', startsAt: confirmedAt, expiresAt: leaseExpiresAt, version: 1, chainSyncStatus: 'pending', createdAt: now, updatedAt: now });
+      tx.create(leaseRef, { schemaVersion: SCHEMA_VERSION, id: leaseId, tenantId: order.tenantId, agentId: order.agentId, ownerWallet: order.ownerWallet, buildingId: order.buildingId, slotNumber: order.slotNumber, addressSnapshot: order.addressSnapshot, status: 'active', registryPaymentOrderId: input.orderId, startsAt: confirmedAt, expiresAt: leaseExpiresAt, version: 1, chainSyncStatus: 'pending', createdAt: now, updatedAt: now });
       tx.create(mailRef, { schemaVersion: SCHEMA_VERSION, leaseId, status: 'disabled', enabledByApprovalId: null, version: 1, encryptedDestination: null, destinationConfigured: false, updatedAt: now });
       tx.update(slotRef, { state: 'leased', leaseId, heldByOrderId: null, holdExpiresAt: null });
       tx.update(shardRef, { held: bitmapClear(bits.held, bit), issued: bitmapSet(bits.issued, bit) });
@@ -646,7 +646,7 @@ export class RealAddrRepository {
       const leaseVersion = order.leaseVersion + 1;
       const registryOutboxId = guardId(leaseId, String(leaseVersion), 'lease.registry_sync_requested');
       if (!recovering) tx.create(receiptGuardRef, { schemaVersion: SCHEMA_VERSION, kind: 'payment_transfer', network: receipt.network, txHash: receipt.txHash.toLowerCase(), transferLogIndex: receipt.transferLogIndex, orderId: input.orderId, paymentId: input.orderId });
-      tx.update(leaseRef, { status: 'active', expiresAt: leaseExpiresAt, version: leaseVersion, chainSyncStatus: 'pending', updatedAt: now });
+      tx.update(leaseRef, { status: 'active', registryPaymentOrderId: input.orderId, expiresAt: leaseExpiresAt, version: leaseVersion, chainSyncStatus: 'pending', updatedAt: now });
       if (headSnap.exists) tx.update(approvalHeadRef, { approvalId: null, currentApprovalId: null, leaseVersion, updatedAt: now });
       tx.delete(renewalGuardRef);
       if (entitlementSnap.data()?.state === 'paid') {

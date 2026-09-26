@@ -4,11 +4,11 @@ AIエージェントがx402で実住所の利用区画を契約し、ENSv2名で
 
 **仕様に加えて、ローカルの実行基盤、Agent認証、Firestore repository、公開ページと一部APIを実装中です。** Agent認証済みownerのpayment-intent/subscription一覧・詳細とENS状態readが利用できます。これらはtenant・agentで範囲を限定し、転送先全文などの秘匿fieldは返しません。購入・更新・支払いmutationは公開せず、ENS名前検索による契約取得も利用できません。外部ENS検証なしにENSをreadyとせず、mail approval統合がない保存済みenabled profileはfail closedです。住所購入の内部DB処理には、決済結果不明時の予約保持、確認済み支払いからの契約発行、未払い確定時の解放を追加しました。更新の内部処理も一つの未解決注文、支払い結果不明の保持、確認済みreceiptからの復旧、確定未払い時の解放を扱います。これらは公開更新APIや実決済の有効化を意味しません。外部検証adapterと決済workerは未接続で、公開購入・更新APIは引き続き販売を拒否します。Firestore Emulatorでの検証範囲は[実装状況](docs/implementation-status.md)を参照してください。GCP公開とMultiBaasのSepolia status照会は確認済みですが、x402決済・World・Intercepta・ENSv2と契約操作の実接続は未完了です。仕様作成日: 2026-09-25。初回リリースは実サービス接続と永続化を伴う縦断フローを完成させます。
 
-HTTP workerにはFirestoreの実行権・再試行管理と、保存済みの確認済み支払いから契約発行を復旧する処理、Cloud Tasks REST dispatcher、Scheduler sweep recoveryを実装しました。送金・chain同期handlerは未接続で、専用主体のFirestore操作・DB拒否とqueue権限は確認しました。Cloud Runの未認証拒否は確認済みですが、実GCPのCloud Tasks/SchedulerによるOIDC配信は未検証です。管理主体によるlive Rulesのdeny評価と実未認証拒否は確認済みで、実Firebase他利用者client試験は残件です。未接続処理を成功扱いせず、状態を永続化して保留します。
+HTTP workerにはFirestoreの実行権・再試行管理と、保存済みの確認済み支払いから契約発行を復旧する処理、Cloud Tasks REST dispatcher、Scheduler sweep recoveryを実装しました。送金handlerは未接続、chain照合は既定無効で、専用主体のFirestore操作・DB拒否とqueue権限は確認しました。Cloud Runの未認証拒否は確認済みですが、実GCPのCloud Tasks/SchedulerによるOIDC配信は未検証です。管理主体によるlive Rulesのdeny評価と実未認証拒否は確認済みで、実Firebase他利用者client試験は残件です。未接続処理を成功扱いせず、状態を永続化して保留します。
 
 GCP登録準備として[Terraform bootstrap](infra/README.md)と[読み取り専用inventory](docs/gcp-inventory.md)を追加しました。bootstrap applyで専用state bucket・Artifact Registry・無効WIF pool/provider・限定IAM memberの5件を作成し、live設定と既存IAM member保持を確認しました。GCS state移行は完了しました。appの基盤17件を登録し、live設定を確認しました。通常更新用の手動deploy workflowと、GCP認証なしでコンテナを検査するCIを追加しました。正式termsのevent image-only workflowが成功し、同一immutable digestを非公開Cloud Run 2サービスへ初回配備しました。private構成の検証99件は通過しました。Cloud Runの公開と公開後100件の確認は完了しました。独自ドメインのTLS発行とHTTPS応答も確認済みです。
 
-LeaseRegistryをEthereum Sepoliaへ実配備し、独立RPCで検証、MultiBaasでread-only照合済みです。MultiBaas indexed events、業務worker、record/revoke write flowは未完了です。[コントラクトの検証と登録手順](docs/lease-registry.md)を参照してください。
+LeaseRegistryをEthereum Sepoliaへ実配備し、独立RPCで検証、MultiBaasでread-only照合済みです。DB/outboxとworkerの確定block照合を実装し、ローカルで購入・更新とclaim/versionの検証を通しました。workerの照合は既定無効で、実leaseのrecord/revoke、eventでの有効化、indexed eventsと永続cursorによるreorg回復は未完了です。[コントラクトの検証と登録手順](docs/lease-registry.md)を参照してください。
 
 ## 読む順序
 

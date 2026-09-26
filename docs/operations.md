@@ -38,6 +38,9 @@ T-01で秘密のない.env.exampleを作る。secretは環境/secret managerに�
 | PAYMENT_FINALITY_POLICY | receipt/finality基準 |
 | MULTIBAAS_URL, MULTIBAAS_API_KEY, MULTIBAAS_CHAIN_LABEL | deployment |
 | REGISTRY_ADDRESS, REGISTRY_CHAIN_ID, REGISTRY_CONTRACT_LABEL | 記録先 |
+| REGISTRY_READBACK_ENABLED | workerの読み取り照合を有効化。既定false。署名・送信の許可ではない |
+| REGISTRY_CONTRACT_VERSION, REGISTRY_RUNTIME_CODE_HASH | 固定library versionと検証済みruntime bytecodeのKeccak-256 |
+| REGISTRY_RPC_URL, REGISTRY_FINALITY_POLICY | HTTPS RPCと`finalized`。同じblockのMultiBaas historical readが利用できることを確認する |
 | REGISTRY_SIGNER_KEY_REF, REFUND_SIGNER_KEY_REF | registry発行鍵と、発行失敗が確定した注文の自動返金用鍵を分離して参照。返金鍵と実USDC/network/finalityはT-00/T-05で疎通確認 |
 | LEASE_PRICE_MAINNET_ATOMIC, LEASE_PRICE_TESTNET_ATOMIC, LEASE_PERIOD_DAYS | 住所価格と期間。6-decimal USDCでmainnet想定55000000、testnet/dev 550000、期間30日。mainnetは今回無効 |
 | ENS_ADDON_STANDARD_PRICE_MAINNET_ATOMIC, ENS_ADDON_STANDARD_PRICE_TESTNET_DEV_ATOMIC | 標準ENS初回額。mainnet想定10000000、testnet/dev 100000。各環境の固定network/assetと照合 |
