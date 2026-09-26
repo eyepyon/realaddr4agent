@@ -28,6 +28,8 @@ callbackのquery許可項目にGoogleの`iss`が欠け、標準応答を`invalid
 
 検証: `node node_modules/tsx/dist/cli.mjs --test apps/api/test/admin.test.ts apps/api/test/admin-oidc.test.ts`の9件、API型検査、API bundle build、text formatが通過。正しいissuer・省略時のcallbackからsession発行までをfixtureで確認し、issuer不一致・重複queryをcode交換前に拒否した。実Google token交換・本人のログイン成功は未確認であり、配備後の再ログインで検証する。
 
+CIと既存event配備workflowは成功。公開後の架空データによる比較で、正しいissuer付きもstate検証の403へ進み、誤ったissuer・重複issuerは認証失敗の403となることを確認した。管理HTMLの200、保護API7経路の401/no-store、Agent拒否、Googleへの302・PKCE・保護cookieも再確認した。架空stateは当然拒否され、実ログイン成功の証跡とは扱わない。
+
 ### T-18 管理ログインと限定運営API
 
 既存管理UIに対し、拒否専用だったrouteをGoogle OIDC/PKCE/state・nonceの一回限り検証、暗号化PKCE、DB allowlistへのsubject固定、opaque session、Origin/CSRF/idempotency検査へ接続した。sessionはidle15分・absolute60分で、各requestとmutation transaction内で運営者失効を再確認する。Agent/World資格情報は管理認証に使わない。初回allowlist用bootstrapは既存のbindingや失効を上書きしない。
