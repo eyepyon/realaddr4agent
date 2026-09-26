@@ -1,6 +1,6 @@
 # 未解決事項一覧
 
-アプリは部分実装済みで、ローカルの基礎検証を実施した。外部providerの実接続とGCP公開は未確認。以下は引き続き確認が必要な項目であり、すべての開発を止めるものではない。詳細契約・運用手順・受入条件は参照先を正本とする。
+アプリは部分実装済みで、ローカルの基礎検証に加え、GCP初回配備と独自ドメインHTTPSを確認した。スポンサー統合やWorld/admin callback、Cloud Tasks/Schedulerの実配信、実Firebase利用者client Rules試験などは未確認。以下は引き続き確認が必要な項目であり、すべての開発を止めるものではない。詳細契約・運用手順・受入条件は参照先を正本とする。
 
 最優先はU-03〜U-07の外部疎通。GCPへのapply前にU-08、公開・提出までにU-01/U-09〜U-11を完了する。U-02の通常返金方針と発行失敗時の自動返金条件は決定済みで、実鍵・asset・finalityの疎通はU-05に含める。画面/DBなど独立部分は並行して実装できる。
 
@@ -10,11 +10,11 @@
 | U-03 | World client設定、callback登録、eventで使うproof/auth手順とfresh認証確認を取得・検証する。 | 外部設定/実接続。T-03 live前 | [operations O-03](operations.md)、[integrations](integrations.md) |
 | U-04 | Intercepta live key、実schema/verdict、対象network、test addressのallow/denyを取得・検証する。 | 外部資格情報/実接続。T-04前 | [operations O-04](operations.md)、[integrations](integrations.md) |
 | U-05 | Base SepoliaのUSDC contract/decimals、facilitatorと認証、finality、送金結果不明時の照合経路を固定・実測する。 | 外部設定/実接続。T-05 live前 | [operations O-05](operations.md)、[pricing](pricing.md)、[acceptance](acceptance.md) |
-| U-06 | status APIはHTTP 200で応答schema検証を通過したが、接続先chainはSepolia (chain ID 11155111)ではない。Sepolia deployment、必要role/permission、chain・registry設定、署名方式、contract read/write/eventの実疎通は未確認。 | 外部設定/実接続。T-07完了前 | [operations O-06/O-11](operations.md)、[ensv2](ensv2.md) |
+| U-06 | status APIは再検査でHTTP 200、応答schema検証通過、Ethereum Sepolia (chain ID 11155111)との一致を確認。前回の照会ではchain不一致だった。必要role/permission、registry設定、署名方式、contract read/write/eventの実疎通は未確認。 | 外部設定/実接続。T-07完了前 | [operations O-06/O-11](operations.md)、[ensv2](ensv2.md) |
 | U-07 | ENS parent名と運営鍵、公式deployment/ABI/SDK、親→拠点→name registry接続、gas実測と拠点別registry登録receiptを確定する。 | 外部設定/実接続。T-12/13完了前 | [operations O-09–O-11](operations.md)、[ensv2](ensv2.md)、[pricing](pricing.md) |
-| U-08 | 共有GCP projectの実resource/owner、Firestore location/rules/index、IAM/API、予算・quota、専用名の空き、`DEPLOY_SERVICE_ACCOUNT`で指定したデプロイ用service accountの所有者・binding・実効権限をlive inventoryで調べる。専用web/worker/Tasks/Scheduler identityと専用WIFは設計済み。apply前に設定・IAM計画とFirestore client Rulesの直接アクセス可否を確認し、専用runtime主体の作成後・業務データ取扱い前にその実IAM権限を別途確認する。 | apply前の共存ゲートと、専用SA作成後の稼働前ゲート。いずれも未実施で、GCP変更も未実施 | [operations O-12](operations.md)、[infrastructure](infrastructure.md)、[acceptance A-41](acceptance.md) |
+| U-08 | 初回配備に必要なlive inventory、専用resource登録、runtime IAMの代表検査を実施済み。残件はCloud Tasks/Scheduler実OIDC配信、実Firebase他利用者clientによるRules確認など。 | 基盤の初回配備済み。残る稼働前/運用検証は未完了 | [operations O-12](operations.md)、[infrastructure](infrastructure.md)、[acceptance A-41](acceptance.md) |
 | U-09 | 本アプリ専用Google OIDC client/callbackと初期運用者allowlistを設定する。 | 外部設定。T-18前 | [operations O-13](operations.md)、[admin](admin.md) |
-| U-10 | event公開経路はCloud Runの直接domain mappingとmanaged TLSに決定。対応region/ドメイン所有権を確認し、運営者がDNSを設定する。固定originのHTTPS health（redirect不可、30秒、応答上限4 KiB）、同一origin API/cookie、World/admin callbackを実接続で確認する。 | ユーザー側DNSと実接続。公開/E2E前。方式の決定だけでは完了しない | [operations O-07](operations.md)、[infrastructure](infrastructure.md)、[acceptance A-49](acceptance.md) |
+| U-10 | Cloud Run公開、独自ドメインTLS、固定originのHTTPS主要経路を確認済み。World/admin callbackの実接続と業務E2Eは未確認。ユーザー管理のDNS変更は行っていない。 | 公開HTTPS確認済み。callback/E2E検証は未完了 | [operations O-07](operations.md)、[infrastructure](infrastructure.md)、[acceptance A-49](acceptance.md) |
 | U-11 | 提出時点のtrack条件、チーム/SNS、live証跡・feedback、動画を揃える。 | 提出準備。提出前 | [operations O-08](operations.md)、[acceptance](acceptance.md)、[sources](sources.md) |
 
 ## 確定済みの前提
