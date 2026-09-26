@@ -6,6 +6,7 @@ export interface ApiConfig {
   port: number;
   origin: string;
   projectId: string;
+  databaseId: '(default)';
   collectionPrefix: string;
   termsVersion: string;
   rateLimitKey: Buffer;
@@ -19,9 +20,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   if (env.NODE_ENV && !['development', 'test', 'production'].includes(env.NODE_ENV)) throw new Error('invalid_node_env');
   const port = Number(env.PORT ?? '8080');
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('invalid_port');
-  if (env.RESOURCE_PREFIX && env.RESOURCE_PREFIX !== 'realaddr-event') throw new Error('invalid_resource_prefix');
-  const collectionPrefix = env.FIRESTORE_COLLECTION_PREFIX ?? 'realaddr_event_';
+  if ((local && env.RESOURCE_PREFIX && env.RESOURCE_PREFIX !== 'realaddr-event') || (!local && env.RESOURCE_PREFIX !== 'realaddr-event')) throw new Error('invalid_resource_prefix');
+  const collectionPrefix = env.FIRESTORE_COLLECTION_PREFIX ?? (local ? 'realaddr_event_' : '');
   if (collectionPrefix !== 'realaddr_event_') throw new Error('invalid_collection_prefix');
+  const databaseId = env.FIRESTORE_DATABASE_ID ?? (local ? '(default)' : '');
+  if (databaseId !== '(default)') throw new Error('invalid_firestore_database');
   const origin = env.PUBLIC_ORIGIN ?? (local ? `http://localhost:${port}` : '');
   if (!origin || (!local && origin !== 'https://address.chain.tokyo')) throw new Error('invalid_public_origin');
   const parsedOrigin = new URL(origin);
@@ -32,6 +35,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     throw new Error('firestore_emulator_required_for_local_execution');
   }
   if (!local && env.FIRESTORE_EMULATOR_HOST) throw new Error('emulator_disallowed_outside_local');
+  if (!local) {
+    if (projectId.startsWith('demo-') || !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(projectId)) throw new Error('invalid_event_project');
+    if (env.GOOGLE_APPLICATION_CREDENTIALS || env.GOOGLE_CREDENTIALS || env.GOOGLE_CLOUD_KEYFILE_JSON || env.GCLOUD_KEYFILE_JSON) throw new Error('key_credentials_disallowed');
+  }
   if (env.PRICE_PROFILE && env.PRICE_PROFILE !== 'testnet') throw new Error('mainnet_disabled');
   if (env.PAYMENT_NETWORK && env.PAYMENT_NETWORK !== 'eip155:84532') throw new Error('payment_network_disabled');
   const termsVersion = env.TERMS_VERSION ?? (local ? 'event-demo-1' : '');
@@ -51,5 +58,5 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     ensFloorAmountAtomic: env.ENS_ADDON_STANDARD_PRICE_TESTNET_DEV_ATOMIC!,
     ensCustomAmountAtomic: env.ENS_ADDON_CUSTOM_PRICE_TESTNET_DEV_ATOMIC!,
   } satisfies PricingConfig : null;
-  return { appEnv, port, origin, projectId, collectionPrefix, termsVersion, rateLimitKey, pricing };
+  return { appEnv, port, origin, projectId, databaseId, collectionPrefix, termsVersion, rateLimitKey, pricing };
 }

@@ -10,7 +10,7 @@ import { repoRoot } from './paths.js';
 const localEnv = resolve(repoRoot(), '.env');
 if (existsSync(localEnv)) loadEnvFile(localEnv);
 const config = loadConfig();
-const db = new Firestore({ projectId: config.projectId });
+const db = new Firestore({ projectId: config.projectId, databaseId: config.databaseId });
 const repository = new RealAddrRepository(db, config.collectionPrefix, config.pricing, { authDomain: new URL(config.origin).hostname as 'address.chain.tokyo' | 'localhost' | '127.0.0.1' });
 const app = createApp(config, repository, db);
 const stop = async () => {

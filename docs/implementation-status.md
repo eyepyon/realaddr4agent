@@ -221,3 +221,11 @@ app foundationの実applyは17 add・0 update・0 deleteで成功した。live�
 | cleanup/read-back | 合成document削除、一時grantの全4主体からの削除、baseline member保持を確認 |
 
 これは検査したDB操作・queue権限の証拠であり、prefix内外のcollection IAM隔離を意味しない。Cloud Run invoker、Cloud Tasks/Schedulerの実OIDC配信、スポンサー接続、実際の別Firebase利用者tokenによるRules client試験は未検証。appのremote post-apply planはdetailed exit code 0で差分なし。state pullは17 resource instanceを保持し、保護backupとmanifest更新を確認した。T-16は未完了。
+
+## T-01/T-16 配備前のAPI設定・コンテナ検査
+
+APIのevent起動はresource/collection prefixと共有default DBの明示設定を要求し、Firestore clientへ検証済みdatabase IDを渡す。demo project、不正project ID、Emulator接続、鍵credentialの環境変数を拒否する。localはEmulator必須と既存のdefault設定を維持する。API型検査と`apps/api/test/config.test.ts`の3件は通過した。
+
+Docker Desktopは内部ingest socketのrename/accessエラーでbackendが停止した。既存Desktopの起動を確認したが、reset、state削除、OS設定変更は実施していない。local設定の型検査・API/worker/Web buildは通過した。実コンテナ検査用に`container-check.yml`を追加し、GCP認証なしのLinux runnerでlocal demo imageをbuildする。起動containerはネットワークを無効にし、内部loopbackだけでweb health 200、worker未認証401/no-store、未知roleの拒否を検査する。DB/queue操作は行わず、作成したcontainerとimageだけを削除する。script構文検査は通過、実build/runはCI実行待ち。
+
+正式termsは引き続き未確定で、event image作成・push・Cloud Run配備は行わない。CI成功とデプロイ成功を区別し、T-16を完了扱いしない。
