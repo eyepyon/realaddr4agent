@@ -1,7 +1,53 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { CURRENT_TERMS_VERSION } from '../packages/domain/src/terms.ts';
-import { buildInitialImage, configFromEnv, deploy, diagnoseOidc, oidcClaimSummary, operationFromEnv, smoke, sourceFromEnv, verifyArtifactPermissions, verifySource } from './deploy-event.mjs';
+import { buildInitialImage, buildPaths, configFromEnv, deploy, diagnoseOidc, oidcClaimSummary, operationFromEnv, smoke, sourceFromEnv, verifyArtifactPermissions, verifySource } from './deploy-event.mjs';
+
+test('production archive retains build workspace dependencies and excludes private configuration', () => {
+  const root = resolve(import.meta.dirname, '..');
+  const manifests = new Map();
+  for (const group of ['apps', 'packages']) {
+    for (const entry of readdirSync(join(root, group), { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const folder = `${group}/${entry.name}`;
+      const manifest = JSON.parse(readFileSync(join(root, folder, 'package.json'), 'utf8'));
+      manifests.set(manifest.name, { folder, manifest });
+    }
+  }
+  const contains = path => buildPaths.some(allowed => path === allowed || path.startsWith(`${allowed}/`));
+  const dockerAllow = new Set(readFileSync(join(root, '.dockerignore'), 'utf8').split(/\r?\n/).filter(line => line.startsWith('!')).map(line => line.slice(1)));
+  const visited = new Set();
+  function requiredWorkspace(name) {
+    if (visited.has(name)) return;
+    visited.add(name);
+    const workspace = manifests.get(name);
+    assert.ok(workspace, `workspace missing: ${name}`);
+    for (const path of ['package.json', 'tsconfig.json', 'src']) {
+      const required = `${workspace.folder}/${path}`;
+      assert.ok(contains(required), `archive omits ${required}`);
+      assert.ok(dockerAllow.has(path === 'src' ? `${required}/**` : required), `Docker context omits ${required}`);
+    }
+    for (const [dependency, version] of Object.entries(workspace.manifest.dependencies ?? {})) if (version.startsWith('workspace:')) requiredWorkspace(dependency);
+  }
+  for (const name of ['@realaddr/api', '@realaddr/worker', '@realaddr/web']) requiredWorkspace(name);
+  const buildScript = readFileSync(join(root, 'scripts/container-build.mjs'), 'utf8');
+  const workspaces = buildScript.match(/for \(const workspace of \[([^\]]+)\]/)[1].match(/'([^']+)'/g).map(value => value.slice(1, -1));
+  for (const folder of workspaces) for (const path of ['package.json', 'tsconfig.json', 'src']) assert.ok(contains(`${folder}/${path}`), `typecheck input omitted: ${folder}/${path}`);
+  const context = mkdtempSync(join(tmpdir(), 'realaddr-archive-test-'));
+  try {
+    const archive = join(context, 'source.tar');
+    execFileSync('git', ['archive', '--format=tar', `--output=${archive}`, 'HEAD', ...buildPaths], { cwd: root, stdio: 'pipe' });
+    const entries = execFileSync('tar', ['-tf', archive], { encoding: 'utf8' }).trim().split(/\r?\n/);
+    for (const name of visited) assert.ok(entries.includes(`${manifests.get(name).folder}/package.json`));
+    assert.ok(entries.some(path => path.startsWith('packages/intercepta/src/')));
+    assert.ok(entries.every(path => !/(^|\/)(\.env(?:\.|$)|\.tmp(?:\/|$)|\.git(?:\/|$)|[^/]*\.tfvars(?:\.|$))/.test(path)));
+    assert.ok(!contains('.env') && !contains('.tmp/private.json') && !contains('infra/app/private.tfvars.json'));
+  } finally { rmSync(context, { recursive: true, force: true }); }
+});
 
 const commit = 'a'.repeat(40);
 const previousDigest = `sha256:${'b'.repeat(64)}`;
