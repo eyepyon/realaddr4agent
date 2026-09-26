@@ -64,11 +64,13 @@ jobs:
           if-no-files-found: error
           retention-days: 7
       - run: node scripts/export-lease-registry.mjs
+      - run: node scripts/export-lease-registry.mjs RealAddrNameController
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: lease-registry-artifacts
           path: |
             contracts/dist/*.json
             contracts/out/LeaseRegistry.sol/LeaseRegistry.json
+            contracts/out/RealAddrNameController.sol/RealAddrNameController.json
           if-no-files-found: error
           retention-days: 7

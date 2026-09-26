@@ -5,3 +5,4 @@ export * from './repository.js';
 export * from './owner-reads.js';
 export * from './registry.js';
 export * from './world.js';
+export * from './ens.js';

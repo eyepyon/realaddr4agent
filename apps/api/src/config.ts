@@ -1,6 +1,7 @@
 import { CURRENT_TERMS_VERSION, type PricingConfig } from '@realaddr/domain';
 import { randomBytes } from 'node:crypto';
 import { secretKey } from './world-crypto.js';
+import { validateNamespaceConfig, type NamespaceConfig } from '@realaddr/ens';
 
 export interface ApiConfig {
   appEnv: 'local' | 'event' | 'production';
@@ -13,6 +14,7 @@ export interface ApiConfig {
   rateLimitKey: Buffer;
   pricing: PricingConfig | null;
   world?: { clientId: string; clientSecret: string; redirectUri: string; sessionKey: Buffer; mailKey: Buffer };
+  ens?: { rpcUrl: string; namespaces: Record<string, NamespaceConfig>; maxGasAtomic?: string };
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
@@ -71,5 +73,22 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     if (env.WORLD_REDIRECT_URI !== redirectUri) throw new Error('invalid_world_redirect_uri');
     world = { clientId: env.WORLD_CLIENT_ID, clientSecret: env.WORLD_CLIENT_SECRET, redirectUri, sessionKey: secretKey(env.WORLD_SESSION_KEY), mailKey: secretKey(env.MAIL_ENCRYPTION_KEY) };
   }
-  return { appEnv, port, origin, projectId, databaseId, collectionPrefix, termsVersion, rateLimitKey, pricing, ...(world ? { world } : {}) };
+  if (env.ENS_READ_ENABLED && !['true', 'false'].includes(env.ENS_READ_ENABLED)) throw new Error('invalid_ens_enabled');
+  let ens: ApiConfig['ens'];
+  if (env.ENS_READ_ENABLED === 'true') {
+    if (appEnv === 'production') throw new Error('ens_testnet_only');
+    try {
+      const rpc = new URL(env.ENS_RPC_URL ?? '');
+      if (rpc.protocol !== 'https:' || rpc.username || rpc.password || rpc.hash) throw new Error();
+      const namespaces: unknown = JSON.parse(env.ENS_NAMESPACES_JSON ?? '');
+      if (!namespaces || typeof namespaces !== 'object' || Array.isArray(namespaces) || !Object.keys(namespaces).length) throw new Error();
+      for (const [id, value] of Object.entries(namespaces)) {
+        if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(id) || !value || typeof value !== 'object' || value.chainId !== 11155111 || value.serviceOrigin !== origin) throw new Error();
+        validateNamespaceConfig(value as NamespaceConfig);
+      }
+      if (env.ENS_DESCRIPTION_MAX_GAS_ATOMIC && !/^[1-9][0-9]{0,6}$/.test(env.ENS_DESCRIPTION_MAX_GAS_ATOMIC)) throw new Error();
+      ens = { rpcUrl: rpc.href, namespaces: namespaces as Record<string, NamespaceConfig>, ...(env.ENS_DESCRIPTION_MAX_GAS_ATOMIC ? { maxGasAtomic: env.ENS_DESCRIPTION_MAX_GAS_ATOMIC } : {}) };
+    } catch { throw new Error('invalid_ens_configuration'); }
+  }
+  return { appEnv, port, origin, projectId, databaseId, collectionPrefix, termsVersion, rateLimitKey, pricing, ...(world ? { world } : {}), ...(ens ? { ens } : {}) };
 }

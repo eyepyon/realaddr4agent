@@ -11,6 +11,7 @@ import type { ApiConfig } from './config.js';
 import { repoRoot } from './paths.js';
 import { WorldRepository } from '@realaddr/db';
 import { registerWorldRoutes } from './world.js';
+import { registerEnsRoutes } from './ens.js';
 
 const mime: Record<string, string> = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
@@ -181,7 +182,7 @@ export function createApp(config: ApiConfig, repository: RealAddrRepository | nu
       return { [kind === 'orders' ? 'paymentIntents' : 'subscriptions']: result.items, nextCursor: result.nextCursor ? codec.encode(result.nextCursor) : null };
     });
   }
-  app.get('/v1/subscriptions/by-ens', protectedUnavailable);
+  const getEnsStatus = registerEnsRoutes(app,config,repository,db,principal);
   for (const [path, param, kind] of [
     ['/v1/payment-intents/:intentId', 'intentId', 'order'],
     ['/v1/subscriptions/:subscriptionId', 'subscriptionId', 'subscription'],
@@ -192,13 +193,11 @@ export function createApp(config: ApiConfig, repository: RealAddrRepository | nu
     const id = request.params[param];
     if (!id || !uuidPattern.test(id)) throw new DomainError('invalid_request', 422);
     if (!ownerReads) throw new DomainError('configuration_incomplete', 503);
-    return kind === 'order' ? ownerReads.getOrder(identity, id) : kind === 'ens' ? ownerReads.getEns(identity, id) : ownerReads.getSubscription(identity, id);
+    return kind === 'order' ? ownerReads.getOrder(identity, id) : kind === 'ens' ? getEnsStatus(identity, id) : ownerReads.getSubscription(identity, id);
   });
   for (const [method, path] of [
     ['POST', '/v1/payment-intents'], ['POST', '/v1/payment-intents/:intentId/pay'],
-    ['POST', '/v1/subscriptions/:subscriptionId/ens-description-transaction'],
   ] as const) app.route({ method, url: path, handler: protectedUnavailable });
-  app.get('/v1/ens/resolve', async (request, reply) => failure(reply, request, 503, 'ens_dependency_unavailable', 'ENS verification is unavailable', true));
   const bootstrapHuman = registerWorldRoutes(app, config, repository, db ? new WorldRepository(db, config.collectionPrefix) : null, principal);
   for (const [method, path] of [
     ['GET', '/v1/admin/session'], ['DELETE', '/v1/admin/session'],

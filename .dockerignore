@@ -48,6 +48,11 @@
 !packages/world/tsconfig.json
 !packages/world/src/
 !packages/world/src/**
+!packages/ens/
+!packages/ens/package.json
+!packages/ens/tsconfig.json
+!packages/ens/src/
+!packages/ens/src/**
 !docs/
 !docs/openapi.json
 !docs/terms.md

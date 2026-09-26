@@ -1,10 +1,10 @@
 # ENSv2と住所契約の紐づけ — 採用設計
 
-更新: 2026-09-26。ENSv2機能の実装・Sepolia接続とデモ検証は初回リリースの対象とするが、利用者への名前発行は希望者だけが初回追加料金を支払う任意オプション。住所契約だけで利用できる。現時点は設計・API契約であり、親ENS名取得、コントラクトdeploy、実名前解決は未実施。料金境界は[pricing.md](pricing.md)に従う。
+更新: 2026-09-27。ENSv2機能の実装・Sepolia接続とデモ検証は初回リリースの対象とするが、利用者への名前発行は希望者だけが初回追加料金を支払う任意オプション。住所契約だけで利用できる。名前予約・購入権のDB処理、照合adapter、NameController、API/CLI接続を実装中。親名の取得可能性と公式Sepolia deploymentを読み取り確認したが、親名取得・controller配備・実paid leaseでの名前発行は未実施。料金境界は[pricing.md](pricing.md)に従う。
 
 ## 1. 使い方
 
-ENSオプションを購入した住所契約ごとに、標準名`f00042.<location-slug>.<parent>.eth`、または希望したカスタム名`<custom-label>.<location-slug>.<parent>.eth`を一つ発行する。未購入の契約はENS status=`not_purchased`であり、名前・resolverのdeploy/発行jobを作らない。`<parent>.eth`は事業者がSepoliaで取得・制御するENSv2名で、取得可能性は未確認。名前は「このAgentが持つ住所契約」を指す。支払い用アドレスの代わりに物理住所をaddr recordへ入れる設計にはしない。
+ENSオプションを購入した住所契約ごとに、標準名`f00042.<location-slug>.<parent>.eth`、または希望したカスタム名`<custom-label>.<location-slug>.<parent>.eth`を一つ発行する。未購入の契約はENS status=`not_purchased`であり、名前・resolverのdeploy/発行jobを作らない。`<parent>.eth`は事業者がSepoliaで取得・制御するENSv2名で、保護された設定から選ぶ。空き状況は取得時にも再検査する。名前は「このAgentが持つ住所契約」を指す。支払い用アドレスの代わりに物理住所をaddr recordへ入れる設計にはしない。
 
 ```mermaid
 flowchart LR
@@ -82,14 +82,14 @@ registry登録ownerはlease.ownerWallet、初期owner roleBitmapは0を基本と
 
 名前は事業者管理の非譲渡設定。顧客へtransfer admin・resolver差し替え・subregistry差し替えを渡さない。事業者が取消可能な名前であり、emancipated/permanent所有とは説明しない。確定ABIに対する実transfer拒否をA-30で証明する。
 
-公式Resolverはsetterのキーによる権限で、名前ごとの隔離は同一instance内では効かない。shared resolverに全Agentを登録してはならない。[Permissioned Resolver](https://docs.ens.domains/ensv2/permissioned-resolver/)
+確認した公式deployment ABIでは、`authorizeTextRoles(bytes dnsName,string key,address account,bool grant)`が名前とkeyに権限を束縛する。以前の「同一instance内で名前を隔離できない」という前提を修正する。本アプリは運用と取消範囲を明確にするため一契約一resolverを維持し、rootのtext/addr/admin権限を顧客へ付与しない。`setText(bytes32 node,string key,string value)`でdescriptionだけを編集する。280文字制限はAPI/CLIの契約であり、公式resolverへ直接送信するownerの文字数まで制限する独自protocolは追加しない。[Permissioned Resolver](https://docs.ens.domains/ensv2/permissioned-resolver/)
 
 ## 7. 発行・更新・失効
 
 1. 住所用x402決済が確定したらDB契約を作り、ENSは`not_purchased`のまま住所利用を開始する。LeaseRegistryへの記録はENS購入の有無にかかわらず全契約へ従来通り実行する。ENS用resolver deploy/名前発行jobは作らない。
 2. owner Agentが有効な自分のleaseについて`POST /v1/payment-intents`に`kind=ens_addon`、`subscriptionId`、`nameType=floor`（省略時）または`nameType=custom`と`customLabel`を送り、初回ENS追加の固定見積・区別されたx402 intentを作る。見積には正規化済みFQDNと選択した標準/カスタム販売価格をsnapshotし、支払い前にそのFQDNの決定的guardを予約する。見積期限は10分後とlease期限の早い方。新slot holdと新規lease日次quotaは使わない。価格設定の欠落・不一致、親名/拠点名の残存期限不足、上位・拠点registry/controller等の発行設定不備なら販売を停止し、支払い可能な402を返さない。payer一致、Intercepta判定、金額/network/asset確認、冪等性、結果不明の照合は住所購入と同じ安全条件を適用する。不明送金を見積期限だけで未払いに戻したり名前guardを解放したりしない。未払いが確定した場合だけ予約guardを解放する。
 3. `ens_entitlements/{leaseId}`で`pending_payment → paid → refund_pending → refunded`を管理し、`intentId`、確定した`paidPaymentId`/`paidAt`、`pricingVersion`、`version`、`nameType`、label、正規化済みFQDN、`namePolicyVersion`を保持する。ENS追加料金の決済確定と同じDB transactionでentitlementを一回だけ`paid`へ変え、名前guardをそのleaseへ永続固定し、発行outboxも必ず保存する。予約中のguardは未払い確定時のみ解放し、支払済み・発行済みのcanonical FQDNは別leaseへ再利用しない。settle後にleaseが停止・期限切れと判明した場合はoutboxをblockedにして`paid`を維持し、発行を保留する。同じleaseが更新され有効になった後に同じjobを再開する。発行結果不明・再試行可能な障害は照合を続け、返金を開始しない。復旧不能な発行失敗が確定した場合だけ、提出済みtxをすべて照合し、chain上の使用可能な名前があればdisable/revokeしてfinality付きread-backで無効を確認し、遅延jobをversion/generationでfenceした後、ENS追加代金だけを元payerへ全額自動返金する。返金準備後は`refund_pending`で権利を停止し、返金確定後は`refunded`を保持して自動再購入させない。名前guardは解放せず、住所利用は維持する。`pending`/`ready`は支払済みだけに使い、技術的なretry・不明結果の照合・再送で二重購入または二重課金をしない。[状態・transaction設計](../.kiro/specs/realaddr/design.md)と[料金契約](pricing.md)を合わせて適用する。
-4. LeaseRegistryがSepoliaで確定してから、契約別resolverをfactoryで作成する。再送では既存deployment/receiptを照合し、重複deployを防ぐ。
+4. LeaseRegistryがSepoliaで確定してから、controllerの初回bind内で契約別resolverを公式factoryから作成する。resolver生成とrecord・名前登録は同一transactionにまとめる。再送では既存binding/deployment/receiptを照合し、重複deployを防ぐ。
 5. NameControllerが支払済みentitlementに固定されたcanonical labelを拠点別UserRegistryへ登録し、固定record・description委任・bindingを設定する。controller内で可能な処理を一transactionにまとめ、途中状態はreadyにしない。
 6. receipt/finality確認後に公式Universal Resolver経由でread-backし、親`.eth`→事業者上位registry→exactな拠点登録→その拠点UserRegistry→exactな契約label、owner、resolver、leaseKey、期限が一致したら`ready`。
 7. 住所renewは住所料金だけを請求する。ENS未購入なら`not_purchased`を維持し、既購入ならLeaseRegistry更新後に同じ名前の期限同期jobを作る。controllerはversion/期限を検証し、契約名期限を親名・拠点名・lease期限の最小以下にする。同時更新はlease versionで整列し古いjobをskipする。ENS維持の追加料金を再請求しない。
@@ -102,12 +102,16 @@ registry登録ownerはlease.ownerWallet、初期owner roleBitmapは0を基本と
 
 ## 8. NameControllerの内部契約
 
-以下は本アプリ独自の予定interface。ENS公式ABIではない。
+以下は本アプリ独自のinterface。ENS公式ABIではない。
 
 ```solidity
-function bindLease(bytes32 leaseKey, bytes32 buildingKey, uint16 slot,
-    uint8 nameType, uint16 namePolicyVersion, string calldata label, address owner, bytes32 holderSalt,
-    address resolver, uint64 leaseVersion) external;
+struct BindRequest {
+    bytes32 leaseKey; bytes32 buildingKey; uint16 slot;
+    uint8 nameType; uint16 namePolicyVersion; string label;
+    address owner; bytes32 holderSalt; uint64 leaseVersion;
+}
+function configureNamespace(bytes32 buildingKey, string calldata slug, address registry) external;
+function bindLease(BindRequest calldata request) external returns (bytes32 node, address resolver);
 function syncLease(bytes32 nameNode, uint64 leaseVersion) external;
 function disableName(bytes32 nameNode, uint64 leaseVersion) external;
 function getBinding(bytes32 nameNode) external view returns
@@ -119,7 +123,7 @@ controllerに事業者親namespace、信頼済み拠点slugと拠点別UserRegis
 
 既存LeaseRegistryに保存するholderCommitmentは、オンチェーン検証可能な`keccak256(abi.encode(ownerWallet, holderSalt))`に統一する。holderSaltをDBで生成し、binding呼び出しで照合する。saltはこの時点で公開になるため、秘匿の根拠として扱わない。
 
-同じname/lease/versionは冪等、同leaseのrename・2つ目のlabel、別leaseや別ownerへの置換は拒否する。approved resolver/factory由来を確認し、想定外のresolverを渡せない。支払済み・発行済みbindingは失効・取消後も別leaseへ再利用しない。一般利用者のtext書込ではbindingを変更できない。
+同じname/lease/versionは冪等、同leaseのrename・2つ目のlabel、別leaseや別ownerへの置換は拒否する。resolverをcallerから受け取らず、固定factoryの`deployProxy(address implementation,uint256 salt,bytes data)`で生成してimplementationを確認する。支払済み・発行済みbindingは失効・取消後も別leaseへ再利用しない。一般利用者のtext書込ではbindingを変更できない。
 
 ## 9. 名前を使うときの検証
 
@@ -157,3 +161,13 @@ description用のtxは代金の支払いではなく、AgentがSepoliaのgasを�
 ## 12. 実装前に確定するもの
 
 親名の取得と制御、上位registryと拠点別registryの接続・期限・権限、公式deployment/ABI/commit、viem等の対応version、MultiBaas Sepolia、test ETH、role設定、親resolverのfallback挙動をT-00/T-12で検証する。ベータのinterfaceが変わった場合はpinを更新し、影響する登録/解決/権限の代表ケースだけを再確認する。[最小チェック](acceptance.md)を基準にし、変更と無関係な全契約テストは繰り返さない。具体的contract addressや使用可能な親名を推測で埋めない。
+
+## 13. 実装済みの接続設定と境界
+
+`packages/ens`はviemの固定版を使用する読み取りadapter。`ENS_READ_ENABLED=false`が既定で、trueにはHTTPSの`ENS_RPC_URL`と、building UUIDをkey、`NamespaceConfig`をvalueとする`ENS_NAMESPACES_JSON`が必要。chainId、親名、拠点slug、期待owner、service origin、各contractのaddress/codeHashを保護設定から読み込む。値をdocsやclient bundleへ複製しない。`proxyLogic`もpinし、controllerとleaseKeyからCREATE2 resolver addressと契約ごとのruntime hashを導出する。factoryの`verifyContract`が返す現在のimplementationも一致させる。
+
+照合は単一finalized blockのhashを前後で確認し、Universal Resolverのroot、exact hierarchy、controllerの固定参照、LeaseRegistry、resolver recordsと顧客権限を検査する。RPC失敗・期限超過はpendingにする。公開応答に内部UUID、営業所住所、転送先、World情報を含めない。外部照合後にDBの現在version/stateも再検査する。`ENS_DESCRIPTION_MAX_GAS_ATOMIC`未設定時はunsigned transaction準備を拒否する。CLIの`ens describe --prepare-only`は準備までであり、送信器・receipt照合の未接続を成功扱いしない。
+
+`pnpm ens:check`は読み取り専用診断。`ENS_CONFIG_FILE`、`ENS_RPC_URL`、`ENS_REQUIRED_EXPIRY`を要求し、任意の`ENS_BINDING_FILE`で一契約の期待値も照合できる。未設定・未確認は非0終了。購入API、決済・ENS書込worker、返金実行は未接続のため、DB内の購入処理を実装したことだけで販売を開かない。
+
+親名取得は`scripts/ens-register-parent.mjs`で公式deploymentと価格を再取得して未署名planを作り、`scripts/ens-parent-serve.mjs`で人間のwallet承認を補助する。plan、wallet、rpc、stateは保護されたローカル設定に限定する。公式のtest tokenによる親名料金と、Base Sepoliaの本アプリENS add-on料金は別の費用である。commit待機、register、receipt/finalityを確認しても、それだけでは上位・拠点registryの接続完了や利用者向け名前発行を意味しない。

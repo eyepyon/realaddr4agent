@@ -12,6 +12,7 @@
 | T-05 住所更新 | 部分実装・ローカル検証済み | 同一leaseの更新排他、固定見積、確定支払いの一度だけの反映、結果不明保持、保存済みreceiptからのworker復旧。公開更新API・実決済・chain/ENS同期は未接続 |
 | T-00/T-04 Intercepta | 初期client・内部gate実装、live疎通確認済み | 認証付きQuick ScanでHTTP 200・schema一致を確認。危険traitのdeny・未知holdと購入/更新の検査を実装。安全基準・coverage未確認でallowは無効。公開pay・実署名器は未接続 |
 | T-07 LeaseRegistry | 配備済み・DB/worker読み取り照合を部分実装、全体未完了 | 初期権限とMultiBaas紐づけを確認済み。購入・更新のpaid provenance、永続identity、claim/version付き確定block照合を実装しローカル検証。照合は既定無効。実lease記録・取消、event有効化、indexed eventsと永続cursor/reorg回復は未完了 |
+| T-00/T-12/T-13/T-14 ENSv2 | 部分実装・ローカル検証、公式Sepolia読み取り確認済み | 名前予約・一回限りの購入権、controller、exact hierarchy照合、公開/owner API、CLIを実装。親名取得とnamespace構築、書込worker、paid leaseでのlive発行・権限拒否は残件。販売とevent ENS照合は既定無効 |
 | T-02/T-08 所有者向け状態取得 | 部分実装・ローカル検証済み | 注文・契約の一覧と詳細、ENS購入状態をFirestoreから返す。所有権、応答の公開field制限、署名付きcursor、既存CLIの状態取得を確認 |
 | T-05/T-16 worker・outbox | 部分実装・ローカル検証済み | Firestore claim/generation/期限、保存済み支払いからの発行復旧、Cloud Tasks REST配信・結果照合とSchedulerの永続cursor。実送金・eventのchain照合・実Cloud Tasks/Scheduler接続は未検証 |
 | T-08/T-18/T-19 UI | 部分着手 | 公開HTML/AEO、標準SaaSの画面、実APIへの接続。業務統合・実管理者ログインは別途 |
@@ -20,6 +21,18 @@
 | T-16 GCP | 独自ドメインHTTPS確認済み・全体未完了 | WIFとeventイメージbuild/push、runtime IAM検査、初回Cloud Run配備、公開後100項目と後続plan差分0を確認。TLS発行・独自ドメイン8経路の表示と拒否を確認。Tasks/Schedulerの実配信、実Firebase利用者client試験、外部業務連携は残件 |
 
 ## 検証の記録
+
+### T-00/T-12/T-13/T-14 ENSv2の予約・照合・登録準備
+
+`EnsRepository`へ名前と料金の固定見積、canonical guardの原子的予約、支払根拠の検査、決済不明時の予約保持、一度だけのpaid反映とoutbox、未払い確定時だけの解放を追加した。支払済み名は別leaseへ再利用しない。unsigned descriptionはowner・lease version・paid/bindingの再検査と冪等保存を行い、送信完了を偽装しない。
+
+`RealAddrNameController`は実LeaseRegistryのholder commitment、slot、version、期限を検査し、公式factoryを呼ぶ初回bindで専用resolver生成・record設定・名前登録を一transactionへまとめる。owner registry roleは0、descriptionだけを委任し、通常更新で取消を復活させない。公式ABIと対応sourceを照合した。Resolver権限が名前とkeyの双方に束縛されること、proxy runtimeが契約saltごとに異なることを設計へ反映した。
+
+Sepolia RPCで公式deploymentのruntime、root階層、親候補の空き、registrar待機時間、test token価格とmintのeth_callを確認した。確認値は未追跡の保護記録へ保存した。managed resolver proxyのruntimeがartifactと一致しなかったため、それを信用せず、照合済みの直接Universal Resolverを採用した。人間署名用の親名planは未署名であり、取得済みとは扱わない。
+
+実施した検証: ENS DBのEmulator重点5件、CLI wire 1件、API設定・owner/ENS HTTP重点7件とdescription冪等性の追加確認、全workspace型検査が通過。reader 9件、人間署名補助flow 6件と実HTTP/CAS 1件も通過。固定版FoundryとSolidityで既存LeaseRegistry 12件・新controller 5件が通過し、両artifactをcompiler metadata/source一致検査付きで出力した。controllerのENS相手はlocal doubleであり、公式chainでの登録・権限拒否の証拠ではない。local設定でAPI/worker/Webのコンテナ用buildが通過した。
+
+未実施: 親名取得、上位/拠点registry/controllerの実配置・接続、実paid leaseでの登録→解決→住所取得・description編集と禁止操作、送信器/worker/reorg回復・返金、3ツールのconnected smoke。これらのT-12/T-13/T-14完了チェックは付けない。未接続の購入APIは引き続き販売を拒否する。
 
 ### T-03/T-06 World sandboxと人間専用の郵便設定
 

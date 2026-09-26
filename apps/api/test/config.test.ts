@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { loadConfig } from '../src/config.js';
 import { CURRENT_TERMS_VERSION } from '@realaddr/domain';
+import type { NamespaceConfig } from '@realaddr/ens';
 
 const eventEnvironment: NodeJS.ProcessEnv = {
   APP_ENV: 'event',
@@ -63,4 +64,11 @@ test('World stays disabled by default and enabled configuration fails closed', (
   assert.ok(loadConfig(configured).world);
   assert.throws(() => loadConfig({ ...configured, WORLD_REDIRECT_URI: 'https://example.invalid/callback' }), { message: 'invalid_world_redirect_uri' });
   assert.throws(() => loadConfig({ ...configured, MAIL_ENCRYPTION_KEY: 'invalid' }), { message: 'invalid_world_encryption_key' });
+});
+
+test('ENS boot validates every namespace pin and canonical configuration',()=>{
+ const pin={address:('0x'+'1'.repeat(40)) as NamespaceConfig['parentOwner'],codeHash:('0x'+'a'.repeat(64)) as NamespaceConfig['proxyLogic']['codeHash']};
+ const namespace:NamespaceConfig={chainId:11155111,parentName:'example.eth',locationSlug:'tokyo',parentOwner:pin.address,locationOwner:pin.address,serviceOrigin:'https://address.chain.tokyo',universalResolver:pin,rootRegistry:pin,ethRegistry:pin,upperRegistry:pin,locationRegistry:pin,factory:pin,resolverImplementation:pin,userRegistryImplementation:pin,proxyLogic:pin,nameController:pin,leaseRegistry:pin};
+ const id='11111111-1111-1111-1111-111111111111',env={...eventEnvironment,ENS_READ_ENABLED:'true',ENS_RPC_URL:'https://example.invalid',ENS_NAMESPACES_JSON:JSON.stringify({[id]:namespace})};assert.ok(loadConfig(env).ens);
+ for(const changes of [{parentName:'OTHER.eth'},{locationSlug:'invalid.slug'},{userRegistryImplementation:{address:pin.address,codeHash:'bad'}},{proxyLogic:{address:pin.address,codeHash:'bad'}},{universalResolver:{address:'0x'+'0'.repeat(40),codeHash:pin.codeHash}}])assert.throws(()=>loadConfig({...env,ENS_NAMESPACES_JSON:JSON.stringify({[id]:{...namespace,...changes}})}),{message:'invalid_ens_configuration'});
 });

@@ -96,8 +96,9 @@ async function main(): Promise<never> {
   }
   if (group === 'locations' && action === 'list') return result(await call('/v1/locations'));
   if (group === 'lease' && action === 'status') {
-    const id = requireOption('--subscription');
-    return result(await call(`/v1/subscriptions/${encodeURIComponent(id)}`));
+    const name = option('--name'), id = option('--subscription');
+    if ((!name && !id) || (name && id)) inputError('Specify exactly one of --subscription or --name');
+    return result(await call(name ? '/v1/subscriptions/by-ens?name=' + encodeURIComponent(name) : '/v1/subscriptions/' + encodeURIComponent(id!)));
   }
   if (group === 'mail' && action === 'status') {
     const id = requireOption('--subscription');
@@ -109,6 +110,24 @@ async function main(): Promise<never> {
   if (group === 'intent' && action === 'status') {
     const id = requireOption('--intent');
     return result(await call(`/v1/payment-intents/${encodeURIComponent(id)}`));
+  }
+
+  if (group === 'ens' && action === 'purchase') {
+    const subscriptionId = requireOption('--subscription');
+    const customLabel = option('--name');
+    const nameType = option('--name-type') ?? (customLabel ? 'custom' : 'floor');
+    if (!['floor','custom'].includes(nameType) || (nameType === 'custom' && !customLabel) || (nameType === 'floor' && customLabel)) inputError('Use floor or custom with --name');
+    const idempotencyKey = requireOption('--idempotency-key');
+    return result(await call('/v1/payment-intents', { method: 'POST', headers: {'Idempotency-Key': idempotencyKey}, body: JSON.stringify({kind:'ens_addon',subscriptionId,nameType,...(customLabel?{customLabel}:{})}) }));
+  }
+  if (group === 'ens' && action === 'describe') {
+    const subscriptionId = requireOption('--subscription'), text = requireOption('--text');
+    if (!args.includes('--prepare-only')) inputError('Use --prepare-only; the ENS transaction signer is unavailable');
+    if (Array.from(text).length > 280) inputError('Description must contain at most 280 characters');
+    const expectedLeaseVersion = Number(requireOption('--expected-version'));
+    if (!Number.isSafeInteger(expectedLeaseVersion) || expectedLeaseVersion < 1) inputError('Expected version must be a positive integer');
+    const idempotencyKey = requireOption('--idempotency-key');
+    return result(await call('/v1/subscriptions/'+encodeURIComponent(subscriptionId)+'/ens-description-transaction', { method: 'POST', headers: {'Idempotency-Key': idempotencyKey}, body: JSON.stringify({description:text,expectedLeaseVersion}) }));
   }
   if (group === 'ens' && action === 'status') {
     const id = requireOption('--subscription');

@@ -1,0 +1,1 @@
+{"name":"@realaddr/ens","version":"0.0.0","private":true,"type":"module","exports":"./src/index.ts","scripts":{"typecheck":"tsc -p tsconfig.json","test":"tsx --test test/*.test.ts"},"dependencies":{"viem":"2.40.0"}}

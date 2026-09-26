@@ -2,7 +2,7 @@
 
 AIエージェントがx402で実住所の利用区画を契約し、ENSv2名で住所契約を参照し、World IDによる人間承認後に郵便転送設定を有効化するサービス。
 
-**仕様に加えて、ローカルの実行基盤、Agent認証、Firestore repository、公開ページと一部APIを実装中です。** Agent認証済みownerのpayment-intent/subscription一覧・詳細とENS状態readが利用できます。これらはtenant・agentで範囲を限定し、転送先全文などの秘匿fieldは返しません。購入・更新・支払いmutationは公開せず、ENS名前検索による契約取得も利用できません。外部ENS検証なしにENSをreadyとせず、mailは支払い根拠と適用済み同意を検査し、根拠のないenabled profileはfail closedです。住所購入の内部DB処理には、決済結果不明時の予約保持、確認済み支払いからの契約発行、未払い確定時の解放を追加しました。更新の内部処理も一つの未解決注文、支払い結果不明の保持、確認済みreceiptからの復旧、確定未払い時の解放を扱います。これらは公開更新APIや実決済の有効化を意味しません。外部検証adapterと決済workerは未接続で、公開購入・更新APIは引き続き販売を拒否します。Firestore Emulatorでの検証範囲は[実装状況](docs/implementation-status.md)を参照してください。GCP公開とMultiBaasのSepolia status照会は確認済みですが、x402決済・World・Intercepta・ENSv2と契約操作の実接続は未完了です。仕様作成日: 2026-09-25。初回リリースは実サービス接続と永続化を伴う縦断フローを完成させます。
+**仕様に加えて、ローカルの実行基盤、Agent認証、Firestore repository、公開ページと一部APIを実装中です。** Agent認証済みownerのpayment-intent/subscription一覧・詳細とENS状態readが利用できます。これらはtenant・agentで範囲を限定し、転送先全文などの秘匿fieldは返しません。購入・更新・支払いmutationは公開せず、ENS名前検索による契約取得は、namespaceとcode pinを検証した明示設定がある場合だけ利用できます。eventでは未有効です。外部ENS検証なしにENSをreadyとせず、mailは支払い根拠と適用済み同意を検査し、根拠のないenabled profileはfail closedです。住所購入の内部DB処理には、決済結果不明時の予約保持、確認済み支払いからの契約発行、未払い確定時の解放を追加しました。更新の内部処理も一つの未解決注文、支払い結果不明の保持、確認済みreceiptからの復旧、確定未払い時の解放を扱います。これらは公開更新APIや実決済の有効化を意味しません。外部検証adapterと決済workerは未接続で、公開購入・更新APIは引き続き販売を拒否します。Firestore Emulatorでの検証範囲は[実装状況](docs/implementation-status.md)を参照してください。GCP公開とMultiBaasのSepolia status照会は確認済みですが、x402決済・World・Intercepta・ENSv2と契約操作の実接続は未完了です。仕様作成日: 2026-09-25。初回リリースは実サービス接続と永続化を伴う縦断フローを完成させます。
 
 HTTP workerにはFirestoreの実行権・再試行管理と、保存済みの確認済み支払いから契約発行を復旧する処理、Cloud Tasks REST dispatcher、Scheduler sweep recoveryを実装しました。送金handlerは未接続、chain照合は既定無効で、専用主体のFirestore操作・DB拒否とqueue権限は確認しました。Cloud Runの未認証拒否は確認済みですが、実GCPのCloud Tasks/SchedulerによるOIDC配信は未検証です。管理主体によるlive Rulesのdeny評価と実未認証拒否は確認済みで、実Firebase他利用者client試験は残件です。未接続処理を成功扱いせず、状態を永続化して保留します。
 
@@ -13,6 +13,8 @@ LeaseRegistryをEthereum Sepoliaへ実配備し、独立RPCで検証、MultiBaas
 InterceptaのQuick Scan client、購入・更新の内部screening gate、`pnpm intercepta:scan`診断コマンドを追加しました。認証付き診断でHTTP 200と応答schema一致を確認しましたが、結果は`hold/provider_policy_unconfirmed`です。数値の安全基準とchain範囲が未確定のため、現在は明示的な危険traitを拒否し、それ以外を保留します。公開pay/署名器へは未接続です。[Intercepta接続準備](docs/intercepta.md)を参照してください。
 
 World sandboxのOIDC adapter、人間sessionとowner wallet proof、Firestoreの明示同意・宛先version管理、人間専用フォームをeventへ配備しました。設定の既定は無効で、eventでは専用web設定を有効化し、公開後の未認証・Agent拒否を確認しました。live認証・token交換と実paid leaseでの承認は未検証です。eventの模擬proofを本番の本人確認や法的KYCとは扱いません。[World接続手順](docs/world.md)を参照してください。
+
+ENSv2の名前予約・一度だけの購入権、契約別Resolverを生成するNameController、finalized blockでの階層・契約照合、owner APIとCLIを実装しました。公式Sepolia deploymentと親名の取得可能性は読み取り確認済みですが、親名取得・namespace構築・実paid leaseでの名前発行は未完了です。販売は引き続き停止し、人間署名による親名取得を準備しています。[ENSv2設計と設定](docs/ensv2.md)を参照してください。
 
 ## 読む順序
 
