@@ -59,7 +59,7 @@ DockerfileはNode 22.21.0のofficial registry digestとpnpm 11.19.0を固定し�
 docker build --build-arg VITE_APP_ENV=local --build-arg VITE_TERMS_VERSION=event-demo-1 -t realaddr-local-check .
 ```
 
-これはlocal検証用commandで、今回Docker daemonが利用できず未実行。既存Node toolingによるlocalの型検査/API/worker/Web buildは通過した。event imageは正式なterms versionと公開設定が確定するまでbuildしない。実image build/run、image push、Cloud Run配備、スポンサー接続、DNSは未実施。
+これはlocal検証用command。端末のDocker daemonは利用できなかったが、Linux CIで同じlocal設定のimage buildとweb/worker起動・拒否確認が通過した。既存Node toolingによる型検査/API/worker/Web buildも通過した。event imageは正式なterms versionと公開設定が確定するまでbuildしない。event image build/push、Cloud Run配備、スポンサー接続、DNSは未実施。
 
 ## 通常更新用deploy workflow
 

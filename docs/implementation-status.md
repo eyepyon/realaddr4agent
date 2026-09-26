@@ -226,11 +226,11 @@ app foundationの実applyは17 add・0 update・0 deleteで成功した。live�
 
 APIのevent起動はresource/collection prefixと共有default DBの明示設定を要求し、Firestore clientへ検証済みdatabase IDを渡す。demo project、不正project ID、Emulator接続、鍵credentialの環境変数を拒否する。localはEmulator必須と既存のdefault設定を維持する。API型検査と`apps/api/test/config.test.ts`の3件は通過した。
 
-Docker Desktopは内部ingest socketのrename/accessエラーでbackendが停止した。既存Desktopの起動を確認したが、reset、state削除、OS設定変更は実施していない。local設定の型検査・API/worker/Web buildは通過した。実コンテナ検査用に`container-check.yml`を追加し、GCP認証なしのLinux runnerでlocal demo imageをbuildする。起動containerはネットワークを無効にし、内部loopbackだけでweb health 200、worker未認証401/no-store、未知roleの拒否を検査する。DB/queue操作は行わず、作成したcontainerとimageだけを削除する。script構文検査は通過、実build/runはCI実行待ち。
+Docker Desktopは内部ingest socketのrename/accessエラーでbackendが停止した。既存Desktopの起動を確認したが、reset、state削除、OS設定変更は実施していない。local設定の型検査・API/worker/Web buildは通過した。実コンテナ検査用に`container-check.yml`を追加し、GCP認証なしのLinux runnerでlocal demo imageをbuildする。起動containerはネットワークを無効にし、内部loopbackだけでweb health 200、worker未認証401/no-store、未知roleの拒否を検査する。DB/queue操作は行わず、作成したcontainerとimageだけを削除する。script構文検査は通過し、後続のLinux CIで実build/runも通過した。
 
 正式termsは引き続き未確定で、event image作成・push・Cloud Run配備は行わない。CI成功とデプロイ成功を区別し、T-16を完了扱いしない。
 
-最初のLinux container checkでは、pnpmがesbuildの実行fileをnative binaryへ最適化するため、Node経由のCLI起動が失敗した。固定済みesbuildのJavaScript APIで同じbundle設定を実行する形へ修正し、local型検査・API/worker/Web buildは通過した。通常CIは成功、修正後のLinux image検査は再実行待ち。
+最初のLinux container checkでは、pnpmがesbuildの実行fileをnative binaryへ最適化するため、Node経由のCLI起動が失敗した。固定済みesbuildのJavaScript APIで同じbundle設定を実行する形へ修正し、local型検査・API/worker/Web buildは通過した。修正後の同一commitで通常CIとLinux container checkが成功した。Docker imageのbuild/export、webの内部loopback health 200、workerの未認証401/no-store、未知role拒否、作成したcontainer/imageのcleanupを実確認した。local demo設定でnetworkを無効にした検査であり、DB/queue操作・event image push・GCP配備は行っていない。
 
 ## T-16 手動更新workflowの実装
 
