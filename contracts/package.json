@@ -1,0 +1,14 @@
+{
+  "name": "@realaddr/contracts",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "build:contracts": "forge build",
+    "test:contracts": "forge test"
+  },
+  "devDependencies": {
+    "@noble/hashes": "1.8.0",
+    "@noble/hashes": "1.8.0",
+    "@openzeppelin/contracts": "5.4.0"
+  }
+}

@@ -162,7 +162,7 @@ effective enabledは毎要求で、適用済み同意の宛先version一致（�
 住所利用サービスの証明であり不動産所有権ではない。DB契約を利用可否の正とし、chainは事業者発行の期間付き記録。オンチェーン転送機能はない。
 
 ```solidity
-// 実装予定interface。コンパイル済みではない。
+// contracts/src/LeaseRegistry.sol の公開interface。
 function recordLease(bytes32 leaseKey, bytes32 buildingKey, uint16 slot,
     bytes32 holderCommitment, uint64 expiresAt, uint64 version) external;
 function revokeLease(bytes32 leaseKey, uint64 version) external;
@@ -172,6 +172,10 @@ function getLease(bytes32 leaseKey) external view returns
 ```
 
 leaseKey/buildingKeyはランダム32byte、holderCommitmentはkeccak256(abi.encode(ownerWallet, holderSalt))。saltはDBで生成するがENS binding検証時に公開となるため匿名性を保証しない。World subject/住所hash/個人metadata URIは記録しない。WRITER_ROLEのみ更新、adminのみrole管理。slot!=0、version単調増加、同じbuilding/slot二重登録不可。renewでholder/slotを変更できない。
+
+registryの区画占有は、未取消かつ `expiresAt > block.timestamp` の現在契約に限る。期限切れ・取消後は別leaseKeyで同じ区画を再利用でき、旧記録は保持する。旧leaseの同version再送は区画占有を書き換えず、旧leaseの取消も現在の占有が自分の場合だけ解放する。旧leaseのpaid revivalを記録する場合は、別の有効な現在契約が占有していれば拒否する。遅延したoutboxの照合用に過去の正の期限も記録できるが、現在の占有を置換しない。これはDBのslot所有・paid状態の検査を代替しない。
+
+leaseKey/buildingKey/holderCommitmentのゼロ値、expiry/versionのゼロを拒否し、未知leaseのread/revokeは明示エラーにする。versionは欠番を許す単調増加とし、同version・同内容の再送ではイベントも重複発行しない。既存leaseのbuilding/slot/holderは不変。constructorで明示したadminとwriterへそれぞれのroleを付与し、adminにはwriter権限を暗黙付与しない。OpenZeppelinのrole管理と本人のrole返上を用いる。
 
 同version同内容は冪等、同version別内容はrevert。revoked解除不可。pauseはwrite停止、read可。資金を預からない。LeaseRecorded/LeaseRevokedを発行しMultiBaas経由でwrite/read/event照会する。writeはdeploymentの署名方式によるが、少なくともread/event同期はlive MultiBaasを使用。
 

@@ -5,6 +5,8 @@
 **/.cache/
 **/coverage/
 **/test-results/
+contracts/out/
+contracts/cache/
 *.tsbuildinfo
 *.log
 

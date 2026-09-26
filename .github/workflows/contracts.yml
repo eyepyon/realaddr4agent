@@ -1,0 +1,70 @@
+name: Contracts
+
+on:
+  pull_request:
+    paths:
+      - contracts/**
+      - pnpm-workspace.yaml
+      - pnpm-lock.yaml
+      - package.json
+      - scripts/export-lease-registry.mjs
+      - scripts/export-lease-registry.mjs
+      - .github/workflows/contracts.yml
+  push:
+    branches: [main]
+    paths:
+      - contracts/**
+      - pnpm-workspace.yaml
+      - pnpm-lock.yaml
+      - package.json
+      - scripts/export-lease-registry.mjs
+      - scripts/export-lease-registry.mjs
+      - .github/workflows/contracts.yml
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa
+        with:
+          version: 11.19.0
+          run_install: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.21.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Verify and extract pinned contract tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          tool_dir="$RUNNER_TEMP/contract-tools"
+          mkdir -p "$tool_dir"
+          curl --fail --location --retry 3 https://github.com/foundry-rs/foundry/releases/download/v1.7.1/foundry_v1.7.1_linux_amd64.tar.gz --output "$tool_dir/foundry.tar.gz"
+          echo "cf7e688ed0c4c48adffca788b496076e31060b67ac5afe1e43dbb5499c20c88b  $tool_dir/foundry.tar.gz" | sha256sum --check
+          tar -xzf "$tool_dir/foundry.tar.gz" -C "$tool_dir"
+          curl --fail --location --retry 3 'https://raw.githubusercontent.com/ethereum/solc-bin/gh-pages/linux-amd64/solc-linux-amd64-v0.8.30+commit.73712a01' --output "$tool_dir/solc"
+          echo "f3e987dc6ecebd4bd350c48edcbc320b46cf9e3109bd3fc3d88f1acaf4c428f7  $tool_dir/solc" | sha256sum --check
+          chmod +x "$tool_dir/solc"
+          "$tool_dir/forge" --version
+          "$tool_dir/solc" --version
+          echo "$tool_dir" >> "$GITHUB_PATH"
+          echo "FOUNDRY_SOLC=$tool_dir/solc" >> "$GITHUB_ENV"
+      - run: forge build --offline
+        working-directory: contracts
+      - run: forge test --offline
+        working-directory: contracts
+      - run: node scripts/export-lease-registry.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: lease-registry-artifacts
+          path: |
+            contracts/dist/*.json
+            contracts/out/LeaseRegistry.sol/LeaseRegistry.json
+          if-no-files-found: error
+          retention-days: 7
