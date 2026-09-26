@@ -1,6 +1,6 @@
 # LeaseRegistryのローカルartifactと手動登録
 
-T-07のローカルcontract準備手順。walletは未準備で、Sepolia deploy、MultiBaasへのABI登録・link、実write/read/eventsは未実施。chain操作workerは未接続で、ローカルbuild/testだけではT-07を完了にしない。
+T-07のcontract準備と手動登録手順。本人が準備したwalletはEthereum Sepolia上で公開read-only確認済み（checksum形式、残高あり、codeなし）で、MultiBaasへのwallet接続は本人から完了の報告を受けた。registry library definitionを登録し、versionのread-backとABI・creation bytecodeのartifact一致を確認した。これはlibrary登録のみで、実deploy/transaction、roles設定、contract read/write/eventsは未実施。chain操作workerは未接続で、T-07は未完了。
 
 ## Buildとexport
 
@@ -36,7 +36,7 @@ compiler/settings/contract/constructor不一致、空bytecode、未解決library
 
 ### artifact投入と照合
 
-[公式Library手順](https://docs.curvegrid.com/multibaas/manage-contracts)はForge compilation artifactまたはABIのJSON uploadを支持する。ABI単体にはdeploy用bytecodeがないため、今回は`LeaseRegistry.json`を優先する。flattened Solidityやstandard JSON compiler inputの投入は前提にしない。実deploymentでuploadが受理されることは登録時に確認する。
+[公式Library手順](https://docs.curvegrid.com/multibaas/manage-contracts)はForge compilation artifactまたはABIのJSON uploadを支持する。ABI単体にはdeploy用bytecodeがないため、今回は`LeaseRegistry.json`を優先する。flattened Solidityやstandard JSON compiler inputの投入は前提にしない。今回は検証済みartifactのABIとcreation bytecodeを公式APIのlibrary definitionとして登録し、versionのread-backと内容一致を確認済み。UI経由のartifact uploadと実deploymentは未検証。
 
 1. 人間がwalletを準備し、Ethereum Sepoliaとgas残高を確認する。秘密鍵・seed phraseをassistant、prompt、repository、ログへ渡さない。初期`admin`と`writer`は別主体を推奨する。
 2. MultiBaasのContracts → LibraryでForge artifactをuploadする。`LeaseRegistry`のconstructorが`admin: address`、`writer: address`で、期待するABIとbytecodeであることを確認し、label/versionを固定する。

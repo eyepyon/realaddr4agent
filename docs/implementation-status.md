@@ -9,7 +9,7 @@
 | T-01 実行基盤 | 実装中 | pnpm workspace、strict TypeScript、Fastify、web/worker、共通CLI、CI workflowとローカル`.env.example`を作成。全経路の起動確認は未完了 |
 | T-02 認証・Firestore・区画 | 部分実装 | wallet challenge、Bearer hash、collection prefix、64 shard予約に加え、住所購入の決済受付・不明状態保持・確定後の契約発行・未払い確定後のhold解放をrepositoryへ実装。外部の検証済み結果を受け取る内部DB境界であり、実決済・外部照合・返金は未実装。更新の内部DB処理はT-05として追加 |
 | T-05 住所更新 | 部分実装・ローカル検証済み | 同一leaseの更新排他、固定見積、確定支払いの一度だけの反映、結果不明保持、保存済みreceiptからのworker復旧。公開更新API・実決済・chain/ENS同期は未接続 |
-| T-07 LeaseRegistry | コントラクト実装・ローカルEVM検証済み | role・slot/version・取消・区画再利用の制約を実装し、Foundry 12件が通過。MultiBaas投入用artifact生成と手動登録手順を追加。実deploy、DB/outboxとの接続、MultiBaas contract read/write/eventsは未完了 |
+| T-07 LeaseRegistry | コントラクト実装・ローカルEVM検証済み、library登録確認済み | role・slot/version・取消・区画再利用の制約を実装し、Foundry 12件が通過。Ethereum Sepolia接続walletのread-only確認とMultiBaas library definitionの登録・version read-back・ABI/creation bytecode一致を確認。実deploy/transaction、role設定、contract read/write/events、DB/outbox接続は未完了 |
 | T-02/T-08 所有者向け状態取得 | 部分実装・ローカル検証済み | 注文・契約の一覧と詳細、ENS購入状態をFirestoreから返す。所有権、応答の公開field制限、署名付きcursor、既存CLIの状態取得を確認 |
 | T-05/T-16 worker・outbox | 部分実装・ローカル検証済み | Firestore claim/generation/期限、保存済み支払いからの発行復旧、Cloud Tasks REST配信・結果照合とSchedulerの永続cursor。実送金・chain同期・実Cloud Tasks/Scheduler接続は未検証 |
 | T-08/T-18/T-19 UI | 部分着手 | 公開HTML/AEO、標準SaaSの画面、実APIへの接続。業務統合・実管理者ログインは別途 |
@@ -27,7 +27,7 @@ Solidity 0.8.30、OpenZeppelin Contracts 5.4.0、EVM Cancunとoptimizer 200 runs
 
 CIの実生成物を調べ、Forgeが再構成したmetadataでは戻り値のない7関数の`outputs`が省略される一方、compiler元データの`rawMetadata`には空配列として残ることを確認した。検証には`rawMetadata`を優先し、object keyとトップレベルentryの並び順だけを正規化してABIを照合する。inputs/outputs/tupleの順序・型・重複entryは維持する。順序差の許可と、tuple順序・型・重複の変更拒否を重点検証した。CIでテスト済みのartifactからローカルexportが成功し、source変更とABIの戻り値型変更をそれぞれ拒否すること、元の内容へ戻すと再び成功することを確認した。修正後の専用CIもbuild・12件のテスト・export・artifact保存まで成功した。
 
-登録用artifact exporterはcompiler設定、ABI、未解決link、各sourceのKeccak-256とcompiler metadataの一致を検査し、ABI・creation/runtime bytecode・SHA-256 manifestを未追跡領域へ生成する。最終CIの3ファイルはローカル生成物とbyte単位で一致し、通常CIも通過した。現在はウォレット未準備のため、[手動登録手順](lease-registry.md)までを準備した。Sepolia deploy、初期role/runtime code照合、MultiBaasのABI登録・link・write/read/events、永続cursor/reorg回復、DBのランダムchain keyとoutbox publisherの統合は残件。T-07全体の完了チェックは付けない。
+登録用artifact exporterはcompiler設定、ABI、未解決link、各sourceのKeccak-256とcompiler metadataの一致を検査し、ABI・creation/runtime bytecode・SHA-256 manifestを未追跡領域へ生成する。最終CIの3ファイルはローカル生成物とbyte単位で一致し、通常CIも通過した。本人が準備したwalletについて、公開Ethereum Sepolia情報のread-only確認でchecksum形式・残高あり・codeなしを確認し、MultiBaasへのwallet接続は本人から完了の報告を受けた。認証済みEthereum Sepolia chain ID 11155111とContracts一覧HTTP 200（アプリregistry未登録）を確認後、registry library definitionのPOSTがHTTP 200、version GETがHTTP 200となり、読み戻したABIとcreation bytecodeが検証済みartifactに一致した。これはlibrary登録の証拠であり、on-chain deploy/transactionではない。Sepolia deploy、transaction/hash、role設定、runtime code照合、contract read/write/events、永続cursor/reorg回復、DBのランダムchain keyとoutbox publisherの統合は残件。T-07全体の完了チェックは付けない。
 
 ### T-00 MultiBaas status 照会
 
