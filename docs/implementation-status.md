@@ -25,9 +25,9 @@
 
 Solidity 0.8.30、OpenZeppelin Contracts 5.4.0、EVM Cancunとoptimizer 200 runsを固定した。ネイティブcompilerでcontractとテストソースをコンパイルできた。workspaceの型検査とlocal設定のbuildも通過した。Foundryの端末への取得は時間切れだったため、固定版・checksum検証付きの専用CIでFoundry 1.7.1のbuild/testを実行し、12件通過・失敗0・skip 0を確認した。ローカルEVMの結果であり、Sepoliaの実write/readや実gas見積ではない。
 
-CIの実生成物を調べ、Forgeが再構成したmetadataでは戻り値のない7関数の`outputs`が省略される一方、compiler元データの`rawMetadata`には空配列として残ることを確認した。検証には`rawMetadata`を優先し、object keyとトップレベルentryの並び順だけを正規化してABIを照合する。inputs/outputs/tupleの順序・型・重複entryは維持する。順序差の許可と、tuple順序・型・重複の変更拒否を重点検証した。CIでテスト済みのartifactからローカルexportが成功し、source変更とABIの戻り値型変更をそれぞれ拒否すること、元の内容へ戻すと再び成功することを確認した。
+CIの実生成物を調べ、Forgeが再構成したmetadataでは戻り値のない7関数の`outputs`が省略される一方、compiler元データの`rawMetadata`には空配列として残ることを確認した。検証には`rawMetadata`を優先し、object keyとトップレベルentryの並び順だけを正規化してABIを照合する。inputs/outputs/tupleの順序・型・重複entryは維持する。順序差の許可と、tuple順序・型・重複の変更拒否を重点検証した。CIでテスト済みのartifactからローカルexportが成功し、source変更とABIの戻り値型変更をそれぞれ拒否すること、元の内容へ戻すと再び成功することを確認した。修正後の専用CIもbuild・12件のテスト・export・artifact保存まで成功した。
 
-登録用artifact exporterはcompiler設定、ABI、未解決link、各sourceのKeccak-256とcompiler metadataの一致を検査し、ABI・creation/runtime bytecode・SHA-256 manifestを未追跡領域へ生成する。現在はウォレット未準備のため、[手動登録手順](lease-registry.md)までを準備する。Sepolia deploy、初期role/runtime code照合、MultiBaasのABI登録・link・write/read/events、永続cursor/reorg回復、DBのランダムchain keyとoutbox publisherの統合は残件。T-07全体の完了チェックは付けない。
+登録用artifact exporterはcompiler設定、ABI、未解決link、各sourceのKeccak-256とcompiler metadataの一致を検査し、ABI・creation/runtime bytecode・SHA-256 manifestを未追跡領域へ生成する。最終CIの3ファイルはローカル生成物とbyte単位で一致し、通常CIも通過した。現在はウォレット未準備のため、[手動登録手順](lease-registry.md)までを準備した。Sepolia deploy、初期role/runtime code照合、MultiBaasのABI登録・link・write/read/events、永続cursor/reorg回復、DBのランダムchain keyとoutbox publisherの統合は残件。T-07全体の完了チェックは付けない。
 
 ### T-00 MultiBaas status 照会
 
