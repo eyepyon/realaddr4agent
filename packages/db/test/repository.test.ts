@@ -14,14 +14,21 @@ const pricing: PricingConfig = {
 test('floor boundaries and collection prefix fail closed', () => {
   for (const invalid of [0, -1, 1.5, 65536, '1', null]) assert.throws(() => validateFloor(invalid));
   assert.equal(validateFloor(65535), 65535);
-  const db = new Firestore({ projectId: `demo-realaddr-${randomUUID()}` });
+  const db = new Firestore({ projectId: `demo-realaddr-${randomUUID()}`, databaseId: 'realaddr' });
+  assert.equal(db.databaseId, 'realaddr');
+  for (const databaseId of ['(default)', 'other']) {
+    const wrongDb = new Firestore({ projectId: 'demo-realaddr-local', databaseId });
+    assert.throws(() => new CollectionMapper(wrongDb, 'realaddr_event_'), (error: unknown) => error instanceof DomainError && error.code === 'invalid_firestore_database');
+  }
+  const implicitDefault = new Firestore({ projectId: 'demo-realaddr-local' });
+  assert.throws(() => new CollectionMapper(implicitDefault, 'realaddr_event_'), (error: unknown) => error instanceof DomainError && error.code === 'invalid_firestore_database');
   assert.throws(() => new CollectionMapper(db, ''));
   assert.throws(() => new CollectionMapper(db, 'orders'));
   assert.equal(new CollectionMapper(db, 'realaddr_event_').name('admin_sessions'), 'realaddr_event_admin_sessions');
 });
 
 test('Firestore challenge replay, tenant authorization, and concurrent slot hold', { skip: !emulator }, async () => {
-  const db = new Firestore({ projectId: `demo-realaddr-${randomUUID()}`, databaseId: '(default)' });
+  const db = new Firestore({ projectId: `demo-realaddr-${randomUUID()}`, databaseId: 'realaddr' });
   const repo = new RealAddrRepository(db, 'realaddr_event_', pricing, { authDomain: 'localhost' });
   const authOnly = new RealAddrRepository(db, 'realaddr_event_', null, { authDomain: 'localhost' });
   assert.throws(() => authOnly.pricing, (error: unknown) => error instanceof DomainError && error.code === 'pricing_unavailable');

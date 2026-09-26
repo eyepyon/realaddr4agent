@@ -6,7 +6,7 @@ import { DomainError, sha256 } from '@realaddr/domain';
 import { OwnerReadRepository, type AgentPrincipal } from '../src/index.js';
 
 test('owner reads isolate principals, allowlist fields, expire without writes and paginate ties', {skip: !process.env.FIRESTORE_EMULATOR_HOST}, async () => {
-  const db = new Firestore({projectId: `demo-realaddr-${randomUUID()}`});
+  const db = new Firestore({projectId: `demo-realaddr-${randomUUID()}`, databaseId: 'realaddr'});
   const now = new Date('2026-09-26T00:00:00Z');
   const repo = new OwnerReadRepository(db, 'realaddr_event_', {now: () => now});
   const p: AgentPrincipal = {tenantId: randomUUID(), agentId: randomUUID(), walletAddress: `0x${'a'.repeat(40)}`, walletChain: 'eip155:84532', credentialId: randomUUID()};
@@ -33,7 +33,7 @@ test('owner reads isolate principals, allowlist fields, expire without writes an
 });
 
 test('owner projections require confirmed payment evidence and never trust stored ENS ready', {skip: !process.env.FIRESTORE_EMULATOR_HOST}, async () => {
-  const db = new Firestore({projectId: `demo-realaddr-${randomUUID()}`});
+  const db = new Firestore({projectId: `demo-realaddr-${randomUUID()}`, databaseId: 'realaddr'});
   try {
     const now = new Date('2026-09-26T00:00:00Z'); const repo = new OwnerReadRepository(db,'realaddr_event_',{now:()=>now});
     const id=randomUUID(), locationId=randomUUID(); const p: AgentPrincipal={tenantId:randomUUID(),agentId:randomUUID(),walletAddress:`0x${'a'.repeat(40)}`,walletChain:'eip155:84532',credentialId:randomUUID()};

@@ -75,6 +75,29 @@ variable "firestore_access_reviewed" {
   type    = bool
   default = false
 }
+variable "firestore_database_id" {
+  type    = string
+  default = "realaddr"
+  validation {
+    condition     = contains(["realaddr", "(default)"], var.firestore_database_id)
+    error_message = "Use realaddr; (default) is allowed only during the explicit migration stage."
+  }
+}
+variable "firestore_database_ownership_reviewed" {
+  type        = bool
+  default     = false
+  description = "Create only after live inventory confirms realaddr is absent and its location/ownership are reviewed; never import an unknown existing database."
+}
+variable "firestore_rules_reviewed" {
+  type        = bool
+  default     = false
+  description = "Enable realaddr runtime only after the named database deny-all Rules release and client denial are verified separately from IAM."
+}
+variable "retain_legacy_default_access" {
+  type        = bool
+  default     = true
+  description = "Preserve the existing app-owned default IAM members through migration; set false only after successful realaddr cutover."
+}
 variable "secret_purposes" {
   type    = set(string)
   default = []

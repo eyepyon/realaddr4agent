@@ -30,7 +30,7 @@ interface Fixture {
 }
 
 async function makeFixture(): Promise<Fixture> {
-  const db = new Firestore({ projectId: `demo-realaddr-${randomUUID()}`, databaseId: '(default)' });
+  const db = new Firestore({ projectId: `demo-realaddr-${randomUUID()}`, databaseId: 'realaddr' });
   try {
     const repo = new RealAddrRepository(db, 'realaddr_event_', pricing, { authDomain: 'localhost' });
     const operator = { verified: true as const, subject: 'operator-test' };

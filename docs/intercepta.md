@@ -1,12 +1,12 @@
 # Interceptaの接続準備
 
-T-00/T-04の初期実装。APIキー取得前のため認証付きlive照会は未実施。公開購入・決済は有効化していない。
+T-00/T-04の初期実装。認証付きQuick Scanのlive照会でHTTP 200と必須schemaを確認した。安全基準・coverage・評価対象chainは未確認のため判定はhold。公開購入・決済は有効化していない。
 
 ## 実装と診断
 
 `packages/intercepta/src/index.ts`のserver-only clientは公式Quick Scan Address endpointだけを呼ぶ。`X-API-KEY`は未追跡の`.env`の`INTERCEPTA_API_KEY`へ設定する。URLを利用者入力から選ばず、redirectも許可しない。応答は64 KiBまで、1照会の総期限は8秒。429のRetry-Afterが短時間で満たせる場合だけ最大1回再試行し、それ以外は保留する。生の応答・description・APIキーは出力しない。
 
-キー取得後、repository rootで次を実行する。`$env:INTERCEPTA_SCAN_ADDRESS`には検査対象の公開EOA addressを指定する。診断だけを行い、署名・送金・注文変更はしない。
+repository rootで次を実行する。`$env:INTERCEPTA_SCAN_ADDRESS`には検査対象の公開EOA addressを指定する。診断だけを行い、署名・送金・注文変更はしない。
 
 ```powershell
 pnpm intercepta:scan --address "$env:INTERCEPTA_SCAN_ADDRESS" --json
@@ -15,6 +15,8 @@ pnpm intercepta:scan --address "$env:INTERCEPTA_SCAN_ADDRESS" --json
 JSONと終了codeだけを機械処理したい場合は`node node_modules/tsx/dist/cli.mjs scripts/intercepta-scan.ts --address "$env:INTERCEPTA_SCAN_ADDRESS" --json`を使う。codeはallow=0、deny=2、hold=3、不正引数=1。現在の未確定policyではallowを返さない。`requestsAttempted`はそのclientの試行数で、キー全体の累積残枠ではない。共有の利用数ledgerとevent環境への配備は未実装。
 
 ## 確認できたschemaと暫定policy
+
+認証付きlive診断は公開EOA一件に対して成功した。HTTP 200、`toxicScore=0`、`traits=[]`、総時間約1.6秒、schema一致を確認した。初回の通信制限による失敗を含め試行2回、成功応答1回。結果は`hold/provider_policy_unconfirmed`であり、実際の支払い先・支払者の検査や決済許可の証拠ではない。Deep Scanは実行していない。
 
 公式[Quick Scan](https://docs.web3antivirus.io/reference/quick-scan-address.md)と[Deep Scan](https://docs.web3antivirus.io/reference/scan-address.md)のOpenAPIは、`toxicScore:number`と`traits:array`を必須とする。各traitは`risk:number`、既知の`name` enum、`txsCount:number`、`description:string`を必須とする。数値の許容範囲・安全の閾値・検査網羅性・endpoint別chain attributionは未確認。Deep Scanへ切り替えるだけで安全判定の不足が解消するとは扱わない。
 

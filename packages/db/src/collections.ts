@@ -25,7 +25,7 @@ export class CollectionMapper {
   readonly prefix: string;
   constructor(private readonly db: Firestore, prefix: string | undefined) {
     this.prefix = validateCollectionPrefix(prefix);
-    if (db.databaseId !== '(default)') throw new DomainError('invalid_firestore_database', 503);
+    if (db.databaseId !== 'realaddr') throw new DomainError('invalid_firestore_database', 503);
   }
   name(logical: LogicalCollection): string {
     if (!ALLOWED.has(logical) || logical.startsWith(this.prefix)) throw new DomainError('invalid_collection', 503);

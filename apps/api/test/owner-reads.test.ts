@@ -12,8 +12,8 @@ import { loadConfig } from '../src/config.js';
 import { createApp } from '../src/server.js';
 
 test('owner HTTP reads authenticate, isolate, paginate and preserve closed integrations', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, async () => {
-  const config = loadConfig({ ...process.env, APP_ENV: 'local', GCP_PROJECT_ID: `demo-realaddr-${randomUUID()}` });
-  const db = new Firestore({ projectId: config.projectId });
+  const config = loadConfig({ ...process.env, APP_ENV: 'local', FIRESTORE_DATABASE_ID: 'realaddr', GCP_PROJECT_ID: `demo-realaddr-${randomUUID()}` });
+  const db = new Firestore({ projectId: config.projectId, databaseId: config.databaseId });
   const repo = new RealAddrRepository(db, config.collectionPrefix, null, { authDomain: 'localhost' });
   const app = createApp(config, repo, db);
   try {

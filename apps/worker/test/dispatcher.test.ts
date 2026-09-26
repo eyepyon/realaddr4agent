@@ -7,7 +7,7 @@ import type { DispatchClaim } from '@realaddr/db';
 import { createDispatcher, createTaskAdapter, createRuntimeTransport, type RestRequest } from '../src/dispatcher.js';
 import { loadWorkerConfig, type WorkerConfig } from '../src/config.js';
 
-const config: WorkerConfig = { appEnv: 'local', port: 8081, projectId: 'demo-realaddr-local', databaseId: '(default)', collectionPrefix: 'realaddr_event_', audience: 'http://127.0.0.1:8081', tasksAccount: 'realaddr-event-tasks@demo-realaddr-local.iam.gserviceaccount.com', schedulerAccount: 'realaddr-event-sched@demo-realaddr-local.iam.gserviceaccount.com', region: 'us-central1', queue: 'realaddr-event-jobs' };
+const config: WorkerConfig = { appEnv: 'local', port: 8081, projectId: 'demo-realaddr-local', databaseId: 'realaddr', collectionPrefix: 'realaddr_event_', audience: 'http://127.0.0.1:8081', tasksAccount: 'realaddr-event-tasks@demo-realaddr-local.iam.gserviceaccount.com', schedulerAccount: 'realaddr-event-sched@demo-realaddr-local.iam.gserviceaccount.com', region: 'us-central1', queue: 'realaddr-event-jobs' };
 const claim: DispatchClaim = { id: 'a'.repeat(64), taskId: 'b'.repeat(64), owner: 'owner', generation: 1, taskGeneration: 0, taskConfirmed: false };
 test('REST task freezes minimal payload and OIDC identity; 409 tombstone is missing', async () => {
   const calls: RestRequest[] = [];
@@ -43,7 +43,7 @@ test('runtime transport refuses disabled dispatch and metadata identity mismatch
   finally { globalThis.fetch = original; }
 });
 test('dispatch config requires event dedicated queue region and no key fallback', () => {
-  const env = { APP_ENV: 'event', RESOURCE_PREFIX: 'realaddr-event', FIRESTORE_COLLECTION_PREFIX: 'realaddr_event_', FIRESTORE_DATABASE_ID: '(default)', GCP_PROJECT_ID: 'sample-project', WORKER_URL: 'https://worker.example', TASK_INVOKER_SA: 'realaddr-event-tasks@sample-project.iam.gserviceaccount.com', SCHEDULER_INVOKER_SA: 'realaddr-event-sched@sample-project.iam.gserviceaccount.com', CLOUD_TASKS_DISPATCH_ENABLED: 'true', GCP_REGION: 'us-central1', TASKS_QUEUE: 'realaddr-event-jobs' };
+  const env = { APP_ENV: 'event', RESOURCE_PREFIX: 'realaddr-event', FIRESTORE_COLLECTION_PREFIX: 'realaddr_event_', FIRESTORE_DATABASE_ID: 'realaddr', GCP_PROJECT_ID: 'sample-project', WORKER_URL: 'https://worker.example', TASK_INVOKER_SA: 'realaddr-event-tasks@sample-project.iam.gserviceaccount.com', SCHEDULER_INVOKER_SA: 'realaddr-event-sched@sample-project.iam.gserviceaccount.com', CLOUD_TASKS_DISPATCH_ENABLED: 'true', GCP_REGION: 'us-central1', TASKS_QUEUE: 'realaddr-event-jobs' };
   assert.equal(loadWorkerConfig(env).dispatchEnabled, true);
   assert.throws(() => loadWorkerConfig({ ...env, TASKS_QUEUE: 'other' }), /queue/);
   assert.throws(() => loadWorkerConfig({ ...env, GCP_REGION: '../region' }), /region/);
@@ -51,7 +51,7 @@ test('dispatch config requires event dedicated queue region and no key fallback'
 });
 
 test('emulator sweep persists unknown task ID then confirms collision and rotates missing task', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, async () => {
-  const db = new Firestore({ projectId: `demo-realaddr-${randomUUID()}`, databaseId: '(default)' });
+  const db = new Firestore({ projectId: `demo-realaddr-${randomUUID()}`, databaseId: 'realaddr' });
   let now = new Date('2026-09-26T00:00:00Z');
   const repository = new DispatchRepository(db, config.collectionPrefix, { now: () => now });
   const ref = db.collection(`${config.collectionPrefix}outbox`).doc(claim.id);

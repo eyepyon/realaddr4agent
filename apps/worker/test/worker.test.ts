@@ -9,12 +9,14 @@ const project = 'demo-realaddr-local';
 const tasks = `realaddr-event-tasks@${project}.iam.gserviceaccount.com`;
 const sched = `realaddr-event-sched@${project}.iam.gserviceaccount.com`;
 const audience = 'http://127.0.0.1:8081';
-const config: WorkerConfig = { appEnv: 'local', port: 8081, projectId: project, databaseId: '(default)', collectionPrefix: 'realaddr_event_', audience, tasksAccount: tasks, schedulerAccount: sched };
+const config: WorkerConfig = { appEnv: 'local', port: 8081, projectId: project, databaseId: 'realaddr', collectionPrefix: 'realaddr_event_', audience, tasksAccount: tasks, schedulerAccount: sched };
 const id = 'a'.repeat(64);
 
 test('configuration requires emulator, prefix, database and dedicated invokers', () => {
-  const env = { APP_ENV: 'local', PORT: '8081', RESOURCE_PREFIX: 'realaddr-event', FIRESTORE_COLLECTION_PREFIX: 'realaddr_event_', FIRESTORE_DATABASE_ID: '(default)', GCP_PROJECT_ID: project, FIRESTORE_EMULATOR_HOST: '127.0.0.1:8085', WORKER_URL: audience, TASK_INVOKER_SA: tasks, SCHEDULER_INVOKER_SA: sched };
+  const env = { APP_ENV: 'local', PORT: '8081', RESOURCE_PREFIX: 'realaddr-event', FIRESTORE_COLLECTION_PREFIX: 'realaddr_event_', FIRESTORE_DATABASE_ID: 'realaddr', GCP_PROJECT_ID: project, FIRESTORE_EMULATOR_HOST: '127.0.0.1:8085', WORKER_URL: audience, TASK_INVOKER_SA: tasks, SCHEDULER_INVOKER_SA: sched };
   assert.deepEqual(loadWorkerConfig(env), config);
+  assert.throws(() => loadWorkerConfig({ ...env, FIRESTORE_DATABASE_ID: '(default)' }), /invalid_firestore_database/);
+  assert.throws(() => loadWorkerConfig({ ...env, FIRESTORE_DATABASE_ID: undefined }), /invalid_firestore_database/);
   assert.throws(() => loadWorkerConfig({ ...env, FIRESTORE_EMULATOR_HOST: undefined }), /emulator/);
   assert.throws(() => loadWorkerConfig({ ...env, FIRESTORE_COLLECTION_PREFIX: undefined }), /prefix/);
   assert.throws(() => loadWorkerConfig({ ...env, SCHEDULER_INVOKER_SA: tasks }), /invoker/);

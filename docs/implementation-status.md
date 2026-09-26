@@ -9,7 +9,7 @@
 | T-01 実行基盤 | 実装中 | pnpm workspace、strict TypeScript、Fastify、web/worker、共通CLI、CI workflowとローカル`.env.example`を作成。全経路の起動確認は未完了 |
 | T-02 認証・Firestore・区画 | 部分実装 | wallet challenge、Bearer hash、collection prefix、64 shard予約に加え、住所購入の決済受付・不明状態保持・確定後の契約発行・未払い確定後のhold解放をrepositoryへ実装。外部の検証済み結果を受け取る内部DB境界であり、実決済・外部照合・返金は未実装。更新の内部DB処理はT-05として追加 |
 | T-05 住所更新 | 部分実装・ローカル検証済み | 同一leaseの更新排他、固定見積、確定支払いの一度だけの反映、結果不明保持、保存済みreceiptからのworker復旧。公開更新API・実決済・chain/ENS同期は未接続 |
-| T-00/T-04 Intercepta | 初期client・内部gate実装、live待ち | 公開schemaを確認し、危険traitのdeny・未知holdと購入/更新の検査を実装。APIキー未取得、安全基準・coverage未確認でallowは無効。公開pay・実署名器は未接続 |
+| T-00/T-04 Intercepta | 初期client・内部gate実装、live疎通確認済み | 認証付きQuick ScanでHTTP 200・schema一致を確認。危険traitのdeny・未知holdと購入/更新の検査を実装。安全基準・coverage未確認でallowは無効。公開pay・実署名器は未接続 |
 | T-07 LeaseRegistry | 配備済み・DB/worker読み取り照合を部分実装、全体未完了 | 初期権限とMultiBaas紐づけを確認済み。購入・更新のpaid provenance、永続identity、claim/version付き確定block照合を実装しローカル検証。照合は既定無効。実lease記録・取消、event有効化、indexed eventsと永続cursor/reorg回復は未完了 |
 | T-02/T-08 所有者向け状態取得 | 部分実装・ローカル検証済み | 注文・契約の一覧と詳細、ENS購入状態をFirestoreから返す。所有権、応答の公開field制限、署名付きcursor、既存CLIの状態取得を確認 |
 | T-05/T-16 worker・outbox | 部分実装・ローカル検証済み | Firestore claim/generation/期限、保存済み支払いからの発行復旧、Cloud Tasks REST配信・結果照合とSchedulerの永続cursor。実送金・eventのchain照合・実Cloud Tasks/Scheduler接続は未検証 |
@@ -19,6 +19,16 @@
 | T-16 GCP | 独自ドメインHTTPS確認済み・全体未完了 | WIFとeventイメージbuild/push、runtime IAM検査、初回Cloud Run配備、公開後100項目と後続plan差分0を確認。TLS発行・独自ドメイン8経路の表示と拒否を確認。Tasks/Schedulerの実配信、実Firebase利用者client試験、外部業務連携は残件 |
 
 ## 検証の記録
+
+### T-02/T-16 専用Firestoreへの移行準備
+
+利用者指定により接続契約をnamed DB `realaddr`へ変更し、API・worker・repositoryは設定欠落や`(default)`へのfallbackを拒否する。作成直前のlive inventoryで対象名の不存在と、本アプリの36 collection中、rate limit記録だけの存在を確認した。共有DBは保持し、専用DB・索引・DB限定IAM member 2件だけの4 create計画をレビューした。クラウド作成・Rules確認・データ引継ぎ・imageと環境変数の同時切替は進行中であり、切替完了を意味しない。
+
+検証: named Firestore EmulatorでDB重点25件、API/worker重点15件が全件通過・skip 0。API/worker/DB型検査、Terraform validateとmock 7件、deploy guard 22件も通過した。実クラウドのRulesとruntime IAMは別gateで確認する。
+
+### T-00/T-04 Interceptaの認証付きlive診断
+
+設定済みキーで公開EOA一件のQuick ScanがHTTP 200を返し、`toxicScore=0`、空traits、必須schema一致を確認した。総時間約1.6秒。初回の通信制限による失敗を含め試行2回、成功応答1回。APIキー・対象識別子・生応答は公開記録に含めない。安全基準・coverage・評価対象chainが未確認なので`hold/provider_policy_unconfirmed`を維持した。診断対象は実支払い先・支払者の検査を代替せず、公開決済・Deep Scan・実allow・危険challengeのlive拒否は未実施。
 
 ### T-00/T-04 Interceptaの初期clientと決済準備gate
 

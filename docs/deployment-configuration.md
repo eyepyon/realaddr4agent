@@ -5,7 +5,7 @@
 ## 投入先と順序
 
 1. **event専用の保護された設定manifest**を運用者がリポジトリ外に用意する。対象project/region、専用resourceの確定ID、共有Firestoreの既存配置、WIFの信頼条件、`DEPLOY_SERVICE_ACCOUNT`と各secretの参照先をここで管理する。Terraform、Actions、Cloud Runの設定はこのmanifestから必要な値だけを受け取る。GitHubに登録した変数がTerraformやCloud Runへ自動伝播することはない。
-2. T-16のread-only live inventoryを行う。共有projectの所有者、既存resource、`(default)` DBのlocation/rules/index、API、IAM、予算、名前の空き、指定したdeploy service accountの所有者・binding・実効権限を確認する。Security Rulesが適用されるclientから本アプリprefixへの未認証・他利用者のread/write拒否を確認する。planが他サービスや共有DB本体・rules・project IAM等へ触れるならapplyしない。
+2. T-16のread-only live inventoryを行う。共有projectの所有者、既存resource、共有`(default)`の履歴とnamed `realaddr` DBのlocation/rules/index、API、IAM、予算、名前の空き、指定したdeploy service accountの所有者・binding・実効権限を確認する。Security Rulesが適用されるclientから本アプリprefixへの未認証・他利用者のread/write拒否を確認する。planが他サービスや共有`(default)` DB/rules/index・project IAM等へ触れるならapplyしない。
 3. 管理主体が`infra/bootstrap`の本アプリ専用state bucket、Artifact Registry、repository制限付きWIFを作る。bootstrap stateの専用bucketへの移行は別途記録する。管理主体が`infra/app`の専用web/worker/Tasks invoker/Scheduler invoker service account、Cloud Run、queue、secret metadata、必要な限定IAMを作る。4つのservice accountは別々に新規作成し、default accountを使わない。指定されたdeploy service accountは本アプリのTerraformで作成・import・削除しない。既存bindingを保ち、確認済みの本アプリresourceへのgrantと専用WIF principalの狭いimpersonation memberだけを追加する。
 4. 権限のある運用者がsecretの**値**をSecret Managerへ別途登録し、web/workerに必要なsecret versionだけを参照させる。値をTerraform変数に渡さない。runtime主体の実IAM権限と対象外DB拒否を、業務データ投入・公開route有効化前に検証する。
 5. GitHubの保護された`event` Environmentで、mainのCI成功済みcommitから手動`deploy-event`を実行する。これは既存2サービスのimage更新用であり、初回のCloud Run作成はTerraformで別途実施する。WIFの短期credentialを使い、同じimage digestをworkerとwebに適用する。JSON service account keyはGitHub Secretsへ登録しない。workflowを追加したが、Environment・WIFの有効化と実配備は未実施。
@@ -17,7 +17,7 @@ GitHub repositoryの **Settings → Environments → event** でmain限定の保
 | JSONキー | 値の例・決め方 |
 | --- | --- |
 | `GCP_PROJECT_ID` | `<event-project-id>`。live inventoryで確定 |
-| `GCP_REGION` | `<verified-region>`。既存DB配置とdomain接続方式を確認後に確定 |
+| `GCP_REGION` | `<verified-region>`。named `realaddr` DB配置とdomain接続方式を確認後に確定 |
 | `RESOURCE_PREFIX` | `realaddr-event` |
 | `FIRESTORE_COLLECTION_PREFIX` | `realaddr_event_` |
 | `WIF_PROVIDER` | `projects/<project-number>/locations/global/workloadIdentityPools/realaddr-event-gh/providers/github`。専用bootstrap出力で所有権を確認 |
@@ -37,7 +37,7 @@ workflowは`${{ secrets.DEPLOY_CONFIG }}`を読み、認証actionへ渡す識別
 
 | 分野 | キーとevent用の値例・確認事項 |
 | --- | --- |
-| 環境・公開 | `APP_ENV=event`、`PUBLIC_ORIGIN=https://address.chain.tokyo`、`GCP_PROJECT_ID=<event-project-id>`、`GCP_REGION=<verified-region>`、`FIRESTORE_DATABASE_ID=(default)`、`FIRESTORE_COLLECTION_PREFIX=realaddr_event_`、`RESOURCE_PREFIX=realaddr-event` |
+| 環境・公開 | `APP_ENV=event`、`PUBLIC_ORIGIN=https://address.chain.tokyo`、`GCP_PROJECT_ID=<event-project-id>`、`GCP_REGION=<verified-region>`、`FIRESTORE_DATABASE_ID=realaddr`、`FIRESTORE_COLLECTION_PREFIX=realaddr_event_`、`RESOURCE_PREFIX=realaddr-event` |
 | Cloud Tasks dispatch | `CLOUD_TASKS_DISPATCH_ENABLED=false`をdefaultとする。`true`は`APP_ENV=event`のみ許可し、`GCP_REGION`、`TASKS_QUEUE=realaddr-event-jobs`、workerと同一projectであること、専用worker runtime identity、`WORKER_URL`のHTTPS origin、専用`TASK_INVOKER_SA`を構成検査する。key file、service account key、ADC fallbackを使用しない。Cloud Run metadata serverで得るruntime identity emailを検証する |
 | 認証・価格profile | `TERMS_VERSION=realaddr-v1`、`PRICE_PROFILE=testnet`、`PRICING_VERSION=<reviewed-price-version>`。eventの`RATE_LIMIT_HMAC_KEY`は下の秘密設定に置く。mainnet profileを指定しても販売を開始しない |
 | app resource | `GCS_BUCKET=<app-private-bucket>`、`TASKS_QUEUE=realaddr-event-jobs`、`WORKER_URL=<verified-https-worker-origin>`、`TASK_INVOKER_SA=<new-app-task-invoker>`、`SCHEDULER_INVOKER_SA=<new-app-scheduler-invoker>`。実IDはinventory後のmanifestから取得。`ARTIFACT_REPOSITORY`はActionsのimage push先でありruntimeに不要 |
@@ -80,7 +80,7 @@ T-00でWorld/Intercepta/facilitator/USDC/MultiBaas/ENSの実endpoint・address�
 
 ## 現実装の起動とapp opt-in
 
-コンテナは`VITE_APP_ENV`と`VITE_TERMS_VERSION`を必須build引数とし、同一imageを`web`/`worker`引数で使う。現実装のweb起動には`APP_ENV=event`、`GCP_PROJECT_ID`、上表の`PUBLIC_ORIGIN`、正式な`TERMS_VERSION`、実`RATE_LIMIT_HMAC_KEY`が必要。worker起動は環境・project・prefix・default databaseと、実`WORKER_URL`・専用Tasks/Scheduler invokerを必要とする。provider secretは現在の閉じた起動経路では必須でなく、値を仮置きして販売を開かない。APIもeventでは専用prefixと共有default databaseの明示設定を要求し、demo project、不正project、Emulator、鍵credentialの環境変数を拒否する。
+コンテナは`VITE_APP_ENV`と`VITE_TERMS_VERSION`を必須build引数とし、同一imageを`web`/`worker`引数で使う。現実装のweb起動には`APP_ENV=event`、`GCP_PROJECT_ID`、上表の`PUBLIC_ORIGIN`、正式な`TERMS_VERSION`、実`RATE_LIMIT_HMAC_KEY`が必要。worker起動は環境・project・prefix・named database `realaddr`と、実`WORKER_URL`・専用Tasks/Scheduler invokerを必要とする。provider secretは現在の閉じた起動経路では必須でなく、値を仮置きして販売を開かない。APIもeventでは専用prefixとnamed `realaddr` databaseの明示設定を要求し、demo project、不正project、Emulator、鍵credentialの環境変数を拒否する。
 
 `infra/app`では非秘密設定を固定し、`secret_versions`でweb/workerごとの既存numeric versionだけを指定する。`secret_purposes`はmetadata作成対象で、payload/version作成を行わない。service配備・runtime ready・公開・Scheduler・dispatch・共有Firestore grantのopt-inは全て既定false。初期基盤applyとその後のruntime gateは別工程である。backend設定は保護されたbucketと専用prefixを使い、`TF_DATA_DIR`も保護directoryへ分ける。bootstrapはGCS移行済みで、cloneは既存remote stateへ接続する。[初期化手順](../infra/README.md)を参照。
 

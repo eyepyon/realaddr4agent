@@ -12,7 +12,7 @@ async function job(db: Firestore, id: string, now: Date): Promise<void> {
   await db.collection(`${prefix}outbox`).doc(id).create({ state: 'pending', availableAt: now, attempts: 0, eventType: 'payment.settlement_requested', aggregateId: id, version: 1, payload: { orderId: id } });
 }
 function fixture() {
-  const db = new Firestore({ projectId: `demo-realaddr-${randomUUID()}` });
+  const db = new Firestore({ projectId: `demo-realaddr-${randomUUID()}`, databaseId: 'realaddr' });
   let clock = Date.parse('2026-09-26T00:00:00Z');
   return { db, dispatch: new DispatchRepository(db, prefix, { now: () => new Date(clock) }), now: () => new Date(clock), advance: (milliseconds = 61_000) => { clock += milliseconds; } };
 }

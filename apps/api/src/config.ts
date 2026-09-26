@@ -6,7 +6,7 @@ export interface ApiConfig {
   port: number;
   origin: string;
   projectId: string;
-  databaseId: '(default)';
+  databaseId: 'realaddr';
   collectionPrefix: string;
   termsVersion: string;
   rateLimitKey: Buffer;
@@ -23,8 +23,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   if ((local && env.RESOURCE_PREFIX && env.RESOURCE_PREFIX !== 'realaddr-event') || (!local && env.RESOURCE_PREFIX !== 'realaddr-event')) throw new Error('invalid_resource_prefix');
   const collectionPrefix = env.FIRESTORE_COLLECTION_PREFIX ?? (local ? 'realaddr_event_' : '');
   if (collectionPrefix !== 'realaddr_event_') throw new Error('invalid_collection_prefix');
-  const databaseId = env.FIRESTORE_DATABASE_ID ?? (local ? '(default)' : '');
-  if (databaseId !== '(default)') throw new Error('invalid_firestore_database');
+  const databaseId = env.FIRESTORE_DATABASE_ID;
+  if (databaseId !== 'realaddr') throw new Error('invalid_firestore_database');
   const origin = env.PUBLIC_ORIGIN ?? (local ? `http://localhost:${port}` : '');
   if (!origin || (!local && origin !== 'https://address.chain.tokyo')) throw new Error('invalid_public_origin');
   const parsedOrigin = new URL(origin);

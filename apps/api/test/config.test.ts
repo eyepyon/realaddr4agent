@@ -8,15 +8,15 @@ const eventEnvironment: NodeJS.ProcessEnv = {
   GCP_PROJECT_ID: 'realaddr-fixture',
   RESOURCE_PREFIX: 'realaddr-event',
   FIRESTORE_COLLECTION_PREFIX: 'realaddr_event_',
-  FIRESTORE_DATABASE_ID: '(default)',
+  FIRESTORE_DATABASE_ID: 'realaddr',
   PUBLIC_ORIGIN: 'https://address.chain.tokyo',
   TERMS_VERSION: CURRENT_TERMS_VERSION,
   RATE_LIMIT_HMAC_KEY: 'a'.repeat(64),
 };
 
-test('event API requires explicit shared database and application namespace', () => {
+test('event API requires explicit named database and application namespace', () => {
   const config = loadConfig(eventEnvironment);
-  assert.equal(config.databaseId, '(default)');
+  assert.equal(config.databaseId, 'realaddr');
   assert.equal(config.pricing, null);
   for (const [key, value, message] of [
     ['RESOURCE_PREFIX', undefined, 'invalid_resource_prefix'],
@@ -25,6 +25,7 @@ test('event API requires explicit shared database and application namespace', ()
     ['FIRESTORE_COLLECTION_PREFIX', 'other_', 'invalid_collection_prefix'],
     ['FIRESTORE_DATABASE_ID', undefined, 'invalid_firestore_database'],
     ['FIRESTORE_DATABASE_ID', 'other', 'invalid_firestore_database'],
+    ['FIRESTORE_DATABASE_ID', '(default)', 'invalid_firestore_database'],
     ['GCP_PROJECT_ID', 'demo-local', 'invalid_event_project'],
     ['GCP_PROJECT_ID', 'invalid/project', 'invalid_event_project'],
     ['FIRESTORE_EMULATOR_HOST', '127.0.0.1:8085', 'emulator_disallowed_outside_local'],
@@ -42,12 +43,14 @@ test('event API rejects key credential overrides without exposing their contents
   }
 });
 
-test('local API retains emulator defaults and cannot select another database', () => {
-  const local = { APP_ENV: 'local', FIRESTORE_EMULATOR_HOST: '127.0.0.1:8085' };
+test('local API requires the named emulator database without a default fallback', () => {
+  const local = { APP_ENV: 'local', FIRESTORE_EMULATOR_HOST: '127.0.0.1:8085', FIRESTORE_DATABASE_ID: 'realaddr' };
   const config = loadConfig(local);
   assert.equal(config.projectId, 'demo-realaddr-local');
   assert.equal(config.collectionPrefix, 'realaddr_event_');
-  assert.equal(config.databaseId, '(default)');
+  assert.equal(config.databaseId, 'realaddr');
   assert.throws(() => loadConfig({ ...local, FIRESTORE_DATABASE_ID: 'other' }), { message: 'invalid_firestore_database' });
-  assert.throws(() => loadConfig({ APP_ENV: 'local' }), { message: 'firestore_emulator_required_for_local_execution' });
+  assert.throws(() => loadConfig({ ...local, FIRESTORE_DATABASE_ID: '(default)' }), { message: 'invalid_firestore_database' });
+  assert.throws(() => loadConfig({ ...local, FIRESTORE_DATABASE_ID: undefined }), { message: 'invalid_firestore_database' });
+  assert.throws(() => loadConfig({ APP_ENV: 'local', FIRESTORE_DATABASE_ID: 'realaddr' }), { message: 'firestore_emulator_required_for_local_execution' });
 });

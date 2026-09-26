@@ -18,7 +18,7 @@ const code = (expected: string) => (error: unknown) => error instanceof DomainEr
 const evidence = (change: RegistryChange): RegistryReadbackEvidence => ({ change, chainId: 11155111, registryAddress: address as `0x${string}`, blockNumber: '123', blockHash: hash, finalityVerified: true });
 
 async function setup() {
-  const db = new Firestore({ projectId: `demo-realaddr-${randomUUID()}` });
+  const db = new Firestore({ projectId: `demo-realaddr-${randomUUID()}`, databaseId: 'realaddr' });
   const doc = (collection: string, key: string) => db.collection(prefix + collection).doc(key);
   await Promise.all([
     doc('buildings', 'building').create({ id: 'building' }),

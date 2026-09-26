@@ -22,7 +22,7 @@ async function create(role) {
     '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges',
     '-e', 'APP_ENV=local', '-e', 'GCP_PROJECT_ID=demo-realaddr-container',
     '-e', 'RESOURCE_PREFIX=realaddr-event', '-e', 'FIRESTORE_COLLECTION_PREFIX=realaddr_event_',
-    '-e', 'FIRESTORE_DATABASE_ID=(default)', '-e', 'FIRESTORE_EMULATOR_HOST=127.0.0.1:8085',
+    '-e', 'FIRESTORE_DATABASE_ID=realaddr', '-e', 'FIRESTORE_EMULATOR_HOST=127.0.0.1:8085',
     '-e', 'PUBLIC_ORIGIN=http://localhost:8080', '-e', 'TERMS_VERSION=event-demo-1',
     '-e', 'WORKER_URL=http://localhost:8080', '-e', 'CLOUD_TASKS_DISPATCH_ENABLED=false',
     '-e', 'TASK_INVOKER_SA=realaddr-event-tasks@demo-realaddr-container.iam.gserviceaccount.com',

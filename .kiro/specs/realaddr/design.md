@@ -8,7 +8,7 @@ TypeScript strict / pnpm workspace。公開説明ページはbuild時にHTML生�
 
 UI/APIは同一Cloud Runサービス、workerは非公開の別Cloud Runサービス。ともにrequest-based / min instances=0。UI/APIは同じHTTPS origin。GCS、GitHub Actions、Tasks/Scheduler、Firestore実装詳細は[インフラ仕様](../../../docs/infrastructure.md)を正とする。3ツールの実利用は共通HTTP/JSON CLIで対応し、MCPを必須にしない。
 
-既存サービスと同一のGCP projectを使用する。専用リソースは `RESOURCE_PREFIX=realaddr-event` で命名し、Terraform state、実行主体、secret、image、queue、bucketを分ける。既存projectのFirestore `(default)` は参照する共有資源であり、このアプリのstateへimportせず、DB本体・既存rules・他サービスのIAMや設定を所有しない。共有資源の管理境界、衝突時の停止条件と適用前確認はインフラ仕様に従う。基盤の登録と専用主体の代表IAM検査は実施済みで、アプリ配備・外部統合は未完了。実施範囲は実装状況に記録する。
+既存サービスと同一のGCP projectを使用する。専用リソースは `RESOURCE_PREFIX=realaddr-event` で命名し、Terraform state、実行主体、secret、image、queue、bucketを分ける。業務データは専用名前付き`realaddr` Firestore DBに保存する。共有`(default)` DBは歴史的な参照・inventory対象に限り、Terraformへimport・管理せず、実行時fallbackもしない。fresh inventoryで名前と所有権を確認した後、`realaddr` DB本体とdeny-all client RulesをアプリTerraformで管理し、delete protectionと`prevent_destroy`を有効にする。共有projectのIAM/API/予算は管理しない。移行前のDBにある業務データは、ID・予約/契約/決済・冪等性を照合する保守移行を行い、maintenance中に新旧writerを止め、同じimageと環境設定を一体で切り替える。現時点ではnamed DB作成完了は未確認で、データ移行とcutoverは未完了。実施範囲は実装状況に記録する。
 
 ```mermaid
 flowchart LR

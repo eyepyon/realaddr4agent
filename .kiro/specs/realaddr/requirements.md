@@ -140,7 +140,7 @@
 - R-15.6 CI/CDはOIDC/WIFで短期認証し、workerとFirestore/GCSへ未認証でアクセスできない SHALL。
 - R-15.7 無料枠・region・使用量・予算を記録し、利用増加や外部サービスを含めた完全無料を保証しない SHALL。日次上限到達後も既存決済を照合する。
 - R-15.8 再起動後の契約/設定保持と未完了処理の再開を代表ケースで確認し、未実測の可用性・料金・性能を成功扱いしない SHALL。snapshotの全面復元訓練とcold start性能試験は今回の必須検証から外す。
-- R-15.9 同一GCP project内の既存サービスと共存し、専用リソース名・Terraform state・全Firestore物理collectionを本アプリと環境の名前で分離する SHALL。共有 `(default)` DB本体・既存rules・project全体のIAM/API/予算を本アプリの所有物として上書き・削除・再importしない。
+- R-15.9 同一GCP project内の既存サービスと共存し、専用リソース名・Terraform state・全Firestore物理collectionを本アプリと環境の名前で分離する SHALL。共有 `(default)` DB本体・rules・indexを本アプリの所有物として上書き・削除・再importしない。業務データは専用名前付き`realaddr` DBへ保存し、存在しない場合に`(default)`へfallbackしない。fresh inventory後に`realaddr` DB本体とdeny-all client Rulesを本アプリのTerraformで管理する場合、削除防止と`prevent_destroy`を有効にし、project全体のIAM/API/予算は管理しない。
 - R-15.10 適用前に実在リソースと所有者、DB location、既存rules/IAM、無料枠の合算消費、Terraform planを確認し、他サービスの変更や未所有の同名リソースを検出したら適用を止める SHALL。名前のprefixだけで認可分離を保証しない。復旧・掃除・停止の対象も本アプリへ限定する。
 
 ## R-16 管理画面と運用者認可

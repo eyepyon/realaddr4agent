@@ -2,7 +2,7 @@ export interface WorkerConfig {
   appEnv: 'local' | 'event';
   port: number;
   projectId: string;
-  databaseId: '(default)';
+  databaseId: 'realaddr';
   collectionPrefix: 'realaddr_event_';
   audience: string;
   tasksAccount: string;
@@ -63,7 +63,7 @@ export function loadWorkerConfig(env: NodeJS.ProcessEnv = process.env): WorkerCo
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('invalid_port');
   if (env.RESOURCE_PREFIX !== 'realaddr-event') throw new Error('invalid_resource_prefix');
   if (env.FIRESTORE_COLLECTION_PREFIX !== 'realaddr_event_') throw new Error('invalid_collection_prefix');
-  if (env.FIRESTORE_DATABASE_ID !== '(default)') throw new Error('invalid_firestore_database');
+  if (env.FIRESTORE_DATABASE_ID !== 'realaddr') throw new Error('invalid_firestore_database');
   const projectId = env.GCP_PROJECT_ID;
   if (!projectId) throw new Error('missing_project_id');
   if (appEnv === 'local') {
@@ -90,5 +90,5 @@ export function loadWorkerConfig(env: NodeJS.ProcessEnv = process.env): WorkerCo
     if (env.TASKS_QUEUE !== 'realaddr-event-jobs') throw new Error('invalid_tasks_queue');
   }
   const registryReadback = registryConfig(env);
-  return { appEnv, port, projectId, databaseId: '(default)', collectionPrefix: 'realaddr_event_', audience, tasksAccount, schedulerAccount, ...(dispatchEnabled ? { dispatchEnabled, region: env.GCP_REGION!, queue: env.TASKS_QUEUE! } : {}), ...(registryReadback ? { registryReadback } : {}) };
+  return { appEnv, port, projectId, databaseId: 'realaddr', collectionPrefix: 'realaddr_event_', audience, tasksAccount, schedulerAccount, ...(dispatchEnabled ? { dispatchEnabled, region: env.GCP_REGION!, queue: env.TASKS_QUEUE! } : {}), ...(registryReadback ? { registryReadback } : {}) };
 }

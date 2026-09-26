@@ -12,6 +12,42 @@ variables {
   region                 = "us-central1"
   data_bucket_name       = "realaddr-event-test-data"
   deploy_service_account = "realaddr-event-test@demo-realaddr-local.iam.gserviceaccount.com"
+  firestore_database_id  = "(default)"
+}
+
+run "named_database_additive_migration" {
+  command = plan
+  variables {
+    firestore_database_id                 = "realaddr"
+    firestore_database_ownership_reviewed = true
+    firestore_access_reviewed             = true
+  }
+  assert {
+    condition     = length(google_project_iam_member.firestore) == 2 && length(google_project_iam_member.firestore_realaddr) == 2 && google_firestore_database.realaddr[0].name == "realaddr" && google_firestore_database.realaddr[0].delete_protection_state == "DELETE_PROTECTION_ENABLED" && google_firestore_database.realaddr[0].deletion_policy == "ABANDON" && google_firestore_index.realaddr_outbox_due[0].database == "realaddr"
+    error_message = "Migration must create only the owned named database/index and preserve legacy members."
+  }
+  assert {
+    condition     = google_project_iam_member.firestore_realaddr["web"].condition[0].expression == "resource.name == 'projects/demo-realaddr-local/databases/realaddr'"
+    error_message = "Named runtime grants must be scoped to realaddr."
+  }
+  assert {
+    condition     = length(google_firestore_index.realaddr_owner_lists) == 2 && google_firestore_index.realaddr_owner_lists["orders"].database == "realaddr" && google_firestore_index.realaddr_owner_lists["orders"].collection == "realaddr_event_orders" && google_firestore_index.realaddr_owner_lists["leases"].collection == "realaddr_event_leases" && google_firestore_index.realaddr_owner_lists["orders"].fields[2].field_path == "createdAt" && google_firestore_index.realaddr_owner_lists["leases"].fields[2].field_path == "updatedAt" && alltrue([for index in values(google_firestore_index.realaddr_owner_lists) : index.fields[0].field_path == "tenantId" && index.fields[1].field_path == "agentId" && index.fields[2].order == "DESCENDING" && index.fields[3].field_path == "__name__" && index.fields[3].order == "DESCENDING"])
+    error_message = "Named owner list indexes must match tenant/agent filters and descending pagination."
+  }
+}
+
+run "named_cutover_revokes_only_legacy_members" {
+  command = plan
+  variables {
+    firestore_database_id                 = "realaddr"
+    firestore_database_ownership_reviewed = true
+    firestore_access_reviewed             = true
+    retain_legacy_default_access           = false
+  }
+  assert {
+    condition     = length(google_project_iam_member.firestore) == 0 && length(google_project_iam_member.firestore_realaddr) == 2
+    error_message = "Final cutover retains named grants and removes only this root's legacy members."
+  }
 }
 run "foundation_closed" {
   command = plan

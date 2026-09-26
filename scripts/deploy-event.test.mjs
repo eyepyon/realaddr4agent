@@ -24,7 +24,7 @@ const account = role => `realaddr-event-${role}@${metadata.GCP_PROJECT_ID}.iam.g
 function fixture(role, currentImage) {
   const name = serviceName(role);
   const requiredEnv = {
-    APP_ENV: 'event', NODE_ENV: 'production', RESOURCE_PREFIX: 'realaddr-event', FIRESTORE_COLLECTION_PREFIX: 'realaddr_event_', FIRESTORE_DATABASE_ID: '(default)',
+    APP_ENV: 'event', NODE_ENV: 'production', RESOURCE_PREFIX: 'realaddr-event', FIRESTORE_COLLECTION_PREFIX: 'realaddr_event_', FIRESTORE_DATABASE_ID: 'realaddr',
     GCP_PROJECT_ID: metadata.GCP_PROJECT_ID, GCP_REGION: metadata.GCP_REGION, PRICE_PROFILE: 'testnet', PAYMENT_NETWORK: 'eip155:84532',
     WORKER_URL: metadata.WORKER_URL, TASKS_QUEUE: 'realaddr-event-jobs', TASK_INVOKER_SA: account('tasks'), SCHEDULER_INVOKER_SA: account('sched'), CLOUD_TASKS_DISPATCH_ENABLED: 'false',
     ...(role === 'web' ? { PUBLIC_ORIGIN: 'https://address.chain.tokyo', TERMS_VERSION: metadata.TERMS_VERSION } : {}),
@@ -80,6 +80,15 @@ function fakeSubprocess(failure, changeBefore, policies = {}) {
   return { run, calls, updates, services };
 }
 const dependencies = fake => ({ run: fake.run, prepareContext: () => 'fixture-build-context', smokeCheck: async () => {} });
+
+test('ordinary deploy refuses legacy default database before image build or update', async () => {
+  const fake = fakeSubprocess(null, services => {
+    services.worker.spec.template.spec.containers[0].env.find(item => item.name === 'FIRESTORE_DATABASE_ID').value = '(default)';
+  });
+  await assert.rejects(deploy(config, dependencies(fake)), /runtime_environment_mismatch/);
+  assert.equal(fake.updates.length, 0);
+  assert.equal(fake.calls.some(call => call.program === 'docker'), false);
+});
 
 test('missing configuration, wrong main SHA, unapproved deployment and mismatched terms fail before subprocesses', () => {
   assert.throws(() => configFromEnv({ ...environment, DEPLOY_CONFIG: '' }), /deploy_configuration_required/);

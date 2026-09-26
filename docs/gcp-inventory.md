@@ -24,9 +24,13 @@ live Rulesの取得・公式engine評価と実未認証read/create拒否は確�
 
 ローカル検証ではGoogle Cloud CLI 586.0.0の20 commandのhelpを確認し、fixture test 4件が通過した。liveの読み取り結果は次節に記録する。fixtureだけで実権限を証明したとは扱わない。
 
-## live読み取り結果
+## 現在の切替状態
 
-認証済みinventoryは20件成功・1件incomplete。共有の`(default)` DBはNative mode / Standard edition、locationは`asia-northeast1`、billing有効を確認した。Cloud Asset APIが利用できずproject全域の横断検索は未完了。確認regionで専用prefixに一致するresourceが見つからなかったことは、所有権や他regionを含む名前の空きの証拠ではない。
+後続のfresh inventory時点では、named `realaddr` DBはまだ存在せず、候補regionは既存サービスの配置と一致することを確認した。app Terraformの4-resource planはレビュー済みでapply進行中だが、live creation完了は未確認。実アプリのruntime設定契約は`FIRESTORE_DATABASE_ID=realaddr`で、`(default)`へのfallbackは禁止。Terraformでのnamed DB作成、delete protection / `prevent_destroy`、deny-all client Rules、専用runtime IAM、データ照合・保守移行・joint image/env rolloutとcutoverは未完了である。既存の業務IDや顧客データはrepositoryへ記録しない。
+
+## 過去時点のlive読み取り結果（`(default)`）
+
+当時の認証済みinventoryは20件成功・1件incomplete。過去の対象である共有`(default)` DBはNative mode / Standard edition、locationとbilling状態を確認した。この記録はnamed `realaddr` DBの存在・配置・作成を示さない。Cloud Asset APIが利用できずproject全域の横断検索は未完了。確認regionで専用prefixに一致するresourceが見つからなかったことは、所有権や他regionを含む名前の空きの証拠ではない。
 
 project・organizationと選択済みdeploy service accountのIAM metadataを読み取った。祖先grant、condition、denyを含む実効権限、指定deploy accountのlifecycle管理は既存IaC sourceで確認した。レビューしたtracked sourceではdistinctなadditive IAM memberと競合するauthoritative policy/bindingは見つからなかった。liveの実効権限、他管理主体との競合、state所有権の検証は未完了である。
 
@@ -35,11 +39,11 @@ Rules RESTは明示的なquota project headerで読取可能となった。relea
 初回inventoryではAPI有効化、resource作成、IAM・Rules・DNS変更、apply・deployは行っていなかった。専用runtime identityのIAMと対象外DB拒否も未検証である。
 command契約の一次資料: [Cloud Asset metadata search](https://docs.cloud.google.com/sdk/gcloud/reference/asset/search-all-resources)、[Firestore composite index list](https://docs.cloud.google.com/sdk/gcloud/reference/firestore/indexes/composite/list)、[field exemption commands](https://docs.cloud.google.com/sdk/gcloud/reference/firestore/indexes/fields)、[WIF provider list](https://docs.cloud.google.com/sdk/gcloud/reference/iam/workload-identity-pools/providers/list)、[Artifact Registry repository list](https://docs.cloud.google.com/sdk/gcloud/reference/artifacts/repositories/list)。実gcloud版でのhelpと実接続結果を検証するまではlive成功済みとしない。
 
-## bootstrap planと指定名の確認
+## 過去時点のbootstrap planと指定名の確認
 
 実planは5 create・0 update・0 destroy。確認済みregionとimmutable repository/owner IDを使い、WIF pool/providerはdisabled、state bucketはuniform bucket-level access・public access prevention・versioningを備える。plan・local state・実値入り変数は保護されたリポジトリ外に保存する。指定state bucket、Artifact Registry repository、WIF poolへのGETは各404だった。Cloud Assetの横断検索未完了を補う全域の所有権・名前空き証明とは扱わない。
 
-Firestoreは現在未使用との運用者確認を得たが、他identityのアクセス不可やstate所有権を証明したとは扱わない。管理主体が初期deny-all Rulesを適用した。適用直前にdefault releaseの404を確認し、immutable rulesetとreleaseをCREATEだけで作成した。再取得したlive sourceは管理sourceとbyte一致し、公式Rules engineで未認証・合成した他利用者のget/list/create/update/delete計10件がDENY期待のSUCCESSだった。Authorizationなしの実Firestore REST GETとPOST createもPERMISSION_DENIEDを返し、documentは書かれていない。実際の別Firebase利用者tokenによるclient試験は未実施。server IAM・DB本体・indexは変更していない。
+この段落は過去時点の共有`(default)` Firestore調査であり、named `realaddr` DBの作成結果ではない。Firestoreは当時未使用との運用者確認を得たが、他identityのアクセス不可やstate所有権を証明したとは扱わない。管理主体が初期deny-all Rulesを適用した。適用直前にdefault releaseの404を確認し、immutable rulesetとreleaseをCREATEだけで作成した。再取得したlive sourceは管理sourceとbyte一致し、公式Rules engineで未認証・合成した他利用者のget/list/create/update/delete計10件がDENY期待のSUCCESSだった。Authorizationなしの実Firestore REST GETとPOST createもPERMISSION_DENIEDを返し、documentは書かれていない。実際の別Firebase利用者tokenによるclient試験は未実施。server IAM・DB本体・indexは変更していない。
 
 Cloud Asset APIは運用手順で有効化した。横断inventoryの再確認は進行中で、初回20件成功・1件incompleteを完了結果へ読み替えない。既存budget一件を読み取り、変更していない。bootstrap applyと5件の専用resource初期登録は完了し、app resource・DNS・deploy、live実効IAMとruntime IAMは残件。
 

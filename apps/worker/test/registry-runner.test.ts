@@ -4,7 +4,7 @@ import type { OutboxClaim, RegistryChange, RegistryReadbackEvidence } from '@rea
 import { loadWorkerConfig } from '../src/config.js';
 import { createWorkerRunner, type RegistryReconciliation } from '../src/runner.js';
 
-const env = { APP_ENV: 'local', RESOURCE_PREFIX: 'realaddr-event', FIRESTORE_COLLECTION_PREFIX: 'realaddr_event_', FIRESTORE_DATABASE_ID: '(default)', GCP_PROJECT_ID: 'demo-realaddr-local', FIRESTORE_EMULATOR_HOST: '127.0.0.1:8085', WORKER_URL: 'http://localhost:8081', TASK_INVOKER_SA: 'realaddr-event-tasks@demo-realaddr-local.iam.gserviceaccount.com', SCHEDULER_INVOKER_SA: 'realaddr-event-sched@demo-realaddr-local.iam.gserviceaccount.com' };
+const env = { APP_ENV: 'local', RESOURCE_PREFIX: 'realaddr-event', FIRESTORE_COLLECTION_PREFIX: 'realaddr_event_', FIRESTORE_DATABASE_ID: 'realaddr', GCP_PROJECT_ID: 'demo-realaddr-local', FIRESTORE_EMULATOR_HOST: '127.0.0.1:8085', WORKER_URL: 'http://localhost:8081', TASK_INVOKER_SA: 'realaddr-event-tasks@demo-realaddr-local.iam.gserviceaccount.com', SCHEDULER_INVOKER_SA: 'realaddr-event-sched@demo-realaddr-local.iam.gserviceaccount.com' };
 const enabled = { ...env, REGISTRY_READBACK_ENABLED: 'true', REGISTRY_CHAIN_ID: '11155111', REGISTRY_ADDRESS: `0x${'1'.repeat(40)}`, REGISTRY_RUNTIME_CODE_HASH: `0x${'2'.repeat(64)}`, REGISTRY_CONTRACT_LABEL: 'lease-registry', REGISTRY_CONTRACT_VERSION: '1.0.0', MULTIBAAS_URL: 'https://unit-test.multibaas.com', MULTIBAAS_API_KEY: 'unit-test-only', MULTIBAAS_CHAIN_LABEL: 'ethereum', REGISTRY_RPC_URL: 'https://rpc.example', REGISTRY_FINALITY_POLICY: 'finalized' };
 
 test('readback is disabled by default and opt-in configuration is exact', () => {

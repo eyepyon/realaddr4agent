@@ -20,7 +20,7 @@ const pricing: PricingConfig = {
 };
 
 function testDb(): Firestore {
-  return new Firestore({ projectId: `demo-realaddr-${randomUUID()}`, databaseId: '(default)' });
+  return new Firestore({ projectId: `demo-realaddr-${randomUUID()}`, databaseId: 'realaddr' });
 }
 
 function code(expected: string): (error: unknown) => boolean {

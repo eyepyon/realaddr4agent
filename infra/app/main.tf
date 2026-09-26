@@ -8,7 +8,7 @@ locals {
   secret_grants = { for item in flatten([for role, entries in var.secret_versions : [for purpose in toset([for ref in values(entries) : ref.purpose]) : { role = role, purpose = purpose }]]) : "${item.role}/${item.purpose}" => item }
   common_env = {
     APP_ENV                      = "event", NODE_ENV = "production", RESOURCE_PREFIX = "realaddr-event",
-    FIRESTORE_COLLECTION_PREFIX  = "realaddr_event_", FIRESTORE_DATABASE_ID = "(default)",
+    FIRESTORE_COLLECTION_PREFIX  = "realaddr_event_", FIRESTORE_DATABASE_ID = var.firestore_database_id,
     GCP_PROJECT_ID               = var.project_id, GCP_REGION = var.region,
     PRICE_PROFILE                = "testnet", PAYMENT_NETWORK = "eip155:84532",
     WORKER_URL                   = var.worker_url, TASKS_QUEUE = "realaddr-event-jobs",
@@ -97,7 +97,7 @@ resource "google_service_account_iam_member" "enqueue_act_as" {
   member             = "serviceAccount:${google_service_account.app[each.key].email}"
 }
 resource "google_project_iam_member" "firestore" {
-  for_each = var.firestore_access_reviewed ? local.runtime_roles : toset([])
+  for_each = var.firestore_access_reviewed && var.retain_legacy_default_access ? local.runtime_roles : toset([])
   project  = var.project_id
   role     = "roles/datastore.user"
   member   = "serviceAccount:${google_service_account.app[each.key].email}"
@@ -159,11 +159,11 @@ resource "google_cloud_run_v2_service" "app" {
   lifecycle {
     ignore_changes = [template[0].containers[0].image]
     precondition {
-      condition     = var.runtime_ready && var.firestore_access_reviewed && var.image_digest != "" && var.worker_url != "" && var.terms_version != "" && contains(keys(lookup(var.secret_versions, "web", {})), "RATE_LIMIT_HMAC_KEY")
+      condition     = var.runtime_ready && var.firestore_access_reviewed && (var.firestore_database_id == "(default)" ? var.retain_legacy_default_access : var.firestore_database_ownership_reviewed && var.firestore_rules_reviewed) && var.image_digest != "" && var.worker_url != "" && var.terms_version != "" && contains(keys(lookup(var.secret_versions, "web", {})), "RATE_LIMIT_HMAC_KEY")
       error_message = "Services require reviewed runtime IAM/configuration, real secret versions, terms, worker origin and an image digest."
     }
   }
-  depends_on = [google_secret_manager_secret_iam_member.runtime, google_project_iam_member.firestore]
+  depends_on = [google_secret_manager_secret_iam_member.runtime, google_project_iam_member.firestore, google_project_iam_member.firestore_realaddr, google_firestore_index.realaddr_outbox_due, google_firestore_index.realaddr_owner_lists]
 }
 resource "google_cloud_run_v2_service_iam_member" "worker_invoker" {
   for_each = var.deploy_services ? toset(["tasks", "sched"]) : toset([])
