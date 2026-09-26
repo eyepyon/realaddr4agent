@@ -32,6 +32,8 @@ Sepolia RPCで公式deploymentのruntime、root階層、親候補の空き、reg
 
 実施した検証: ENS DBのEmulator重点5件、CLI wire 1件、API設定・owner/ENS HTTP重点7件とdescription冪等性の追加確認、全workspace型検査が通過。reader 9件、人間署名補助flow 6件と実HTTP/CAS 1件も通過。固定版FoundryとSolidityで既存LeaseRegistry 12件・新controller 5件が通過し、両artifactをcompiler metadata/source一致検査付きで出力した。controllerのENS相手はlocal doubleであり、公式chainでの登録・権限拒否の証拠ではない。local設定でAPI/worker/Webのコンテナ用buildが通過した。
 
+新packageを含むコミット後の配備archive/guard検査26件も通過した。人間署名補助のflow/HTTP検査を通常CIへ追加した。親名登録画面はlocalhostだけで起動し、人間のwallet操作を待つ。鍵を取得せず、送信を自動承認しない。
+
 未実施: 親名取得、上位/拠点registry/controllerの実配置・接続、実paid leaseでの登録→解決→住所取得・description編集と禁止操作、送信器/worker/reorg回復・返金、3ツールのconnected smoke。これらのT-12/T-13/T-14完了チェックは付けない。未接続の購入APIは引き続き販売を拒否する。
 
 ### T-03/T-06 World sandboxと人間専用の郵便設定

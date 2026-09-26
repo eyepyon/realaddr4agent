@@ -26,6 +26,8 @@ jobs:
       - run: node scripts/check-text-format.mjs
       - run: node --test scripts/deploy-event.test.mjs
       - run: node --test scripts/registry-deploy-client.test.mjs
+      - run: node --test scripts/ens-parent-flow.test.mjs scripts/ens-parent-serve.test.mjs
+      - run: node --test scripts/ens-parent-flow.test.mjs scripts/ens-parent-serve.test.mjs
       - run: pnpm typecheck
       - run: pnpm build
         env:
