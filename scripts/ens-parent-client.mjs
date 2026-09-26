@@ -24,7 +24,10 @@ function button(label, action) {
   node.addEventListener('click', async () => {
     for (const b of controls.querySelectorAll('button')) b.disabled = true;
     try { status.textContent = JSON.stringify(await action(), null, 2); }
-    catch (error) { status.textContent = error.message==='transaction_mismatch' ? 'walletが変換した取引を検証できません。送信済みのため再送しないでください。既存取引の照合が必要です。' : error.message; }
+    catch (error) {
+      status.textContent = error.message==='registration_not_finalized' ? '登録取引は確認できました。チェーンの最終確定を待っています。再送せず、数分後に最後の確認ボタンを押してください。'
+        : error.message==='transaction_mismatch' || error.message.startsWith('unsupported_wrapper_') ? '送信済み取引の形式を照合できません。再送せず、既存取引の確認を依頼してください。' : error.message;
+    }
     finally { for (const b of controls.querySelectorAll('button')) b.disabled = false; }
   });
   controls.append(node);

@@ -87,7 +87,7 @@ export function createParentFlow({ manifest, provider, save, state = { steps: {}
     const direct=same(transaction.to,step.transaction.to) && same(transaction.input,step.transaction.data);
     if(!direct) {
       demand(!!wrapperPolicy,'transaction_mismatch');
-      await verifyExactWrapper({transaction,expected:step.transaction,owner:manifest.owner,paymentToken:manifest.paymentToken,policy:wrapperPolicy,blockNumber:result.blockNumber,rpc});
+      await verifyExactWrapper({transaction,expected:step.transaction,owner:manifest.owner,paymentToken:manifest.paymentToken,policy:wrapperPolicy,blockNumber:result.blockNumber,rpc,...(action==='register_parent'?{registrationGuard:{registry:manifest.pins.ETHRegistry,label:manifest.parentName.slice(0,-4)}}:{})});
     }
     const block = await rpc('eth_getBlockByNumber', [result.blockNumber, false]);
     demand(block && same(block.hash, result.blockHash), 'receipt_noncanonical');

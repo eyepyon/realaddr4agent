@@ -24,6 +24,10 @@
 
 ### 親名登録補助のMetaMask取引照合
 
+親名registerではMetaMaskがENSのERC1155登録token受取確認を第三のcaveatとして追加し、旧policyの件数制限で停止した。register専用に、公式ERC1155残高検査のpin、増加1・期待owner/registry、receipt blockの実`getState(labelhash)`のowner/tokenId一致を検査するpolicy v2を追加した。他操作の許可範囲は増やさない。既存4 pinを変えないv1→v2の追加更新だけを認め、旧policyの実ファイルhashを保存状態と照合する。plan・取引履歴・revisionを消さず同じoriginへ反映した。
+
+関連14テストと、実registerの内側のcall・token受取条件・canonical receiptを修正コードで照合して通過した。親名の登録、期待owner、1年間の期限はliveで一致を確認した。初回確認時のfinalityは待機中であり、上位・拠点namespaceは未接続。補助画面は最終確定待ちを案内し、register再送を促さない。
+
 MetaMaskが直接callをEIP-7702の`redeemDelegations`へ変換したため、送信済みtest token mintの確認が`transaction_mismatch`で停止した。既存transactionは成功しており、予定token・受取owner・数量のmint eventと内側のcall完全一致を実RPCで確認した。再送や送信履歴の初期化は行っていない。
 
 登録補助だけに限定した照合を追加した。保護されたhash付きpolicyに固定したmanager・delegator・読み取り専用の残高検査enforcerを使用し、一つのroot自己委任、一つのSingleDefault call、予定to/value/dataの完全一致、receipt blockのruntime、ownerの委任先とauthorization署名、canonical receiptを検査する。任意のwrapper・追加call・別のcaveatを許可しない。公式creation transactionとmint時/現在runtimeを照合したが、配備当日の過去state照会はRPC側で利用できず未検証とした。

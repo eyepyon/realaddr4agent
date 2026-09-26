@@ -4,7 +4,7 @@ import { resolve, dirname } from 'node:path';
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { validateParentManifest } from './ens-parent-flow.mjs';
-import { validateWrapperPolicy } from './ens-parent-wrapper.mjs';
+import { validateWrapperPolicy, validateWrapperPolicyUpgrade } from './ens-parent-wrapper.mjs';
 
 const require = createRequire(new URL('../package.json', import.meta.url));
 const { build } = require('esbuild');
@@ -34,7 +34,13 @@ let state; let revision = 0; let writeTail = Promise.resolve();
 try {
   const saved = JSON.parse(await readFile(stateFile, 'utf8'));
   if (saved.manifestHash !== manifestHash) throw new Error('state_manifest_mismatch');
-  if(saved.wrapperPolicyHash && saved.wrapperPolicyHash!==wrapperPolicyHash) throw new Error('state_wrapper_policy_mismatch');
+  if(saved.wrapperPolicyHash && saved.wrapperPolicyHash!==wrapperPolicyHash) {
+    const previousFile=process.env.ENS_PARENT_PREVIOUS_WRAPPER_POLICY_FILE;
+    if(!previousFile || !wrapperPolicy) throw new Error('state_wrapper_policy_mismatch');
+    const previousRaw=await readFile(previousFile);
+    if(createHash('sha256').update(previousRaw).digest('hex')!==saved.wrapperPolicyHash) throw new Error('previous_wrapper_policy_hash_mismatch');
+    validateWrapperPolicyUpgrade(JSON.parse(previousRaw.toString('utf8')),wrapperPolicy);
+  }
   state = saved.state;
   if (!Number.isSafeInteger(saved.revision) || saved.revision < 0) throw new Error('invalid_state_revision');
   revision = saved.revision;
