@@ -9,7 +9,7 @@
 | T-01 実行基盤 | 実装中 | pnpm workspace、strict TypeScript、Fastify、web/worker、共通CLI、CI workflowとローカル`.env.example`を作成。全経路の起動確認は未完了 |
 | T-02 認証・Firestore・区画 | 部分実装 | wallet challenge、Bearer hash、collection prefix、64 shard予約に加え、住所購入の決済受付・不明状態保持・確定後の契約発行・未払い確定後のhold解放をrepositoryへ実装。外部の検証済み結果を受け取る内部DB境界であり、実決済・外部照合・返金は未実装。更新の内部DB処理はT-05として追加 |
 | T-05 住所更新 | 部分実装・ローカル検証済み | 同一leaseの更新排他、固定見積、確定支払いの一度だけの反映、結果不明保持、保存済みreceiptからのworker復旧。公開更新API・実決済・chain/ENS同期は未接続 |
-| T-07 LeaseRegistry | コントラクト実装・検証中 | role・slot/version・取消・区画再利用の制約を実装。MultiBaas投入用artifact生成と手動登録手順を追加。実deploy、DB/outboxとの接続、MultiBaas contract read/write/eventsは未完了 |
+| T-07 LeaseRegistry | コントラクト実装・ローカルEVM検証済み | role・slot/version・取消・区画再利用の制約を実装し、Foundry 12件が通過。MultiBaas投入用artifact生成と手動登録手順を追加。実deploy、DB/outboxとの接続、MultiBaas contract read/write/eventsは未完了 |
 | T-02/T-08 所有者向け状態取得 | 部分実装・ローカル検証済み | 注文・契約の一覧と詳細、ENS購入状態をFirestoreから返す。所有権、応答の公開field制限、署名付きcursor、既存CLIの状態取得を確認 |
 | T-05/T-16 worker・outbox | 部分実装・ローカル検証済み | Firestore claim/generation/期限、保存済み支払いからの発行復旧、Cloud Tasks REST配信・結果照合とSchedulerの永続cursor。実送金・chain同期・実Cloud Tasks/Scheduler接続は未検証 |
 | T-08/T-18/T-19 UI | 部分着手 | 公開HTML/AEO、標準SaaSの画面、実APIへの接続。業務統合・実管理者ログインは別途 |
@@ -23,7 +23,9 @@
 
 `contracts/src/LeaseRegistry.sol`へ記録・更新・取消・照会を実装した。OpenZeppelinのadmin/writer role、pause、非ゼロkey/slot/expiry/version、同versionの冪等性、holder/building/slotの不変性、取消後の復活拒否を検査する。区画を再利用しても、旧記録の再送・取消・更新で新しい有効契約の占有を奪わない。DBの支払い・利用可否判定を代替せず、資金を預からず、譲渡関数や個人情報fieldを持たない。
 
-Solidity 0.8.30、OpenZeppelin Contracts 5.4.0、EVM Cancunとoptimizer 200 runsを固定した。ネイティブcompilerでcontractと12件のFoundryテストソースをコンパイルできた。workspaceの型検査とlocal設定のbuildも通過した。Foundryのローカル取得は完了しておらず、テスト実行・gas測定はこの時点では未実施。固定版・checksum検証付きの専用CIへbuild/test/exportを追加した。
+Solidity 0.8.30、OpenZeppelin Contracts 5.4.0、EVM Cancunとoptimizer 200 runsを固定した。ネイティブcompilerでcontractとテストソースをコンパイルできた。workspaceの型検査とlocal設定のbuildも通過した。Foundryの端末への取得は時間切れだったため、固定版・checksum検証付きの専用CIでFoundry 1.7.1のbuild/testを実行し、12件通過・失敗0・skip 0を確認した。ローカルEVMの結果であり、Sepoliaの実write/readや実gas見積ではない。
+
+初回CIのartifact exportはForge ABIとcompiler metadata ABIの項目順序の違いで拒否された。object keyとトップレベルentryの並び順だけを正規化し、inputs/outputs/tupleの順序・型・重複entryは維持して比較するよう修正した。順序差の許可と、tuple順序・型・重複の変更拒否を重点検証した。exportの実成功は後続CIで確認する。
 
 登録用artifact exporterはcompiler設定、ABI、未解決link、各sourceのKeccak-256とcompiler metadataの一致を検査し、ABI・creation/runtime bytecode・SHA-256 manifestを未追跡領域へ生成する。現在はウォレット未準備のため、[手動登録手順](lease-registry.md)までを準備する。Sepolia deploy、初期role/runtime code照合、MultiBaasのABI登録・link・write/read/events、永続cursor/reorg回復、DBのランダムchain keyとoutbox publisherの統合は残件。T-07全体の完了チェックは付けない。
 

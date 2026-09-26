@@ -9,6 +9,12 @@ const contracts = resolve(root, 'contracts');
 const assert = (condition, message) => { if (!condition) throw new Error(message); };
 const sha256 = value => createHash('sha256').update(value).digest('hex');
 const json = value => `${JSON.stringify(value, null, 2)}\n`;
+const canonical = value => {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value !== null && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])]));
+  return value;
+};
+const canonicalAbi = abi => abi.map(entry => JSON.stringify(canonical(entry))).sort();
 const safePath = key => {
   assert(typeof key === 'string' && !isAbsolute(key) && !/^[A-Za-z]:|\\|(^|\/)\.\.(\/|$)/.test(key), 'Unsafe compiler source path');
   assert(key === 'src/LeaseRegistry.sol' || key.startsWith('node_modules/@openzeppelin/contracts/') || key.startsWith('@openzeppelin/contracts/'), 'Unexpected compiler source');
@@ -27,7 +33,7 @@ try {
   const target = metadata.settings.compilationTarget;
   assert(target && Object.keys(target).length === 1 && target['src/LeaseRegistry.sol'] === 'LeaseRegistry', 'Unexpected compilation target');
   assert(Array.isArray(artifact.abi), 'ABI missing');
-  assert(!metadata.output?.abi || JSON.stringify(metadata.output.abi) === JSON.stringify(artifact.abi), 'Artifact ABI differs from compiler metadata');
+  assert(Array.isArray(metadata.output?.abi) && JSON.stringify(canonicalAbi(metadata.output.abi)) === JSON.stringify(canonicalAbi(artifact.abi)), 'Artifact ABI differs from compiler metadata');
   const functions = new Map(artifact.abi.filter(entry => entry.type === 'function').map(entry => [`${entry.name}(${entry.inputs.map(input => input.type).join(',')})`, entry]));
   assert(functions.get('getLease(bytes32)')?.stateMutability === 'view' && functions.has('recordLease(bytes32,bytes32,uint16,bytes32,uint64,uint64)') && functions.has('revokeLease(bytes32,uint64)'), 'Expected lease functions missing');
   const constructor = artifact.abi.find(entry => entry.type === 'constructor');
