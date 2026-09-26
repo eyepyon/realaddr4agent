@@ -38,7 +38,7 @@ run "bootstrap_defaults" {
       "assertion.repository == 'test-owner/test-repository'",
       "assertion.ref == 'refs/heads/main'",
       "assertion.ref_type == 'branch'",
-      "assertion.sub == 'repo:test-owner/test-repository:environment:event'",
+      "assertion.sub == 'repo:test-owner@654321/test-repository@123456:environment:event'",
       "assertion.workflow_ref == 'test-owner/test-repository/.github/workflows/deploy-event.yml@refs/heads/main'",
       "assertion.event_name == 'workflow_dispatch'",
     ])
@@ -49,7 +49,7 @@ run "bootstrap_defaults" {
     error_message = "Impersonation must target only the explicitly supplied existing account."
   }
   assert {
-    condition     = google_service_account_iam_member.github_deploy.member == "principal://iam.googleapis.com/projects/123456789012/locations/global/workloadIdentityPools/realaddr-event-gh/subject/repo:test-owner/test-repository:environment:event"
+    condition     = local.github_subject == "repo:test-owner@654321/test-repository@123456:environment:event" && google_service_account_iam_member.github_deploy.member == "principal://iam.googleapis.com/projects/123456789012/locations/global/workloadIdentityPools/realaddr-event-gh/subject/repo:test-owner@654321/test-repository@123456:environment:event"
     error_message = "Impersonation must use the exact subject in the dedicated pool."
   }
 }

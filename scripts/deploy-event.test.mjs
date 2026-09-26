@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { CURRENT_TERMS_VERSION } from '../packages/domain/src/terms.ts';
-import { buildInitialImage, configFromEnv, deploy, operationFromEnv, smoke, sourceFromEnv, verifyArtifactPermissions, verifySource } from './deploy-event.mjs';
+import { buildInitialImage, configFromEnv, deploy, diagnoseOidc, oidcClaimSummary, operationFromEnv, smoke, sourceFromEnv, verifyArtifactPermissions, verifySource } from './deploy-event.mjs';
 
 const commit = 'a'.repeat(40);
 const previousDigest = `sha256:${'b'.repeat(64)}`;
@@ -209,4 +209,27 @@ test('repository permission probe requires the full permission set and hides pro
   await verifyArtifactPermissions(config, run, async (_url, options) => ({ status: 200, json: async () => JSON.parse(options.body) }));
   await assert.rejects(verifyArtifactPermissions(config, run, async () => ({ status: 200, json: async () => ({ permissions: [] }) })), /artifact_permissions_unverified/);
   await assert.rejects(verifyArtifactPermissions(config, run, async () => { throw new Error('private-provider-fixture'); }), { message: 'artifact_permissions_unverified' });
+});
+
+test('OIDC summary checks immutable subject and exposes only safe structure and booleans', async () => {
+  const env = { GITHUB_REPOSITORY: 'fixture-owner/fixture-repo', GITHUB_REPOSITORY_ID: '123', GITHUB_REPOSITORY_OWNER_ID: '456', ACTIONS_ID_TOKEN_REQUEST_URL: 'https://fixture.invalid/token', ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'private-request-token' };
+  const claims = { repository: env.GITHUB_REPOSITORY, ref: 'refs/heads/main', ref_type: 'branch', sub: 'repo:fixture-owner@456/fixture-repo@123:environment:event', workflow_ref: `${env.GITHUB_REPOSITORY}/.github/workflows/deploy-event.yml@refs/heads/main`, event_name: 'workflow_dispatch', repository_id: '123', repository_owner_id: '456' };
+  const summary = oidcClaimSummary(claims, env);
+  assert.ok(Object.values(summary.matches).every(Boolean));
+  assert.deepEqual(summary.missingClaims, []);
+  assert.equal(summary.legacySubjectMatches, false);
+  assert.equal(JSON.stringify(summary).includes('fixture-owner'), false);
+  assert.equal(oidcClaimSummary({ ...claims, sub: 'private-arbitrary-subject' }, env).subjectStructure, 'unrecognized_redacted');
+  assert.equal(oidcClaimSummary({ ...claims, sub: `repo:${env.GITHUB_REPOSITORY}:environment:event` }, env).legacySubjectMatches, true);
+  assert.equal(oidcClaimSummary({}, env).missingClaims.length, 8);
+  const token = `header.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.signature`;
+  assert.deepEqual(await diagnoseOidc(config, env, async (url, options) => {
+    assert.equal(url.searchParams.get('audience'), `https://iam.googleapis.com/${config.WIF_PROVIDER}`);
+    assert.equal(options.headers.Authorization, 'Bearer private-request-token');
+    assert.equal(options.redirect, 'error');
+    return { status: 200, json: async () => ({ value: token }) };
+  }), summary);
+  await assert.rejects(diagnoseOidc(config, env, async () => { throw new Error(token); }), { message: 'oidc_diagnostic_request_failed' });
+  await assert.rejects(diagnoseOidc(config, env, async () => ({ status: 403 })), { message: 'oidc_diagnostic_request_failed' });
+  assert.throws(() => oidcClaimSummary(claims, { ...env, GITHUB_REPOSITORY_ID: '' }), /oidc_expected_ids_required/);
 });

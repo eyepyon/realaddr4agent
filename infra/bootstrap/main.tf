@@ -4,7 +4,7 @@ provider "google" {
 }
 
 locals {
-  github_subject      = "repo:${var.github_repository}:environment:event"
+  github_subject      = "repo:${split("/", var.github_repository)[0]}@${var.github_owner_id}/${split("/", var.github_repository)[1]}@${var.github_repository_id}:environment:event"
   github_workflow_ref = "${var.github_repository}/.github/workflows/deploy-event.yml@refs/heads/main"
   wif_condition = join(" && ", [
     "assertion.repository_id == '${var.github_repository_id}'",

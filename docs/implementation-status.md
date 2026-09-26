@@ -26,7 +26,9 @@ deploy scriptの限定mockテスト14件、構文検査が通過した。無効o
 
 main branchだけを許可するGitHub event Environmentと保護された配備設定を登録し、既存の本アプリ専用Secret Managerへランダムな起動用秘密値を1版登録した。値はTerraform、ログ、リポジトリへ保存しない。WIF apply、イメージbuild/push、Run作成と実配信の結果は後続の実行記録で確認する。
 
-image-only追加commitの通常CIは成功した。WIF有効化と専用repo writer memberのlive planは作成・レビュー済みだが、適用は個別承認待ちで未実施。イメージpushとRun作成も未実施。GitHub Environment/保護設定/起動用secret versionの登録と、デプロイ成功を区別する。初回サービス配備はまず非公開・dispatch無効・Scheduler停止で計画し、起動と権限の実検査後にweb公開を判断する。
+image-only追加commitの通常CIは成功した。WIF有効化2件と専用repo writer member追加1件は個別承認後に適用し、live設定と後続plan差分0を確認した。GitHub Environment/保護設定/起動用secret versionの登録と、デプロイ成功を区別する。初回サービス配備はまず非公開・dispatch無効・Scheduler停止で計画し、起動と権限の実検査後にweb公開を判断する。
+
+初回image-only実行はWIFのattribute conditionで拒否された。新規repositoryのGitHub OIDC subjectにはimmutable owner/repository IDが含まれるため、名前のみの旧subjectからID付きの厳密なsubjectへ修正した。providerと本アプリのimpersonation memberだけを更新し、他の既存bindingの保持と後続plan差分0を確認した。許可するrepo・main・event・workflow・手動実行の範囲は拡張していない。workflowにtokenやclaim値を出力しない8項目の一致確認を追加した。限定テスト15件、bootstrap fmt/validate/mock 2件が通過した。以降の実認証・image作成結果は後続記録で確認する。
 
 ### 利用規約バージョン1の正式採用
 

@@ -12,6 +12,39 @@ const buildPaths = ['Dockerfile', '.dockerignore', 'package.json', 'pnpm-lock.ya
 function demand(condition, code) {
   if (!condition) throw new Error(code);
 }
+export function oidcClaimSummary(claims, env) {
+  demand(/^\d+$/.test(env.GITHUB_REPOSITORY_ID ?? '') && /^\d+$/.test(env.GITHUB_REPOSITORY_OWNER_ID ?? ''), 'oidc_expected_ids_required');
+  const [owner, repository] = env.GITHUB_REPOSITORY.split('/');
+  const expected = {
+    repository: env.GITHUB_REPOSITORY, ref: 'refs/heads/main', ref_type: 'branch',
+    sub: `repo:${owner}@${env.GITHUB_REPOSITORY_OWNER_ID}/${repository}@${env.GITHUB_REPOSITORY_ID}:environment:event`,
+    workflow_ref: `${env.GITHUB_REPOSITORY}/.github/workflows/deploy-event.yml@refs/heads/main`,
+    event_name: 'workflow_dispatch', repository_id: env.GITHUB_REPOSITORY_ID,
+    repository_owner_id: env.GITHUB_REPOSITORY_OWNER_ID,
+  };
+  return {
+    matches: Object.fromEntries(Object.entries(expected).map(([key, value]) => [key, claims[key] === value])),
+    missingClaims: Object.keys(expected).filter(key => !Object.hasOwn(claims, key)),
+    legacySubjectMatches: claims.sub === `repo:${env.GITHUB_REPOSITORY}:environment:event`,
+    subjectStructure: typeof claims.sub !== 'string' ? 'missing_or_nonstring' : /^repo:[^:@/]+@\d+\/[^:@/]+@\d+:environment:event$/.test(claims.sub) ? 'repo:[owner]@[owner_id]/[repository]@[repository_id]:environment:event' : /^repo:[^:/]+\/[^:]+:environment:event$/.test(claims.sub) ? 'repo:[owner]/[repository]:environment:event' : 'unrecognized_redacted',
+  };
+}
+export async function diagnoseOidc(config, env = process.env, request = fetch) {
+  let claims;
+  try {
+    const url = new URL(env.ACTIONS_ID_TOKEN_REQUEST_URL);
+    demand(url.protocol === 'https:' && !url.username && !url.password && env.ACTIONS_ID_TOKEN_REQUEST_TOKEN, 'oidc_request_unavailable');
+    url.searchParams.set('audience', `https://iam.googleapis.com/${config.WIF_PROVIDER}`);
+    const response = await request(url, { headers: { Authorization: `Bearer ${env.ACTIONS_ID_TOKEN_REQUEST_TOKEN}` }, redirect: 'error', signal: AbortSignal.timeout(30_000) });
+    demand(response.status === 200, 'oidc_request_failed');
+    const { value } = await response.json();
+    demand(typeof value === 'string' && value.length < 100_000 && value.split('.').length === 3, 'oidc_response_invalid');
+    // Decoding is diagnostic only; Google verifies the signed token during authentication.
+    claims = JSON.parse(Buffer.from(value.split('.')[1], 'base64url').toString('utf8'));
+    demand(claims && typeof claims === 'object' && !Array.isArray(claims), 'oidc_response_invalid');
+  } catch { throw new Error('oidc_diagnostic_request_failed'); }
+  return oidcClaimSummary(claims, env);
+}
 function stable(value) {
   if (Array.isArray(value)) return value.map(stable);
   if (value && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort().map(key => [key, stable(value[key])]));
@@ -250,6 +283,12 @@ async function main() {
         console.log(`::add-mask::${config[key]}`);
         appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${config[key]}\n`);
       }
+    } else if (mode === 'oidc-diagnostic') {
+      const config = configFromEnv();
+      demand(subprocess('git', ['rev-parse', 'HEAD']).trim() === config.commit, 'checkout_commit_mismatch');
+      const summary = await diagnoseOidc(config);
+      console.log(JSON.stringify(summary));
+      demand(Object.values(summary.matches).every(Boolean), 'oidc_claim_diagnostic_mismatch');
     } else if (mode === 'deploy' || mode === 'execute') {
       const operation = operationFromEnv();
       const config = configFromEnv();

@@ -1,12 +1,12 @@
 # eventインフラ準備（T-16）
 
-`bootstrap/`はTerraformの初期基盤rootで、専用state bucket、Docker repository、専用GitHub WIF pool/providerと既存deploy service accountへの限定的なimpersonation memberだけを定義する。認証済みlive inventoryと実planを確認済み。実planは5 create・0 update・0 destroyで、bootstrap applyと5件の初期登録は完了し、GCS state移行は完了。`app/`の基盤applyとコンテナ準備は完了した。通常更新用deploy workflowを追加したが実行は未検証で、このrootだけでサービスは稼働しない。
+`bootstrap/`はTerraformの初期基盤rootで、専用state bucket、Docker repository、専用GitHub WIF pool/provider、既存deploy service accountへの限定的なimpersonation member、専用repositoryへのwriter memberを定義する。最初の5資源の登録とGCS state移行は完了し、その後writer memberを追加した。`app/`の基盤applyとコンテナ準備は完了した。このrootだけでサービスは稼働せず、配備の現在地は[実装状況](../docs/implementation-status.md)を参照する。
 
 Terraform 1.14.6、Google provider 8.4.0を固定し、Windows上でfmt、validate、mock test 2件を確認した。lockfileには公式署名を検証したWindows/Linux amd64 packageのchecksumを含む。Linuxでの実行は未検証。作成後のlive metadata確認は下記に記録する。
 
 project、region、bucket名、既存deploy service account、repository名とimmutable repository/owner IDは保護manifestから入力する。実値をリポジトリへ保存しない。認証は管理主体の短期credentialを別途使用し、service account keyやsecret payloadをTerraformへ渡さない。WIFはpool/providerとも既定でdisabled。`wif_enabled=true`には`deploy_workflow_reviewed=true`も必要だが、この確認flagはworkflowと保護されたevent Environmentの実レビューを代替しない。
 
-WIFはimmutable repository/owner ID、repository名、main branch、event Environmentを含むsubject、固定deploy workflow ref、workflow_dispatchに限定する。指定deploy accountを作成・import・削除しない。IAMは当該accountのworkloadIdentityUser member追加だけで、既存bindingを置換しない。image push、state access、runtime権限は付与しない。既存の実効権限が狭いことを保証する設定ではない。
+WIFはimmutable repository/owner ID、repository名、main branch、event Environmentを含むID付きsubject（`repo:OWNER@OWNER-ID/REPO@REPO-ID:environment:event`）、固定deploy workflow ref、workflow_dispatchに限定する。指定deploy accountを作成・import・削除せず、当該account上では本アプリのworkloadIdentityUser memberだけを管理し、他のbindingを保持する。専用Artifact Registryに限定したwriter memberを別途付与する。bootstrapからstate accessやruntime権限を追加せず、既存の実効権限全体が狭いことは保証しない。[GitHubのsubject仕様](https://docs.github.com/en/actions/reference/security/oidc)に従い、名前だけの旧形式を同時に許可しない。
 
 ローカル構文・mock検証:
 
