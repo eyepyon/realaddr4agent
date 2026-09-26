@@ -3,6 +3,12 @@ name: Deploy event
 on:
   workflow_dispatch:
     inputs:
+      operation:
+        description: Existing-service deploy or initial image only
+        required: true
+        default: deploy
+        type: choice
+        options: [deploy, image-only]
       commit:
         description: CI-verified current main commit SHA
         required: true
@@ -38,6 +44,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           SELECTED_COMMIT: ${{ inputs.commit }}
+          SELECTED_OPERATION: ${{ inputs.operation }}
         run: node scripts/deploy-event.mjs gate
 
   deploy:
@@ -63,6 +70,7 @@ jobs:
           DEPLOY_CONFIG: ${{ secrets.DEPLOY_CONFIG }}
           SELECTED_COMMIT: ${{ inputs.commit }}
           SELECTED_TERMS_VERSION: ${{ inputs.terms_version }}
+          SELECTED_OPERATION: ${{ inputs.operation }}
         run: node scripts/deploy-event.mjs inputs
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
         with:
@@ -75,9 +83,11 @@ jobs:
       - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
         with:
           version: 586.0.0
-      - name: Verify existing services and update the same image digest
+      - name: Run the explicitly selected image or deployment operation
+        id: operation_result
         env:
           DEPLOY_CONFIG: ${{ secrets.DEPLOY_CONFIG }}
           SELECTED_COMMIT: ${{ inputs.commit }}
           SELECTED_TERMS_VERSION: ${{ inputs.terms_version }}
-        run: node scripts/deploy-event.mjs deploy
+          SELECTED_OPERATION: ${{ inputs.operation }}
+        run: node scripts/deploy-event.mjs execute

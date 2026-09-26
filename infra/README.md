@@ -63,7 +63,7 @@ docker build --build-arg VITE_APP_ENV=local --build-arg VITE_TERMS_VERSION=event
 
 ## 通常更新用deploy workflow
 
-`deploy-event.yml`と`scripts/deploy-event.mjs`は既存2サービスのimage更新用であり、初回作成には使わない。正式terms・Secret Manager実version・worker origin・runtime gateを確定してTerraformで初回配備し、web公開とworker専用invokerを実確認してから使用する。現在はその前提が未完了で、workflowを実行していない。
+`deploy-event.yml`と`scripts/deploy-event.mjs`は既存2サービスのimage更新と、明示的な初回image-only操作を提供する。Cloud Runの初回作成には使わない。正式terms・Secret Manager実version・worker origin・runtime gateを確定してTerraformで初回配備し、web公開とworker専用invokerを実確認してから使用する。通常deployの前提は未完了で、workflowを実行していない。
 
 保護された`event` Environmentの`DEPLOY_CONFIG` Secretへ、[設定契約](../docs/deployment-configuration.md#github-actionsへ渡す値)のtarget metadataをJSONで登録する。runtime secret値やservice account鍵は含めない。専用Artifact Registryのpush権限とruntime actAs・Run更新/検証権限を実確認し、既存bindingを保持したままWIFを別工程で有効化する。EnvironmentやWIFをworkflow自身で作成・有効化しない。
 
@@ -78,3 +78,11 @@ GCPへ接続しない`container-check.yml`はlocal demo設定でimage buildと�
 app foundationの実applyは17 add・0 update・0 deleteで成功した。live再取得で専用4 service accountがenabled・user-managed key 0、既存project IAM memberの保持、業務bucketのuniform access/public access prevention有効・soft delete 0・7日削除、queueの毎秒1・同時実行1・最大10試行、作成secretのversion 0件を確認した。web/workerの共有default DB限定IAM grantは個別レビュー後に今回の保護設定で有効にした。入力の既定値は引き続きfalseであり、同DB内のcollection隔離を意味しない。
 
 基盤登録時は正式terms未確定のため配備を保留した。その後realaddr-v1を正式採用し、規約versionの待ち条件は解消した。event image、Cloud Run、公開IAM、Scheduler、dispatch、deploy CI/WIFの有効化は行っていない。専用主体のFirestore操作・DB拒否とqueue権限の代表検査は通過し、合成documentと短期grantのcleanupを確認した。Cloud Run invoker、Tasks OIDC、スポンサー、別Firebase利用者のclient試験は未検証。詳しい証跡範囲は実装状況のruntime IAM節を参照する。appのremote post-apply planはdetailed exit code 0で差分なし。state pullの17 resource instance、保護backupとmanifest更新を確認した。T-16全体は未完了。
+
+## 初回event image-only
+
+手動workflowの`operation`は`deploy`が既定で、初回image作成だけを行う場合は`image-only`を明示する。mainの完全SHA・同SHAのCI成功・正式`realaddr-v1`・保護されたevent設定・専用WIF/workflow条件・承認を両モードで検査する。不明なoperationはcloud認証前に拒否する。
+
+image-onlyは確認したdeploy主体で、本アプリ専用Artifact Registryのname/project/location、DOCKER、STANDARD_REPOSITORY、bootstrapの用途descriptionを照合し、repository get/upload/downloadとdocker image getを実`testIamPermissions`で確認してから、許可sourceだけでevent imageをbuild/pushする。descriptionだけを所有権の証拠にせず、管理主体のlive inventoryと保護manifestによる所有レビューを先に済ませる。Run不在は管理主体の別gateで確認し、このjobのためにproject-wide Run権限を追加しない。jobはRun API、サービス作成・更新、IAM変更、Cloud Buildを呼ばない。
+
+成功時はimageのsha256 digestだけをlogへ出し、projectを含む完全なimage参照はmaskして同stepの`IMAGE_DIGEST` outputへ保存する。実識別子・token・secret値をlogへ表示しない。確定digestを保護manifestのTerraform `image_digest`へ渡す。worker URLは確認済みproject number/region/サービス名から公式deterministic形式で予定値を確定できるが、初回配備後のlive URL一致確認までは配信を有効化しない。通常deployの既存サービス・IAM・revision・rollback検査は変更しない。

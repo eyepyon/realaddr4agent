@@ -18,6 +18,14 @@
 
 ## 検証の記録
 
+### T-16 初回eventイメージと配備準備
+
+CI成功後のlive確認では専用web/workerとイメージは存在せず、配備完了ではなかった。正式termsの確定を受け、既存deploy workflowへ明示的な `image-only` 操作を追加した。mainの同一SHAのCI成功・保護されたevent Environment・限定WIF・正式terms検査を維持し、専用Artifact Registryのmetadataと実upload/download等の権限を検査してからイメージを作成する。この操作はRun APIやIAM変更を呼ばず、サービスの作成は管理主体によるTerraformの別工程とする。通常更新の事前検査・rollback経路は維持した。
+
+deploy scriptの限定mockテスト14件、構文検査が通過した。無効operation、対象repo不一致、権限不足の拒否、image-onlyがRun/IAM操作を行わないことを追加確認した。専用repoだけのwriter IAM memberをbootstrapへ追加し、fmt・validate・mock 2件が通過した。live planはwriter member 1追加とWIF pool/providerのdisabled属性2更新だけで、共有資源の変更・削除は含まない。
+
+main branchだけを許可するGitHub event Environmentと保護された配備設定を登録し、既存の本アプリ専用Secret Managerへランダムな起動用秘密値を1版登録した。値はTerraform、ログ、リポジトリへ保存しない。WIF apply、イメージbuild/push、Run作成と実配信の結果は後続の実行記録で確認する。
+
 ### 利用規約バージョン1の正式採用
 
 2026-09-26に本文15条を `realaddr-v1` として正式採用した。原案用の前文と表示を正式版へ置換し、本versionの提示・同意から適用する。過去の開発用署名は正式同意に読み替えない。`/terms` はindex対象の初期HTMLとし、nav/footer、同意欄、sitemap、llms.txtから参照する。API・Web build・deployは共通の承認済version定数との一致を要求する。本文のversion行と定数の一致もbuild時に確認する。

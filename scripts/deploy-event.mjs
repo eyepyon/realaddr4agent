@@ -27,10 +27,16 @@ export function subprocess(program, args, options = {}) {
   return result.stdout ?? '';
 }
 export function sourceFromEnv(env = process.env) {
+  operationFromEnv(env);
   demand(env.GITHUB_EVENT_NAME === 'workflow_dispatch' && env.GITHUB_REF === 'refs/heads/main', 'deployment_not_authorized');
   demand(/^[a-f0-9]{40}$/.test(env.GITHUB_SHA ?? '') && env.SELECTED_COMMIT === env.GITHUB_SHA, 'commit_must_equal_current_main');
   demand(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(env.GITHUB_REPOSITORY ?? ''), 'invalid_repository_context');
   return { commit: env.GITHUB_SHA, repository: env.GITHUB_REPOSITORY };
+}
+export function operationFromEnv(env = process.env) {
+  const operation = env.SELECTED_OPERATION ?? 'deploy';
+  demand(['deploy', 'image-only'].includes(operation), 'invalid_deploy_operation');
+  return operation;
 }
 export function configFromEnv(env = process.env) {
   const source = sourceFromEnv(env);
@@ -140,6 +146,49 @@ export async function smoke(config, fetcher = fetch) {
   const denied = await fetcher(`${config.WORKER_URL}/tasks/run`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}', redirect: 'error', signal: AbortSignal.timeout(30000) });
   demand([401, 403].includes(denied.status), 'unauthenticated_worker_not_denied');
 }
+export async function verifyArtifactPermissions(config, run = subprocess, fetcher = fetch) {
+  const required = ['artifactregistry.repositories.get', 'artifactregistry.repositories.uploadArtifacts', 'artifactregistry.repositories.downloadArtifacts', 'artifactregistry.dockerimages.get'];
+  const token = run('gcloud', ['auth', 'print-access-token', '--quiet']).trim();
+  demand(token.length > 0, 'artifact_permissions_unverified');
+  try {
+    const response = await fetcher(`https://artifactregistry.googleapis.com/v1/projects/${config.GCP_PROJECT_ID}/locations/${config.GCP_REGION}/repositories/${config.ARTIFACT_REPOSITORY}:testIamPermissions`, {
+      method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ permissions: required }), redirect: 'error', signal: AbortSignal.timeout(30_000),
+    });
+    demand(response.status === 200, 'artifact_permissions_unverified');
+    const result = await response.json();
+    demand(Array.isArray(result.permissions) && required.every(permission => result.permissions.includes(permission)), 'artifact_permissions_unverified');
+  } catch { throw new Error('artifact_permissions_unverified'); }
+}
+export async function buildInitialImage(config, { run = subprocess, prepareContext, permissionCheck = verifyArtifactPermissions } = {}) {
+  demand(run('git', ['rev-parse', 'HEAD']).trim() === config.commit, 'checkout_commit_mismatch');
+  const active = parse(run('gcloud', ['auth', 'list', '--filter=status:ACTIVE', '--format=json', '--quiet']));
+  demand(active.length === 1 && active[0].account === config.DEPLOY_SERVICE_ACCOUNT, 'active_deploy_identity_mismatch');
+  const repository = parse(run('gcloud', ['artifacts', 'repositories', 'describe', config.ARTIFACT_REPOSITORY, `--project=${config.GCP_PROJECT_ID}`, `--location=${config.GCP_REGION}`, '--format=json', '--quiet']));
+  demand(repository.name === `projects/${config.GCP_PROJECT_ID}/locations/${config.GCP_REGION}/repositories/${config.ARTIFACT_REPOSITORY}` && repository.format === 'DOCKER' && repository.mode === 'STANDARD_REPOSITORY' && repository.description === 'RealAddr event application images', 'artifact_repository_mismatch');
+  await permissionCheck(config, run);
+  let context;
+  try {
+    if (prepareContext) context = prepareContext();
+    else {
+      context = mkdtempSync(join(tmpdir(), 'realaddr-initial-image-'));
+      run('git', ['archive', '--format=tar', `--output=${join(context, 'source.tar')}`, config.commit, ...buildPaths]);
+      run('tar', ['-xf', join(context, 'source.tar'), '-C', context]);
+      rmSync(join(context, 'source.tar'));
+    }
+    const tag = `${config.GCP_REGION}-docker.pkg.dev/${config.GCP_PROJECT_ID}/${config.ARTIFACT_REPOSITORY}/app:${config.commit}`;
+    run('docker', ['build', '--build-arg', 'VITE_APP_ENV=event', '--build-arg', `VITE_TERMS_VERSION=${config.TERMS_VERSION}`, '--tag', tag, context]);
+    run('gcloud', ['auth', 'configure-docker', `${config.GCP_REGION}-docker.pkg.dev`, '--quiet']);
+    run('docker', ['push', tag]);
+    const built = parse(run('gcloud', ['artifacts', 'docker', 'images', 'describe', tag, `--project=${config.GCP_PROJECT_ID}`, '--format=json', '--quiet']));
+    const digest = built.image_summary?.digest;
+    demand(digestPattern.test(digest ?? ''), 'registry_digest_required');
+    const image = digestImage(`${tag.slice(0, tag.lastIndexOf(':'))}@${digest}`, config);
+    return { status: 'image_created', image };
+  } finally {
+    if (context && !prepareContext) rmSync(context, { recursive: true, force: true });
+  }
+}
 export async function deploy(config, { run = subprocess, smokeCheck = smoke, prepareContext } = {}) {
   demand(run('git', ['rev-parse', 'HEAD']).trim() === config.commit, 'checkout_commit_mismatch');
   const active = parse(run('gcloud', ['auth', 'list', '--filter=status:ACTIVE', '--format=json', '--quiet']));
@@ -201,7 +250,18 @@ async function main() {
         console.log(`::add-mask::${config[key]}`);
         appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${config[key]}\n`);
       }
-    } else if (mode === 'deploy') await deploy(configFromEnv());
+    } else if (mode === 'deploy' || mode === 'execute') {
+      const operation = operationFromEnv();
+      const config = configFromEnv();
+      if (operation === 'image-only') {
+        demand(process.env.GITHUB_OUTPUT, 'github_step_output_required');
+        const result = await buildInitialImage(config);
+        console.log(`::add-mask::${result.image}`);
+        appendFileSync(process.env.GITHUB_OUTPUT, `IMAGE_DIGEST=${result.image}\n`);
+        console.log(`Image digest: ${result.image.slice(result.image.lastIndexOf('@') + 1)}`);
+        console.log('Initial image created; services and IAM unchanged.');
+      } else await deploy(config);
+    }
     else throw new Error('invalid_deploy_mode');
     console.log('Deployment gate completed.');
   } catch (error) {

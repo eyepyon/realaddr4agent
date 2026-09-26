@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { CURRENT_TERMS_VERSION } from '../packages/domain/src/terms.ts';
-import { configFromEnv, deploy, smoke, sourceFromEnv, verifySource } from './deploy-event.mjs';
+import { buildInitialImage, configFromEnv, deploy, operationFromEnv, smoke, sourceFromEnv, verifyArtifactPermissions, verifySource } from './deploy-event.mjs';
 
 const commit = 'a'.repeat(40);
 const previousDigest = `sha256:${'b'.repeat(64)}`;
@@ -168,4 +168,45 @@ test('smoke checks public health and unauthenticated worker denial without retur
   assert.equal(calls.length, 2);
   assert.equal(calls[1].options.headers.Authorization, undefined);
   await assert.rejects(smoke(config, async url => url.endsWith('/health') ? { status: 200, json: async () => ({ status: 'ok' }) } : { status: 200 }), /unauthenticated_worker_not_denied/);
+});
+
+test('operation defaults to deploy and invalid operation fails before configuration', () => {
+  assert.equal(operationFromEnv({}), 'deploy');
+  assert.equal(operationFromEnv({ SELECTED_OPERATION: 'image-only' }), 'image-only');
+  assert.throws(() => configFromEnv({ ...environment, SELECTED_OPERATION: 'create-services', DEPLOY_CONFIG: '' }), /invalid_deploy_operation/);
+});
+
+function initialFixture({ repository = {}, permissionsDenied = false } = {}) {
+  const calls = [];
+  const run = (program, args) => {
+    calls.push({ program, args });
+    if (program === 'git') return commit;
+    if (program === 'docker') return '';
+    if (args[0] === 'auth' && args[1] === 'configure-docker') return '';
+    if (args[0] === 'auth') return JSON.stringify([{ account: metadata.DEPLOY_SERVICE_ACCOUNT }]);
+    if (args[0] === 'artifacts' && args[1] === 'repositories') return JSON.stringify({ name: `projects/${metadata.GCP_PROJECT_ID}/locations/${metadata.GCP_REGION}/repositories/${metadata.ARTIFACT_REPOSITORY}`, format: 'DOCKER', mode: 'STANDARD_REPOSITORY', description: 'RealAddr event application images', ...repository });
+    if (args[0] === 'artifacts') return JSON.stringify({ image_summary: { digest: nextDigest } });
+    throw new Error('unexpected_initial_fixture_command');
+  };
+  return { calls, dependencies: { run, prepareContext: () => 'fixture-build-context', permissionCheck: async () => { if (permissionsDenied) throw new Error('artifact_permissions_unverified'); } } };
+}
+test('image-only builds and pushes a digest without creating services or changing IAM', async () => {
+  const fake = initialFixture();
+  assert.deepEqual(await buildInitialImage(config, fake.dependencies), { status: 'image_created', image: image(nextDigest) });
+  assert.deepEqual(fake.calls.filter(call => call.program === 'docker').map(call => call.args[0]), ['build', 'push']);
+  assert.equal(fake.calls.some(call => call.args[0] === 'run'), false);
+  assert.ok(fake.calls.every(call => !call.args.some(arg => /iam|update|create|delete/.test(arg))));
+});
+test('image-only rejects mismatched repository metadata or missing permissions before build', async () => {
+  for (const options of [{ repository: { format: 'MAVEN' } }, { repository: { mode: 'REMOTE_REPOSITORY' } }, { repository: { description: 'unreviewed fixture owner' } }, { repository: { name: 'projects/fixture/locations/elsewhere/repositories/realaddr-event-images' } }, { permissionsDenied: true }]) {
+    const fake = initialFixture(options);
+    await assert.rejects(buildInitialImage(config, fake.dependencies), /artifact_repository_mismatch|artifact_permissions_unverified/);
+    assert.equal(fake.calls.some(call => call.program === 'docker'), false);
+  }
+});
+test('repository permission probe requires the full permission set and hides provider failures', async () => {
+  const run = () => 'fixture-ephemeral-token';
+  await verifyArtifactPermissions(config, run, async (_url, options) => ({ status: 200, json: async () => JSON.parse(options.body) }));
+  await assert.rejects(verifyArtifactPermissions(config, run, async () => ({ status: 200, json: async () => ({ permissions: [] }) })), /artifact_permissions_unverified/);
+  await assert.rejects(verifyArtifactPermissions(config, run, async () => { throw new Error('private-provider-fixture'); }), { message: 'artifact_permissions_unverified' });
 });

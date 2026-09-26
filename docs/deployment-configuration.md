@@ -26,7 +26,7 @@ GitHub repositoryの **Settings → Environments → event** でmain限定の保
 | `ARTIFACT_REPOSITORY` | `realaddr-event-images` |
 | `DEPLOY_SERVICE_ACCOUNT` | `<deploy-sa>@<project-id>.iam.gserviceaccount.com`。既存accountの所有者・binding・実効権限を確認。Terraform lifecycle対象外 |
 | `TERMS_VERSION` | 正式version `realaddr-v1`。手動入力`terms_version`・Web build・既存web runtimeに一致させる。未承認の版やlocal demo versionはeventで拒否する。[採用記録と提供準備](terms-review.md)を参照 |
-| `WORKER_URL` | 初回配備後に確認した専用workerの実HTTPS `run.app` origin |
+| `WORKER_URL` | 管理主体が確認したproject number/regionから確定する専用workerのdeterministic HTTPS `run.app` origin。image-onlyでは予定値を用い、初回配備後に実URLとの完全一致を確認 |
 | `DEPLOYMENT_APPROVED` | 配備前レビューを済ませてから文字列`true`を指定。未設定時はcloud認証前に停止 |
 
 workflowは`${{ secrets.DEPLOY_CONFIG }}`を読み、認証actionへ渡す識別子を個別maskして同job内のstep outputへ設定する。手動入力`commit`は実行時のmain commit SHAと完全一致させる。gate jobは`contents: read`とCI照会用`actions: read`だけで、cloud認証やEnvironment Secretを持たない。deploy jobだけが保護された`event` Environmentへ入り、`contents: read`と`id-token: write`を持つ。`APP_ENV=event`と`PUBLIC_ORIGIN=https://address.chain.tokyo`はCloud Run側で固定する。repository/ownerのimmutable IDと許可ref/Environment/event/workflow refをWIF条件へ反映し、JSON service account keyは作成・登録しない。[Google Cloud WIF公式手順](https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines)
@@ -83,3 +83,9 @@ T-00でWorld/Intercepta/facilitator/USDC/MultiBaas/ENSの実endpoint・address�
 コンテナは`VITE_APP_ENV`と`VITE_TERMS_VERSION`を必須build引数とし、同一imageを`web`/`worker`引数で使う。現実装のweb起動には`APP_ENV=event`、`GCP_PROJECT_ID`、上表の`PUBLIC_ORIGIN`、正式な`TERMS_VERSION`、実`RATE_LIMIT_HMAC_KEY`が必要。worker起動は環境・project・prefix・default databaseと、実`WORKER_URL`・専用Tasks/Scheduler invokerを必要とする。provider secretは現在の閉じた起動経路では必須でなく、値を仮置きして販売を開かない。APIもeventでは専用prefixと共有default databaseの明示設定を要求し、demo project、不正project、Emulator、鍵credentialの環境変数を拒否する。
 
 `infra/app`では非秘密設定を固定し、`secret_versions`でweb/workerごとの既存numeric versionだけを指定する。`secret_purposes`はmetadata作成対象で、payload/version作成を行わない。service配備・runtime ready・公開・Scheduler・dispatch・共有Firestore grantのopt-inは全て既定false。初期基盤applyとその後のruntime gateは別工程である。backend設定は保護されたbucketと専用prefixを使い、`TF_DATA_DIR`も保護directoryへ分ける。bootstrapはGCS移行済みで、cloneは既存remote stateへ接続する。[初期化手順](../infra/README.md)を参照。
+
+## image-onlyの入力と権限境界
+
+同じ手動workflowで`operation=image-only`を選ぶと、正式terms・同SHAのCI・保護設定・承認・WIF条件を保ったまま、Artifact Registryへのevent image作成だけを行う。`operation`の既定は通常`deploy`で、不明値は拒否する。`DEPLOY_CONFIG`のJSON契約は同じで、image-only用に設定の必須項目や承認条件を省略しない。予定worker originは管理主体の確認したmetadataから確定し、後続の実配備で一致確認する。
+
+image-only用deploy権限はレビュー済みの本アプリrepositoryへ限定する。実repository metadataと必要なget/upload/download・image get権限をjobで確認し、Run APIとIAM mutationは実行しない。Run不在・初回Terraform plan・runtime secret version・公開/配信gateは管理主体の別工程である。通常deployの既存サービス検査とrollbackは維持する。image-only成功はCloud Run配備・公開・スポンサー接続成功を意味しない。[実行手順](../infra/README.md#初回event-image-only)を参照。

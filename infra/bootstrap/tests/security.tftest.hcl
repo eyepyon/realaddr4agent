@@ -20,6 +20,10 @@ variables {
 run "bootstrap_defaults" {
   command = plan
   assert {
+    condition     = google_artifact_registry_repository_iam_member.deploy_writer.project == var.project_id && google_artifact_registry_repository_iam_member.deploy_writer.location == var.region && google_artifact_registry_repository_iam_member.deploy_writer.repository == "realaddr-event-images" && google_artifact_registry_repository_iam_member.deploy_writer.role == "roles/artifactregistry.writer" && google_artifact_registry_repository_iam_member.deploy_writer.member == "serviceAccount:${var.deploy_service_account}"
+    error_message = "Image upload must use an additive member on only the dedicated repository and reviewed deploy account."
+  }
+  assert {
     condition     = google_storage_bucket.state.uniform_bucket_level_access && google_storage_bucket.state.public_access_prevention == "enforced" && google_storage_bucket.state.versioning[0].enabled && !google_storage_bucket.state.force_destroy
     error_message = "State storage must be private, versioned and non-destructive."
   }

@@ -50,6 +50,14 @@ resource "google_iam_workload_identity_pool" "github" {
   disabled                  = !var.wif_enabled
 }
 
+resource "google_artifact_registry_repository_iam_member" "deploy_writer" {
+  project    = var.project_id
+  location   = google_artifact_registry_repository.images.location
+  repository = google_artifact_registry_repository.images.repository_id
+  role       = "roles/artifactregistry.writer"
+  member     = "serviceAccount:${var.deploy_service_account}"
+}
+
 resource "google_iam_workload_identity_pool_provider" "github" {
   project                            = var.project_id
   workload_identity_pool_id          = google_iam_workload_identity_pool.github.workload_identity_pool_id
