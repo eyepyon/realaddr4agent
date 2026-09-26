@@ -6,7 +6,7 @@ AIエージェントがx402で実住所の利用区画を契約し、ENSv2名で
 
 HTTP workerにはFirestoreの実行権・再試行管理と、保存済みの確認済み支払いから契約発行を復旧する処理、Cloud Tasks REST dispatcher、Scheduler sweep recoveryを実装しました。送金・chain同期handlerは未接続で、専用主体のFirestore操作・DB拒否とqueue権限は確認しました。Cloud Runの未認証拒否は確認済みですが、実GCPのCloud Tasks/SchedulerによるOIDC配信は未検証です。管理主体によるlive Rulesのdeny評価と実未認証拒否は確認済みで、実Firebase他利用者client試験は残件です。未接続処理を成功扱いせず、状態を永続化して保留します。
 
-GCP登録準備として[Terraform bootstrap](infra/README.md)と[読み取り専用inventory](docs/gcp-inventory.md)を追加しました。bootstrap applyで専用state bucket・Artifact Registry・無効WIF pool/provider・限定IAM memberの5件を作成し、live設定と既存IAM member保持を確認しました。GCS state移行は完了しました。appの基盤17件を登録し、live設定を確認しました。通常更新用の手動deploy workflowと、GCP認証なしでコンテナを検査するCIを追加しました。正式termsのevent image-only workflowが成功し、同一immutable digestを非公開Cloud Run 2サービスへ初回配備しました。private構成の検証99件は通過しました。Cloud Runの公開と公開後100件の確認は完了しました。独自ドメインはrouting確認済みで、TLS証明書の発行待ちです。
+GCP登録準備として[Terraform bootstrap](infra/README.md)と[読み取り専用inventory](docs/gcp-inventory.md)を追加しました。bootstrap applyで専用state bucket・Artifact Registry・無効WIF pool/provider・限定IAM memberの5件を作成し、live設定と既存IAM member保持を確認しました。GCS state移行は完了しました。appの基盤17件を登録し、live設定を確認しました。通常更新用の手動deploy workflowと、GCP認証なしでコンテナを検査するCIを追加しました。正式termsのevent image-only workflowが成功し、同一immutable digestを非公開Cloud Run 2サービスへ初回配備しました。private構成の検証99件は通過しました。Cloud Runの公開と公開後100件の確認は完了しました。独自ドメインのTLS発行とHTTPS応答も確認済みです。
 
 ## 読む順序
 
@@ -50,12 +50,12 @@ AGENTS.mdとREADME.mdから仕様を読み、.kiro/specs/realaddr/tasks.mdの
 
 ## 公開URLと画面方針
 
-公開予定originは **https://address.chain.tokyo**。ドメイン/DNS設定はユーザーが担当します。Cloud Runのweb公開とworker非公開を確認済みで、独自ドメインのTLS証明書は発行待ちです。公開サイト、利用者画面、人間承認画面、管理画面を白〜薄いグレーと控えめな青の標準的なSaaSデザインへ統一します。公開説明は検索/AI向けにも初期HTMLで読めるようにします。
+公開予定originは **https://address.chain.tokyo**。ドメイン/DNS設定はユーザーが担当します。Cloud Runのweb公開とworker非公開を確認済みで、独自ドメインのTLS発行とHTTPS応答も確認済みです。公開サイト、利用者画面、人間承認画面、管理画面を白〜薄いグレーと控えめな青の標準的なSaaSデザインへ統一します。公開説明は検索/AI向けにも初期HTMLで読めるようにします。
 
 ## スコープ
 
 - Cloud Run（最小instance数0）、Firestore、Cloud Storage、GitHub Actions。非同期処理はCloud Tasks、回復はScheduler。無料枠中心の運用を設計し、完全0円は保証しない。
-- 共有GCP projectでは `RESOURCE_PREFIX=realaddr-event` と `FIRESTORE_COLLECTION_PREFIX=realaddr_event_` を使う。`(default)` DB等は共有参照に限定し、Terraform stateへimport・一括管理しない。デプロイ用service accountは保護された設定の`DEPLOY_SERVICE_ACCOUNT`で指定し、所有者・binding・実効権限を事前に確認する。そのaccountの作成・import・削除は本アプリのTerraform対象外とし、限定的なIAM追加は[インフラ仕様](docs/infrastructure.md)に従う。Cloud Run runtime/invoker等のservice accountは専用とする。prefixはIAM境界ではなく、project全体で無料枠/予算を評価する。基盤登録とCloud Run公開は完了し、独自ドメインTLSとスポンサー実接続は未完了。
+- 共有GCP projectでは `RESOURCE_PREFIX=realaddr-event` と `FIRESTORE_COLLECTION_PREFIX=realaddr_event_` を使う。`(default)` DB等は共有参照に限定し、Terraform stateへimport・一括管理しない。デプロイ用service accountは保護された設定の`DEPLOY_SERVICE_ACCOUNT`で指定し、所有者・binding・実効権限を事前に確認する。そのaccountの作成・import・削除は本アプリのTerraform対象外とし、限定的なIAM追加は[インフラ仕様](docs/infrastructure.md)に従う。Cloud Run runtime/invoker等のservice accountは専用とする。prefixはIAM境界ではなく、project全体で無料枠/予算を評価する。基盤登録とCloud Run公開は完了し、独自ドメインHTTPSも確認済みで、スポンサー実接続は未完了。
 - 1拠点につき1〜65,535の仮想区画。住所表記は実際の建物階数と区別する。
 - 住所契約は30日ごとにmainnet想定55 USDC、testnet/dev 0.55 USDC（USDC 6 decimalsでそれぞれ55,000,000 / 550,000 atomic）。purchase/renew共通。今回mainnet決済は無効で、test価格をmainnetへ流用しない。
 - 安全性判定 → x402決済 → 永続的な住所利用契約 → オンチェーン記録。

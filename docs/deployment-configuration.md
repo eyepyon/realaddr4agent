@@ -92,7 +92,7 @@ image-only用deploy権限はレビュー済みの本アプリrepositoryへ限定
 
 ## 初回配備とドメイン公開のgate
 
-正式`realaddr-v1`のevent image-only workflowが成功し、同一immutable digestを非公開web/workerへ配備した。private構成のlive検証99件は通過した。Schedulerは停止、Cloud Tasks dispatchは無効のままで、Cloud Run公開と公開後100件の確認は完了し、独自ドメインはrouting確認済み・TLS証明書発行待ち。
+正式`realaddr-v1`のevent image-only workflowが成功し、同一immutable digestを非公開web/workerへ配備した。private構成のlive検証99件は通過した。Schedulerは停止、Cloud Tasks dispatchは無効のままで、Cloud Run公開と公開後100件の確認は完了し、独自ドメインのTLS発行・HTTPS応答も確認済み。
 
 Terraformの`domain_mapping_reviewed`は既定false。`deploy_services=true`と`web_public=true`に加えて、管理主体が実domain所有権、専用web target、既存mapping不在とDNS recordをレビューしてからtrueを指定する。固定公開originだけをmappingし、`force_override=false`と削除防止を維持する。DNSはユーザー本人が管理し、mapping/certificate Readyと公開HTTP確認を別gateとする。
 

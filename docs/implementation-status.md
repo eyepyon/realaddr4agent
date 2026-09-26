@@ -14,7 +14,7 @@
 | T-08/T-18/T-19 UI | 部分着手 | 公開HTML/AEO、標準SaaSの画面、実APIへの接続。業務統合・実管理者ログインは別途 |
 | T-02/T-08/T-19 利用規約 | v1正式採用・event配信確認済み | realaddr-v1として15条を正式採用。単一Markdownから/termsへ初期HTML配信し、正式versionの同意欄・API/build/deploy設定を一致させる。提供開始準備と実利用者の同意確認は別途 |
 | T-00 外部連携 | 設定の有無を確認・実接続未実施 | MultiBaasの接続設定は一部入力済み。chain・registry設定、権限、実疎通は未確認。World、Intercepta、x402、ENS、管理者OIDCの必要設定も揃っていない。値を表示せずキーの有無だけ確認し、接続済みとは扱わない |
-| T-16 GCP | web公開・worker非公開で初回配備済み・全体未完了 | WIFとeventイメージbuild/push、runtime IAM検査、初回Cloud Run配備、公開後100項目と後続plan差分0を確認。独自ドメイン割当済み・TLS発行待ち。Tasks/Schedulerの実配信、実Firebase利用者client試験、外部業務連携は残件 |
+| T-16 GCP | 独自ドメインHTTPS確認済み・全体未完了 | WIFとeventイメージbuild/push、runtime IAM検査、初回Cloud Run配備、公開後100項目と後続plan差分0を確認。TLS発行・独自ドメイン8経路の表示と拒否を確認。Tasks/Schedulerの実配信、実Firebase利用者client試験、外部業務連携は残件 |
 
 ## 検証の記録
 
@@ -28,7 +28,11 @@ Schedulerの明示的な空のretry設定はAPIが省略して返すため、設
 
 webの `allUsers` IAM追加は共有環境のdomain-restricted sharingに拒否され、その試行では公開IAMとドメイン割当は作成されなかった。共有ポリシーは変更していない。実効 `run.managed.requireInvokerIam` が強制されていないことを読み取り確認し、[Google公式のサービス単位の公開方式](https://docs.cloud.google.com/run/docs/authenticating/public)に合わせてwebだけのInvoker IAM検査を無効化した。workerのIAM検査・限定invokerとアプリの認証を維持する。通常deployの事前検査もこの方式を許可し、workerの検査無効化や不明な設定値・混在方式を拒否する。限定テスト18件が通過した。
 
-web公開設定1更新と専用ドメイン割当1作成を適用し、後続plan差分0を確認した。DNS変更はしていない。公開後のlive検査100項目が通過し、未認証webでhealth・Firestore readiness・正式規約とprivate画面のcache/index制御を確認、workerへの未認証と許可されていない本人tokenは拒否された。独自ドメインはDomainRoutable=Trueで、TLS証明書はCertificatePending。独自ドメインでのHTTPS到達は未合格であり、発行後に別途確認する。
+web公開設定1更新と専用ドメイン割当1作成を適用し、後続plan差分0を確認した。DNS変更はしていない。公開後のlive検査100項目が通過し、未認証webでhealth・Firestore readiness・正式規約とprivate画面のcache/index制御を確認、workerへの未認証と許可されていない本人tokenは拒否された。
+
+証明書発行後、独自ドメインのReady・CertificateProvisioned・DomainRoutableがすべてTrue、既存CNAMEが要求値と一致することを確認した。HTTPSで `/`・`/health`・`/ready`・`/terms`・`/terms/`・`/developers`・`/app` の200、未認証 `/v1/locations` の401を確認。規約v1本文とindex方針、private画面のno-store/noindexも通過した。利用者による公開画面の確認も得た。配備設定commitの通常CIは成功した。実決済、World承認、ENS登録を含む完成を意味しない。
+
+通常deployのメタデータ検査を実サービス応答に合わせた。worker originは主URLまたはCloud Runが返す正規URL一覧との完全一致だけを許可し、不正JSON・未知URL等を拒否する。v2で無効を確認したstartup CPU boostがv1では省略される応答に対応し、有効・不明値を拒否する。限定テスト21件が通過した。取得した実web/worker・IAM・revisionメタデータを通常deployと同じ検査関数へ渡して通過を確認した。この読み取り検査はdeploy主体での実更新・rollback試験を代替しない。
 
 ### T-16 初回eventイメージと配備準備
 

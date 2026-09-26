@@ -1,6 +1,6 @@
 # GCPインフラ・Firestore・低コスト運用仕様
 
-決定日: 2026-09-25。ユーザー指定によりCloud Run / Cloud Firestore / Cloud Storage / GitHub Actionsを採用する。これは実装仕様であり、billing有効を読み取り確認したが、bootstrap初期5件とapp基盤の登録後、正式event imageの同一digestで非公開Cloud Run 2サービスを配備し、private構成を確認した。Cloud Run公開と公開後100件の確認は完了し、独自ドメインはrouting確認済み・TLS証明書発行待ち。
+決定日: 2026-09-25。ユーザー指定によりCloud Run / Cloud Firestore / Cloud Storage / GitHub Actionsを採用する。これは実装仕様であり、billing有効を読み取り確認したが、bootstrap初期5件とapp基盤の登録後、正式event imageの同一digestで非公開Cloud Run 2サービスを配備し、private構成を確認した。Cloud Run公開と公開後100件の確認は完了し、独自ドメインのTLS発行・HTTPS応答も確認済み。
 
 実装状況: `infra/bootstrap`の専用state bucket・Artifact Registry・WIFと限定IAM定義、`scripts/gcp-inventory.ps1`のmetadata読取を追加した。ローカル検証は[infra手順](../infra/README.md)と[実装状況](implementation-status.md)を参照。`infra/app`の基盤・条件付きサービス定義を追加し、基盤applyは完了したが、通常更新用deploy workflowを追加したが、実行は未検証。認証済みlive inventoryと実plan（5 create・0 update・0 destroy）は確認済み。bootstrap applyは成功し、GCS state移行は完了したが、runtime/clientのgateは残る。
 
@@ -25,7 +25,7 @@
 
 state bucketと業務用bucketは分離し、他サービスのstate bucket/prefixも共有しない。state prefixはbootstrapが`realaddr/event/bootstrap`、appが`realaddr/event/app`。state bucketはuniform bucket-level access、public access prevention、versioning、削除防止を設定し、読書き権限を本アプリのinfra管理主体だけへ絞る。versioningの保持量・費用を監視する。業務用bucketには後述の短期保持とsoft delete無効の方針を適用し、Terraform stateを置かない。Terraform変数・state・planにprovider秘密、署名鍵、World情報、宛先、支払いpayloadを入れない。secret名とIAMだけをTerraformで管理し、値は権限を持つ運用者がSecret Managerへ別途登録する。未設定のsecretを成功用の仮値で埋めない。
 
-Terraform/providerの動作確認済みversionと各rootの`.terraform.lock.hcl`を管理する。`.terraform/`、local state/backup、plan、実値を含むtfvars、認証ファイルはGit対象外にし、公開用exampleにはplaceholderだけを置く。GCS backendの初期化・移行済みstateの運用手順はinfra READMEへ記載した。初回event image-onlyは成功し、同一immutable digestで非公開Cloud Runへ配備した。run.appでの公開確認は完了し、独自ドメインのTLS証明書は発行待ち。
+Terraform/providerの動作確認済みversionと各rootの`.terraform.lock.hcl`を管理する。`.terraform/`、local state/backup、plan、実値を含むtfvars、認証ファイルはGit対象外にし、公開用exampleにはplaceholderだけを置く。GCS backendの初期化・移行済みstateの運用手順はinfra READMEへ記載した。初回event image-onlyは成功し、同一immutable digestで非公開Cloud Runへ配備した。run.appでの公開確認は完了し、独自ドメインのTLS発行・HTTPS応答も確認済み。
 
 T-16の必須共存ゲートでproject内の既存Cloud Run、Firestore DB/rules/index、API、IAM、予算、bucket、Artifact Registry、Tasks、Scheduler、Secret Manager、WIF、service accountと各resourceの所有者を読み取り確認する。認証済みlive inventoryは20件成功・1件incompleteで、全regionの横断検索と実効IAMは未完了。管理主体によるRules初期適用と公式engineのdeny評価を確認し、実Firebase利用者tokenのclient試験は未実施。共有resourceを本アプリのstateへimportしない。同名の既存resourceが本アプリ所有と確認できなければ上書き・importを止め、明示的に設定したsuffixで衝突を解消する。毎回ランダム名を生成しない。apply前のplanは本アプリ専用resourceと許可されたprefix collection indexだけに限定し、他サービスへの変更があれば停止する。
 
@@ -50,7 +50,7 @@ Cloud Runのサービス設定とIAMはTerraformが所有し、通常のGitHub A
 
 既存`(default)` Firestoreの実locationをT-16で確認し、本アプリから移動・再作成しない。新規Cloud Run/Tasks等のregionはDBの実配置を優先して選ぶ。DBがregionalなら原則同region、multi-regionなら公式の配置・通信条件を確認し、保存要件・遅延・通信費を見積もってから固定する。`us-central1`は未確認時の仮置き値であり適用値ではない。GCSの無料storage対象regionに東京は含まれない。[GCP無料枠](https://docs.cloud.google.com/free/docs/free-cloud-features)
 
-公開/・/developers・/faqはbuild時生成HTMLとして本文とリンクを初回応答へ含める。React/Viteの認証画面と共通部品を使い、常駐SSRは追加しない。UI assetはimageへ同梱し、GCSを別originの認証画面ホストにしない。公開originはhttps://address.chain.tokyo。eventの初期接続方式はCloud Run direct domain mappingとする。T-16で実regionの対応、ドメイン所有確認、mapping対象serviceと既存mappingとの衝突を確認し、満たせなければ公開を停止して別方式を明示決定する。mapping作成後にGoogleが返したDNS recordとmanaged certificateの状態をユーザーへ提示し、ユーザーがDNSを設定する。別サービスのmapping/recordを上書き・共有しない。このmappingは公式資料でpreview扱いでありproductionには推奨されないため、将来の商用公開では接続方式を再検討する。[Cloud Run custom domain mapping](https://docs.cloud.google.com/run/docs/mapping-custom-domains)。実mapping・DNS/TLSは未作成・未検証で、完了までは公開稼働済みとしない。管理画面も同じwebサービスの/adminで配信し、Google OIDCと独立した管理sessionで保護する。追加の管理用Cloud Runや認証用ロードバランサは初期構成に設けない。外部ロードバランサ、CDN、VPC connector、NAT、Redis、常時稼働VMは導入しない。
+公開/・/developers・/faqはbuild時生成HTMLとして本文とリンクを初回応答へ含める。React/Viteの認証画面と共通部品を使い、常駐SSRは追加しない。UI assetはimageへ同梱し、GCSを別originの認証画面ホストにしない。公開originはhttps://address.chain.tokyo。eventの初期接続方式はCloud Run direct domain mappingとする。T-16で実regionの対応、ドメイン所有確認、mapping対象serviceと既存mappingとの衝突を確認し、満たせなければ公開を停止して別方式を明示決定する。mapping作成後にGoogleが返したDNS recordとmanaged certificateの状態をユーザーへ提示し、ユーザーがDNSを設定する。別サービスのmapping/recordを上書き・共有しない。このmappingは公式資料でpreview扱いでありproductionには推奨されないため、将来の商用公開では接続方式を再検討する。[Cloud Run custom domain mapping](https://docs.cloud.google.com/run/docs/mapping-custom-domains)。実mappingのReady・CertificateProvisioned・DomainRoutableと、既存CNAMEの一致、独自ドメインのHTTPS応答を確認した。DNS変更は行っていない。管理画面も同じwebサービスの/adminで配信し、Google OIDCと独立した管理sessionで保護する。追加の管理用Cloud Runや認証用ロードバランサは初期構成に設けない。外部ロードバランサ、CDN、VPC connector、NAT、Redis、常時稼働VMは導入しない。
 
 ```mermaid
 flowchart LR

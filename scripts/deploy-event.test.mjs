@@ -259,3 +259,39 @@ test('explicit enabled worker IAM check retains only tasks and scheduler invoker
   const denied = fakeSubprocess(null, null, { worker: { bindings: [{ role: 'roles/run.invoker', members: ['allUsers'] }] } });
   await assert.rejects(deploy(config, dependencies(denied)), /service_invoker_policy_mismatch/);
 });
+
+test('worker accepts its exact deterministic URL advertised by the live service', async () => {
+  const fake = fakeSubprocess(null, services => {
+    services.worker.status.url = 'https://worker-hash-fixture.run.app';
+    services.worker.metadata.annotations['run.googleapis.com/urls'] = JSON.stringify([services.worker.status.url, metadata.WORKER_URL]);
+  });
+  assert.deepEqual(await deploy(config, dependencies(fake)), { status: 'deployed' });
+});
+test('worker rejects unknown URLs and malformed advertised URL lists before build', async () => {
+  for (const [advertised, code] of [
+    [JSON.stringify(['https://other-fixture.run.app']), 'worker_origin_mismatch'],
+    ['not-json', 'worker_url_annotation_invalid'],
+    [JSON.stringify(metadata.WORKER_URL), 'worker_url_annotation_invalid'],
+    [JSON.stringify([metadata.WORKER_URL, 42]), 'worker_url_annotation_invalid'],
+    [JSON.stringify([`${metadata.WORKER_URL}/health`]), 'worker_url_annotation_invalid'],
+    [JSON.stringify(['https://private-fixture.invalid']), 'worker_url_annotation_invalid'],
+  ]) {
+    const fake = fakeSubprocess(null, services => {
+      services.worker.metadata.annotations['run.googleapis.com/urls'] = advertised;
+      if (code === 'worker_origin_mismatch') services.worker.status.url = 'https://worker-hash-fixture.run.app';
+    });
+    await assert.rejects(deploy(config, dependencies(fake)), { message: code });
+    assert.equal(fake.calls.some(call => call.program === 'docker'), false);
+  }
+});
+test('existing service may omit disabled startup CPU boost while enabled or unknown values reject', async () => {
+  const fake = fakeSubprocess(null, services => {
+    for (const service of Object.values(services)) delete service.spec.template.metadata.annotations['run.googleapis.com/startup-cpu-boost'];
+  });
+  assert.deepEqual(await deploy(config, dependencies(fake)), { status: 'deployed' });
+  for (const role of ['web', 'worker']) for (const value of ['true', 'unexpected', '', null]) {
+    const denied = fakeSubprocess(null, services => { services[role].spec.template.metadata.annotations['run.googleapis.com/startup-cpu-boost'] = value; });
+    await assert.rejects(deploy(config, dependencies(denied)), /request_based_compute_required/);
+    assert.equal(denied.calls.some(call => call.program === 'docker'), false);
+  }
+});

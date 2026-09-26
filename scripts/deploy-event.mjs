@@ -135,7 +135,7 @@ function validateService(service, policy, revision, role, config) {
   demand(role !== 'worker' || !invokerIamDisabled, 'worker_invoker_iam_check_required');
   demand(settings.containerConcurrency === (role === 'web' ? 20 : 1) && settings.timeoutSeconds === 60 && settings.containers?.length === 1, 'runtime_limits_mismatch');
   const container = settings.containers[0];
-  demand(container.resources?.limits?.cpu === '1' && container.resources?.limits?.memory === '512Mi' && revisionAnnotations['run.googleapis.com/cpu-throttling'] !== 'false' && revisionAnnotations['run.googleapis.com/startup-cpu-boost'] === 'false', 'request_based_compute_required');
+  demand(container.resources?.limits?.cpu === '1' && container.resources?.limits?.memory === '512Mi' && revisionAnnotations['run.googleapis.com/cpu-throttling'] !== 'false' && [undefined, 'false'].includes(revisionAnnotations['run.googleapis.com/startup-cpu-boost']), 'request_based_compute_required');
   demand(equal(container.command, ['node']) && equal(container.args, [role === 'web' ? 'apps/api/dist/index.js' : 'apps/worker/dist/index.js']), 'runtime_entrypoint_mismatch');
   const entries = container.env ?? [];
   const env = Object.fromEntries(entries.map(item => [item.name, item]));
@@ -160,7 +160,21 @@ function validateService(service, policy, revision, role, config) {
   demand(service.spec.traffic?.length === 1 && service.spec.traffic[0].latestRevision === true && service.spec.traffic[0].percent === 100 && service.status.traffic?.length === 1 && service.status.traffic[0].revisionName === readyName && service.status.traffic[0].percent === 100, 'ready_revision_must_serve_all_traffic');
   const image = digestImage(container.image, config);
   demand(revision.status.imageDigest === image, 'ready_revision_digest_mismatch');
-  demand(role !== 'worker' || service.status.url === config.WORKER_URL, 'worker_origin_mismatch');
+  if (role === 'worker') {
+    let urls = [];
+    const advertised = annotations['run.googleapis.com/urls'];
+    if (advertised !== undefined) {
+      try { urls = JSON.parse(advertised); } catch { throw new Error('worker_url_annotation_invalid'); }
+      demand(Array.isArray(urls) && urls.every(value => {
+        if (typeof value !== 'string') return false;
+        try {
+          const url = new URL(value);
+          return url.protocol === 'https:' && url.hostname.endsWith('.run.app') && !url.username && !url.password && !url.port && url.pathname === '/' && !url.search && !url.hash && url.origin === value;
+        } catch { return false; }
+      }), 'worker_url_annotation_invalid');
+    }
+    demand(service.status.url === config.WORKER_URL || urls.includes(config.WORKER_URL), 'worker_origin_mismatch');
+  }
   return { image, invariant: templateStable(service), policy: policyCanonical(policy) };
 }
 function readServices(config, run) {
