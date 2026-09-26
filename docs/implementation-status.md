@@ -22,6 +22,18 @@
 
 ## 検証の記録
 
+### T-12 NameController配備と拠点namespaceの接続準備
+
+上位接続後のNameController配備用に、専用plan/flow/client/loopback serverを追加した。固定compilerのASTとartifactから7種類・21箇所のimmutableをconstructor値で埋め、完全なruntimeをCREATE simulationの戻り値と比較する。初期admin/publisherは既存ownerに固定し、8引数・直接CREATE・nonceから導出するcontract address・完全runtime・getter・2つのrole event・canonical receipt・latest/finalized状態を検査する。wrapperへの読み替えは許可せず、started/hashの永続化、unknown時の再送禁止、明示拒否だけの別操作による解除を維持する。
+
+拠点用の純粋plannerは、専用registry作成、親情報設定、controllerへの3つの運用権限付与、拠点labelの登録、controllerへのbuildingKey固定の5つの未署名callを生成する。adminの権限はsetParentと必要3権限のgrant/revokeだけで、token owner権限は0。現在は新規controllerに限定し、配備からsnapshotまでの完全なevent照会による未設定証拠を要求する。実署名・送信・公式解決と販売有効化は含まない。
+
+検証: controller plan/flow/client/serverとlocation planの重点22件、固定compilerによるNameControllerの5件、全workspace型検査が通過した。全体buildは初回にevent用terms指定不足を拒否し、承認済み`VITE_APP_ENV=event`・`VITE_TERMS_VERSION=realaddr-v1`を指定した再実行で成功。`forge build --ast`とartifact export、実HTTP経由のbrowser bundle・Host/Origin/CSRF/CAS・保存競合・読み戻し失敗時の送信停止も検査した。
+
+liveでは最終確定blockの上位接続、7 code pin、owner・期限・逆向き親情報・最小権限・現在のimplementationを確認した。NameControllerのfinalized/latest CREATE simulationが同じ期待runtimeを返し、未署名計画と別の初期状態を保存してローカル画面の200を確認した。controllerの人間による署名・配備receipt、拠点registryの作成・接続、paid leaseへの名前発行は未実施。販売と`namespaceReady`は無効のまま維持する。
+
+上位3取引の実送信後、独立RPCで完全なcall・wrapper・receipt blockの状態を照合した。最後の接続取引もcanonical成功receiptを返し、finalizedが到達したことを別途確認した。過去状態を保持しないRPCと利用制限により再照会が失敗するケースを観測し、履歴対応RPCによる既取得の検証証拠と最新のreceipt・接続照合を分けて保存した。ユーザーのhelper送信履歴は書き換えていない。
+
 ### T-18/T-12 拠点登録確認と上位接続の署名画面
 
 後続操作の確定待ちには、今回のRPC照会でのreceipt有無・成功検査済みblock時刻、finalized/latestの番号・時刻、差分、確認時刻を追加した。2つの独立RPCで後続取引の成功とcanonical block、finalizedが未到達であること、latestが進行していることを照合した。UI時刻はJSTで表示し、block差から完了予定時刻を推測しない。過去の保存receiptがあっても現在のRPCがreceiptを返さなければ、今回の確認成功とは表示しない。確定条件や送信・保存規則は変更していない。flow/clientの重点15件と構文・文字形式検査が通過し、表示反映時の保存履歴hash保持も確認した。

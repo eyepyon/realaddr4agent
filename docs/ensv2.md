@@ -1,6 +1,6 @@
 # ENSv2と住所契約の紐づけ — 採用設計
 
-更新: 2026-09-27。ENSv2機能の実装・Sepolia接続とデモ検証は初回リリースの対象とするが、利用者への名前発行は希望者だけが初回追加料金を支払う任意オプション。住所契約だけで利用できる。名前予約・購入権のDB処理、照合adapter、NameController、API/CLI接続を実装中。公式Sepolia deploymentと、人間署名による親名取得・登録receiptの最終確定を確認した。上位/拠点registryの接続・controller配備・実paid leaseでの名前発行は未実施。料金境界は[pricing.md](pricing.md)に従う。
+更新: 2026-09-27。ENSv2機能の実装・Sepolia接続とデモ検証は初回リリースの対象とするが、利用者への名前発行は希望者だけが初回追加料金を支払う任意オプション。住所契約だけで利用できる。名前予約・購入権のDB処理、照合adapter、NameController、API/CLI接続を実装中。公式Sepolia deployment、人間署名による親名取得と上位registry接続の最終確定を確認した。controller配備の未署名計画と専用画面、拠点接続plannerを準備した。拠点registry接続・controller実配備・実paid leaseでの名前発行は未実施。料金境界は[pricing.md](pricing.md)に従う。
 
 ## 1. 使い方
 
@@ -46,6 +46,12 @@ ENSv2の階層registry、期限付きサブネーム、キー単位権限をプ�
 上位接続には専用のローカル署名補助画面`node scripts/ens-upper-serve.mjs`を使う。`ENS_UPPER_PLAN_FILE`・`ENS_UPPER_PLAN_HASH`、別の`ENS_UPPER_STATE_FILE`、`ENS_UPPER_WRAPPER_POLICY_FILE`・`ENS_UPPER_WRAPPER_POLICY_HASH`を保護設定で指定し、必要なら`ENS_UPPER_PORT`で同じloopback originを維持する。親名取得のplan/stateを流用・上書きしない。固定planから3操作を再導出して検査し、送信前に最新・finalizedの所有者、期限、権限、pointer、code pinを確認する。各操作は人間がwalletで承認し、前操作の取引と最終確定が照合できるまで次を送信しない。結果不明・保存失敗・ローカルとサーバーの状態不一致では再送を止める。明示的なwallet拒否でhashがない操作だけ、人間の別操作で拒否状態を解除できる。
 
 receipt照合では予定callとの完全一致または固定済みMetaMask policyの内側call一致、canonical block、実装・最小root権限・親接続を確認する。最終的な`upperConnected=true`は上位接続だけを表し、`namespaceReady=false`を維持する。拠点registry/controllerやpaid leaseの名前発行を完了扱いしない。
+
+続くNameController配備は`node scripts/ens-controller-serve.mjs`の専用ローカル画面で行う。`ENS_CONTROLLER_PLAN_FILE`・`ENS_CONTROLLER_PLAN_HASH`・`ENS_CONTROLLER_STATE_FILE`と任意の`ENS_CONTROLLER_PORT`を保護設定で指定する。固定compilerの`forge build --ast`と検査済みartifactを基に、`planControllerDeployment`が8つのconstructor引数、7種類のimmutable配置、完全なruntimeを固定し、読み取り専用CREATE simulationとの一致を要求する。初期admin/publisherは既存の事業者ownerと同一とし、秘密鍵をhelperへ渡さない。実行時にもlatest/finalizedのcode pinと上位接続を再検査する。
+
+NameControllerは通常のCREATE transactionで配備し、`to`を持つwrapper callへ読み替えない。送信前の永続保存、不明結果の再送禁止、別操作による明示拒否の解除、canonical receipt・実nonceからのCREATE address・完全runtime・constructor getter・初期role eventを照合する。最新状態と最終確定状態も一致してから配備完了とする。確定待ちには今回取得したreceiptとblock時刻を表示し、保存済みの過去receiptだけで今回の確認成功としない。controller配備だけではnamespaceや販売を有効にしない。
+
+拠点接続用の`planLocationNamespace`は検査済みsnapshotから5つの未署名callを生成する。専用UserRegistryの作成、逆向き親情報設定、controllerへのregister/unregister/renew権限付与、上位registryへの拠点登録、controllerへのbuildingKey/slug/registry固定の順とする。初期adminにはsetParentと必要3権限のgrant/revokeだけを与え、拠点tokenのowner roleは0とする。現plannerは新規controllerに限定し、配備からsnapshotまでの完全な`NamespaceConfigured` event照会で未設定を確認する。存在しないslug-binding getterで代用しない。予測アドレスとslugの未使用、階層・期限・権限を検査するが、署名・receipt照合・公式解決は別の工程である。
 
 ## 4. 名前・識別子
 

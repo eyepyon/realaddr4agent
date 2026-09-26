@@ -1,0 +1,78 @@
+import { decodeFunctionResult, encodeDeployData, encodeFunctionData, getContractAddress, keccak256, parseAbi, stringToHex, zeroAddress, zeroHash } from 'viem';
+import { controllerRuntime, controllerValues } from './ens-controller-plan.mjs';
+const registryAbi=parseAbi(['function getState(uint256) view returns ((uint8 status,uint64 expiry,address latestOwner,uint256 tokenId,uint256 resource))','function getSubregistry(string) view returns(address)','function getResolver(string) view returns(address)','function getParent() view returns(address,string)','function roles(uint256,address) view returns(uint256)','function roleCount(uint256) view returns(uint256)']);
+const factoryAbi=parseAbi(['function proxyLogic() view returns(address)','function verifyContract(address) view returns(address)']);
+const controllerAbi=parseAbi(['function LEASE_REGISTRY() view returns(address)','function ETH_REGISTRY() view returns(address)','function UPPER_REGISTRY() view returns(address)','function RESOLVER_FACTORY() view returns(address)','function RESOLVER_IMPLEMENTATION() view returns(address)','function NAMESPACE_OWNER() view returns(address)','function PARENT_NODE() view returns(bytes32)','function parentLabel() view returns(string)','function PUBLISHER_ROLE() view returns(bytes32)','function DEFAULT_ADMIN_ROLE() view returns(bytes32)','function hasRole(bytes32,address) view returns(bool)','function paused() view returns(bool)']);
+const action='deploy_controller',same=(a,b)=>typeof a==='string'&&typeof b==='string'&&a.toLowerCase()===b.toLowerCase(),hash=value=>typeof value==='string'&&/^0x[0-9a-fA-F]{64}$/.test(value),quantity=value=>typeof value==='string'&&/^0x(?:0|[1-9a-fA-F][0-9a-fA-F]*)$/.test(value),demand=(condition,reason)=>{if(!condition)throw new Error(reason);};
+
+export function validateControllerManifest(manifest){
+  demand(manifest?.version===1&&manifest.chainId===11155111&&manifest.environment==='testnet'&&manifest.namespaceReady===false&&manifest.livePreflightRequired===true,'invalid_controller_plan');
+  demand(/^0x[0-9a-fA-F]{40}$/.test(manifest.owner)&&!same(manifest.owner,zeroAddress)&&/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/.test(manifest.parentLabel)&&manifest.parentLabel.slice(2,4)!=='--','invalid_controller_configuration');
+  const keys=['leaseRegistry','ethRegistry','upperRegistry','factory','resolverImplementation','userRegistryImplementation','proxyLogic'];
+  demand(manifest.pins&&Object.keys(manifest.pins).length===7&&keys.every(key=>/^0x[0-9a-fA-F]{40}$/.test(manifest.pins[key]?.address)&&!same(manifest.pins[key].address,zeroAddress)&&hash(manifest.pins[key]?.codeHash)),'invalid_controller_pin');
+  demand(new Set(keys.map(key=>manifest.pins[key].address.toLowerCase())).size===7,'duplicate_controller_pin');
+  const ctor=manifest.constructor,pins=manifest.pins;
+  const args=[manifest.owner,manifest.owner,pins.leaseRegistry.address,pins.ethRegistry.address,pins.upperRegistry.address,pins.factory.address,pins.resolverImplementation.address,manifest.parentLabel];
+  demand(ctor&&same(ctor.admin,args[0])&&same(ctor.publisher,args[1])&&same(ctor.leaseRegistry,args[2])&&same(ctor.ethRegistry,args[3])&&same(ctor.upperRegistry,args[4])&&same(ctor.factory,args[5])&&same(ctor.resolverImplementation,args[6])&&ctor.parent===args[7],'controller_constructor_mismatch');
+  const artifact=manifest.artifact,constructor=artifact?.abi?.find(entry=>entry.type==='constructor');demand(constructor?.inputs?.length===8&&constructor.inputs.every((entry,index)=>entry.type===(index===7?'string':'address')),'controller_constructor_mismatch');
+  const data=encodeDeployData({abi:artifact.abi,bytecode:artifact.creationBytecode,args}),values=controllerValues(manifest.owner,manifest.parentLabel,pins),runtime=controllerRuntime(artifact.runtimeTemplate,artifact.immutableLayout,values);
+  demand(same(keccak256(artifact.creationBytecode),artifact.creationCodeHash)&&same(keccak256(artifact.runtimeTemplate),artifact.runtimeTemplateHash)&&same(runtime,manifest.expectedRuntime)&&same(keccak256(runtime),manifest.expectedRuntimeCodeHash)&&same(keccak256(data),manifest.initCodeHash),'controller_artifact_mismatch');
+  demand(manifest.immutableValues&&Object.keys(values).every(name=>same(values[name],manifest.immutableValues[name])),'controller_immutable_mismatch');
+  demand(manifest.transaction&&Object.keys(manifest.transaction).every(key=>['from','chainId','value','data'].includes(key))&&same(manifest.transaction.from,manifest.owner)&&manifest.transaction.chainId==='0xaa36a7'&&manifest.transaction.value==='0x0'&&same(manifest.transaction.data,data),'invalid_controller_create_transaction');
+  demand(/^(0|[1-9][0-9]*)$/.test(manifest.evidence?.blockNumber)&&hash(manifest.evidence?.blockHash)&&/^[1-9][0-9]*$/.test(manifest.evidence?.parentExpiry),'invalid_controller_evidence');return true;
+}
+export function createControllerDeployFlow({manifest,provider,save,state={steps:{},unknown:false}}){
+  validateControllerManifest(manifest);demand(state?.steps&&typeof state.steps==='object'&&!Array.isArray(state.steps)&&Object.keys(state.steps).every(key=>key===action)&&typeof state.unknown==='boolean','invalid_controller_state');
+  const rpc=(method,params=[])=>provider.request({method,params}),pins=manifest.pins;let busy=false;
+  async function account(){demand(BigInt(await rpc('eth_chainId'))===11155111n,'wrong_chain');const accounts=await rpc('eth_accounts');demand(Array.isArray(accounts)&&same(accounts[0],manifest.owner),'wrong_account');}
+  async function persist(){try{await save(structuredClone(state));}catch{state.unknown=true;throw new Error('persistence_failed_do_not_resend');}}
+  async function block(tag){const b=await rpc('eth_getBlockByNumber',[tag,false]);demand(b&&quantity(b.number)&&hash(b.hash)&&quantity(b.timestamp),'block_unavailable');return b;}
+  async function canonical(b){demand(same((await block(b.number)).hash,b.hash),'block_noncanonical');}
+  async function snapshots(){const result=await Promise.all([block('latest'),block('finalized')]);demand(BigInt(result[0].number)>=BigInt(result[1].number),'invalid_block_order');await Promise.all(result.map(canonical));return result;}
+  function blockTime(b){const milliseconds=Number(BigInt(b.timestamp))*1000;demand(Number.isSafeInteger(milliseconds)&&Math.abs(milliseconds)<=8640000000000000,'invalid_block_timestamp');return new Date(milliseconds).toISOString();}
+  function diagnostics(receiptBlock,latest,finalized,transactionHash){return{transactionHash,checkedAt:new Date().toISOString(),latestBlockNumber:BigInt(latest.number).toString(),latestBlockTime:blockTime(latest),finalizedBlockNumber:BigInt(finalized.number).toString(),finalizedBlockTime:blockTime(finalized),latestFinalizedLagBlocks:(BigInt(latest.number)-BigInt(finalized.number)).toString(),...(receiptBlock?{receiptBlockNumber:BigInt(receiptBlock.number).toString(),receiptBlockTime:blockTime(receiptBlock),receiptFinalizedGapBlocks:(BigInt(receiptBlock.number)>BigInt(finalized.number)?BigInt(receiptBlock.number)-BigInt(finalized.number):0n).toString()}:{} )};}
+  async function call(address,abi,functionName,args,at){return decodeFunctionResult({abi,functionName,data:await rpc('eth_call',[{to:address,data:encodeFunctionData({abi,functionName,args})},at])});}
+  async function code(pin,at){const value=await rpc('eth_getCode',[pin.address,at]);demand(value!=='0x'&&same(keccak256(value),pin.codeHash),'runtime_pin_mismatch');}
+  async function namespace(b){
+    await Promise.all(Object.values(pins).map(pin=>code(pin,b.number)));
+    const labelId=BigInt(keccak256(stringToHex(manifest.parentLabel)));
+    const [registration,pointer,resolver,parent,roles,count,implementation,logic]=await Promise.all([call(pins.ethRegistry.address,registryAbi,'getState',[labelId],b.number),call(pins.ethRegistry.address,registryAbi,'getSubregistry',[manifest.parentLabel],b.number),call(pins.ethRegistry.address,registryAbi,'getResolver',[manifest.parentLabel],b.number),call(pins.upperRegistry.address,registryAbi,'getParent',[],b.number),call(pins.upperRegistry.address,registryAbi,'roles',[0n,manifest.owner],b.number),call(pins.upperRegistry.address,registryAbi,'roleCount',[0n],b.number),call(pins.factory.address,factoryAbi,'verifyContract',[pins.upperRegistry.address],b.number),call(pins.factory.address,factoryAbi,'proxyLogic',[],b.number)]);
+    demand(registration.status===2&&same(registration.latestOwner,manifest.owner)&&registration.expiry===BigInt(manifest.evidence.parentExpiry)&&registration.expiry>BigInt(b.timestamp)&&same(pointer,pins.upperRegistry.address)&&same(resolver,zeroAddress),'parent_namespace_mismatch');
+    demand(same(parent[0],pins.ethRegistry.address)&&parent[1]===manifest.parentLabel&&roles===65793n&&count===65793n&&same(implementation,pins.userRegistryImplementation.address)&&same(logic,pins.proxyLogic.address),'upper_namespace_mismatch');await canonical(b);
+  }
+  async function controllerAt(address,b){
+    await code({address,codeHash:manifest.expectedRuntimeCodeHash},b.number);
+    const names=Object.keys(manifest.immutableValues),values=await Promise.all(names.map(name=>call(address,controllerAbi,name,[],b.number)));
+    for(let index=0;index<names.length;index++){const name=names[index],expected=manifest.immutableValues[name],actual=values[index];demand(same(name==='PARENT_NODE'?actual:`0x${actual.slice(2).padStart(64,'0')}`,expected),'controller_getter_mismatch');}
+    const publisher=keccak256(stringToHex('PUBLISHER_ROLE'));
+    const [parent,paused,adminRole,publisherRole,admin,publishes]=await Promise.all([call(address,controllerAbi,'parentLabel',[],b.number),call(address,controllerAbi,'paused',[],b.number),call(address,controllerAbi,'DEFAULT_ADMIN_ROLE',[],b.number),call(address,controllerAbi,'PUBLISHER_ROLE',[],b.number),call(address,controllerAbi,'hasRole',[zeroHash,manifest.owner],b.number),call(address,controllerAbi,'hasRole',[publisher,manifest.owner],b.number)]);
+    demand(parent===manifest.parentLabel&&paused===false&&same(adminRole,zeroHash)&&same(publisherRole,publisher)&&admin===true&&publishes===true,'controller_roles_or_configuration_mismatch');await canonical(b);
+  }
+  async function simulation(at){demand(same(await rpc('eth_call',[manifest.transaction,at]),manifest.expectedRuntime),'controller_simulation_runtime_mismatch');}
+  async function execute(requestedAction){
+    demand(requestedAction===action,'unknown_action');demand(!busy&&!state.unknown,'unknown_or_busy_do_not_resend');demand(!state.steps[action]?.started&&!state.steps[action]?.hash,'already_submitted_do_not_resend');busy=true;
+    try{await account();const blocks=await snapshots();await Promise.all(blocks.map(async b=>{await namespace(b);await simulation(b.number);await canonical(b);}));
+      const gas=BigInt(await rpc('eth_estimateGas',[manifest.transaction]));demand(gas>0n&&gas<=10000000n,'gas_limit_exceeded');state.steps[action]={started:true};await persist();let submitted;
+      try{submitted=await rpc('eth_sendTransaction',[{...manifest.transaction,gas:`0x${((gas*125n+99n)/100n).toString(16)}`}]);}catch(error){if(error?.code===4001){state.steps[action].rejected=true;await persist();throw new Error('user_rejected_review_before_retry');}state.unknown=true;await persist();throw new Error('submission_unknown_do_not_resend');}
+      if(!hash(submitted)){state.unknown=true;await persist();throw new Error('submission_unknown_do_not_resend');}state.steps[action].hash=submitted;await persist();return{action,hash:submitted,namespaceReady:false};
+    }finally{busy=false;}
+  }
+  return{state,execute,send:()=>execute(action),
+    async connect(){demand(!busy,'flow_busy');await rpc('eth_requestAccounts');if(BigInt(await rpc('eth_chainId'))!==11155111n)await rpc('wallet_switchEthereumChain',[{chainId:'0xaa36a7'}]);await account();return{connected:true,namespaceReady:false};},
+    async resetRejected(requestedAction=action){demand(requestedAction===action,'unknown_action');demand(!busy&&!state.unknown&&!state.finalized,'unknown_or_busy_do_not_resend');const step=state.steps[action];demand(step?.started===true&&step.rejected===true&&!step.hash&&!step.receipt&&!step.confirmed&&!step.finalized,'only_definite_rejection_can_reset');busy=true;try{await account();delete state.steps[action];try{await persist();}catch(error){state.steps[action]=step;throw error;}return{rejectedStepReset:action,namespaceReady:false};}finally{busy=false;}},
+    async verify(){demand(!busy,'flow_busy');busy=true;try{
+      await account();const step=state.steps[action];demand(step?.hash&&hash(step.hash),'missing_transaction');const receipt=await rpc('eth_getTransactionReceipt',[step.hash]);
+      if(!receipt){const [latest,finalized]=await snapshots();return{controllerDeployed:false,namespaceReady:false,receiptConfirmed:false,receiptFinalized:false,pendingAction:action,...diagnostics(null,latest,finalized,step.hash)};}
+      const tx=await rpc('eth_getTransactionByHash',[step.hash]);demand(tx&&same(tx.hash,step.hash)&&same(tx.from,manifest.owner)&&tx.to===null&&same(tx.input,manifest.transaction.data)&&BigInt(tx.value)===0n&&BigInt(tx.chainId)===11155111n&&quantity(tx.nonce)&&BigInt(tx.nonce)<(1n<<64n)&&['0x0','0x1','0x2'].includes(tx.type)&&(tx.authorizationList===undefined||(Array.isArray(tx.authorizationList)&&tx.authorizationList.length===0)),'controller_transaction_mismatch');
+      const address=getContractAddress({from:manifest.owner,nonce:BigInt(tx.nonce)});demand(same(receipt.transactionHash,step.hash)&&receipt.status==='0x1'&&same(receipt.from,manifest.owner)&&receipt.to===null&&same(receipt.contractAddress,address)&&quantity(receipt.blockNumber)&&hash(receipt.blockHash)&&tx.blockNumber===receipt.blockNumber&&same(tx.blockHash,receipt.blockHash),'controller_receipt_mismatch');
+      const receiptBlock=await block(receipt.blockNumber);demand(same(receiptBlock.hash,receipt.blockHash),'receipt_noncanonical');await namespace(receiptBlock);await controllerAt(address,receiptBlock);
+      const topic=keccak256(stringToHex('RoleGranted(bytes32,address,address)')),publisher=keccak256(stringToHex('PUBLISHER_ROLE')),ownerTopic=`0x${manifest.owner.slice(2).padStart(64,'0')}`;
+      const grants=receipt.logs?.filter(log=>same(log.address,address)&&same(log.topics?.[0],topic)&&log.removed!==true);demand(grants?.length===2&&[zeroHash,publisher].every(role=>grants.filter(log=>log.topics?.length===4&&same(log.topics[1],role)&&same(log.topics[2],ownerTopic)&&same(log.topics[3],ownerTopic)&&log.data==='0x').length===1),'controller_role_logs_mismatch');
+      if(step.receipt)demand(step.receipt.blockNumber===receipt.blockNumber&&same(step.receipt.blockHash,receipt.blockHash),'receipt_changed');step.receipt={blockNumber:receipt.blockNumber,blockHash:receipt.blockHash,status:receipt.status};step.confirmed=true;step.contractAddress=address;
+      const blocks=await snapshots(),finalized=blocks[1];demand(!step.finalized||BigInt(finalized.number)>=BigInt(receipt.blockNumber),'finality_regressed');
+      demand(BigInt(blocks[0].number)>=BigInt(receipt.blockNumber),'receipt_ahead_of_latest');
+      for(const b of blocks){await namespace(b);if(BigInt(b.number)>=BigInt(receipt.blockNumber))await controllerAt(address,b);}
+      step.finalized=BigInt(finalized.number)>=BigInt(receipt.blockNumber);if(step.finalized){demand(!state.unknown,'unknown_outcome_requires_reconciliation');state.finalized=true;}await persist();return{controllerDeployed:step.finalized,contractAddress:address,namespaceReady:false,receiptConfirmed:true,receiptFinalized:step.finalized,...diagnostics(receiptBlock,blocks[0],finalized,step.hash),...(step.finalized?{}:{pendingAction:action})};
+    }finally{busy=false;}},
+  };
+}
