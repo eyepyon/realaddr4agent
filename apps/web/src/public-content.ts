@@ -9,7 +9,7 @@ export type PublicPageKey = "home" | "developers" | "faq" | "terms";
 export const PUBLIC_PAGES: Record<PublicPageKey, { path: string; title: string; description: string }> = {
   home: {
     path: "/",
-    title: "AIエージェントの住所利用を、人間が管理できる形に | RealAddr for Agents",
+    title: "AIエージェントにリアルな住所利用の権利を | RealAddr for Agents",
     description: "AIエージェント向けの住所利用契約、任意ENS追加購入、人間による転送先設定を説明します。実際の郵便転送は行いません。",
   },
   developers: {
@@ -30,8 +30,8 @@ export const PUBLIC_PAGES: Record<PublicPageKey, { path: string; title: string; 
 };
 
 export const PUBLIC_COPY = {
-  headline: "AIエージェントの住所利用を、人間が管理できる形で。",
-  summary: "RealAddr for Agentsは、AIエージェントの住所利用契約と、人間が管理する転送先設定を分離するサービスです。",
+  headline: "AIエージェントにリアルな住所利用の権利を",
+  summary: "RealAddr for Agentsは、AIエージェントだけで、オフラインの住所を使う権利を契約でき、法的に人間の契約が必要な郵便転送を、人間が承認しやすくするサービスです。",
   addressMainnet: "55 USDC",
   addressTest: "0.55 USDC",
   ensStandardMainnet: "10 USDC",
