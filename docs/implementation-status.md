@@ -22,6 +22,14 @@
 
 ## 検証の記録
 
+### T-18/T-12 拠点登録確認と上位接続の署名画面
+
+管理者による実拠点登録後、専用DBを必要なfieldだけで照会し、一意な拠点、停止状態、住所利用無効、65,535の仮想区画と未使用枠、30日550000 atomicの料金を確認した。実住所や運営者識別子は証跡へ出さず、拠点IDは保護記録へ保存した。
+
+上位registry用の専用flow/client/loopback serverを追加した。親名取得の履歴を保持し、固定planとwrapper policyのhashへ別の保存状態を結ぶ。3操作の再導出、最新・finalizedのpin/owner/expiry/権限/pointer検査、送信前の状態保存、canonical receiptと内側callの照合、前操作の最終確定、CASとatomic file更新、不明時の再送禁止を実装した。明示的なwallet拒否かつhashがない場合だけ、人間の別操作で再試行可能にする。実装・root権限・親接続の検査後も`namespaceReady=false`を維持する。
+
+検証: `node --test scripts/ens-upper-plan.test.mjs scripts/ens-upper-flow.test.mjs scripts/ens-upper-serve.test.mjs scripts/ens-upper-client.test.mjs scripts/ens-parent-wrapper.test.mjs`は23件通過。実HTTPでorigin/CSRF/CAS・状態保持を確認し、browser bundle buildと構文・文字形式検査も通した。live RPCでは親名の所有権・期限・canonical receipt・最終確定を再確認し、4 code pin・未使用予測アドレス・初回deployのsimulation/gas見積が固定planと一致した。各署名時にもfresh検査する。未実施: 上位3操作の実送信・receipt検証、拠点registry/controller配備、実paid leaseの名前発行。
+
 ### T-18/T-16 拠点登録用のtestnet料金設定
 
 利用者から管理Googleログイン成功の報告を受けた。拠点の停止状態での登録を可能にするため、保護されたTerraform入力`testnet_pricing`からwebだけに料金7項目を注入するopt-inを追加した。既定は未設定。料金・6 decimals・Base Sepoliaを固定し、完全な設定はAPI起動時にも検証する。0アドレス、空の料金version、30日以外の期間、不完全な配備設定を拒否する。部分的なローカル設定は従来どおり料金未設定として扱う。

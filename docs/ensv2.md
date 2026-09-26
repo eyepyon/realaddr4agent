@@ -43,6 +43,10 @@ ENSv2の階層registry、期限付きサブネーム、キー単位権限をプ�
 
 上位registryの初期接続用に`planUpperRegistry`を用意する。これは、検査済みの親状態・code pin・未使用の予測アドレスを入力として、専用proxy作成、逆向き親情報の設定、親名のsubregistry接続の3つの未署名callを生成するだけである。root権限はregister・setParent・renewに限定する。送信前の最新状態確認、receipt照合、拠点registryとcontrollerの接続は別途必要で、計画の生成だけで`namespaceReady`をtrueにしない。
 
+上位接続には専用のローカル署名補助画面`node scripts/ens-upper-serve.mjs`を使う。`ENS_UPPER_PLAN_FILE`・`ENS_UPPER_PLAN_HASH`、別の`ENS_UPPER_STATE_FILE`、`ENS_UPPER_WRAPPER_POLICY_FILE`・`ENS_UPPER_WRAPPER_POLICY_HASH`を保護設定で指定し、必要なら`ENS_UPPER_PORT`で同じloopback originを維持する。親名取得のplan/stateを流用・上書きしない。固定planから3操作を再導出して検査し、送信前に最新・finalizedの所有者、期限、権限、pointer、code pinを確認する。各操作は人間がwalletで承認し、前操作の取引と最終確定が照合できるまで次を送信しない。結果不明・保存失敗・ローカルとサーバーの状態不一致では再送を止める。明示的なwallet拒否でhashがない操作だけ、人間の別操作で拒否状態を解除できる。
+
+receipt照合では予定callとの完全一致または固定済みMetaMask policyの内側call一致、canonical block、実装・最小root権限・親接続を確認する。最終的な`upperConnected=true`は上位接続だけを表し、`namespaceReady=false`を維持する。拠点registry/controllerやpaid leaseの名前発行を完了扱いしない。
+
 ## 4. 名前・識別子
 
 標準labelは仮想区画番号を5桁にゼロ埋めした`f00001`〜`f65535`で、標準FQDNは`f00042.<location-slug>.<parent>.eth`。拠点slugは登録後不変の1〜63文字のlowercase ASCII DNS labelとし、先頭・末尾は英数字、内部だけハイフンを許す。ENSIP-15正規化後も同一labelであることを確認して上位registryへexact登録する。日本語を含められる拠点displayNameとは別物。カスタムlabelは同じ拠点名の下に一つ指定できる。ASCII小文字英数字を先頭・末尾とし、内部だけハイフンを許す3〜32文字のDNS labelに限る。dotや別拠点・別親名の入力を許さない。APIはlowercase入力だけを受理してENSIP-15正規化とlabel長・DNS encodingをSDKで検査し、正規化結果が期待する単一labelと一致しなければ拒否する。UI/CLIが小文字化する場合は送信前にcanonical完全名を明示する。
