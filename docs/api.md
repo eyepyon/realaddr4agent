@@ -6,14 +6,14 @@
 
 Agent認証済みowner向けに、payment-intentとsubscriptionの一覧・詳細read、および`GET /v1/subscriptions/{subscriptionId}/ens`を提供する。これらは認証主体のtenantとagentに束縛し、一覧は`createdAt DESC, document ID DESC`（orders）または`updatedAt DESC, document ID DESC`（leases）で安定順に返す。cursorは署名済みopaque値で、owner、endpoint、sort、limitに束縛する。limitは1〜100、default 20。次ページ有無の判定にはlookaheadを1件だけ読む。DTOは明示的な公開field allowlistから組み立て、暗号文、転送先全文、World識別子、authorization nonceを含めない。
 
-このread実装は購入/更新/ENS購入またはpay mutationを有効化しない。`GET /v1/subscriptions/by-ens`は503で利用不可。ENS未購入または`pending_payment`は`not_purchased`、支払済みで外部検証未接続の状態は`pending`とし、外部登録・controller・leaseを実検証できない限り`ready`を返さない。返金済みは`disabled`。mail profileは現行実装では`disabled`のみで、保存状態がenabledでもhuman approval統合がないためfail closedで503とする。人間承認・宛先保存と管理APIの範囲は別契約のまま閉じている。T-05の一部として内部renew quote/prepare/confirmed-recovery/unpaid-release処理は追加中だが、公開POST intent/payは依然503である。ここで定義するwire shapeは実接続済みAPIを意味しない。
+このread実装は購入/更新/ENS購入またはpay mutationを有効化しない。`GET /v1/subscriptions/by-ens`は503で利用不可。ENS未購入または`pending_payment`は`not_purchased`、支払済みで外部検証未接続の状態は`pending`とし、外部登録・controller・leaseを実検証できない限り`ready`を返さない。返金済みは`disabled`。Worldは明示的な設定時だけ有効となる。owner proof・World認証・明示承認・人間専用宛先保存を実装し、owner readは支払い根拠と適用済み同意を検査してmail状態を返す。根拠のないenabledはfail closedとする。管理APIの実認証は未接続。Worldの実接続検証と配備状況は[実装状況](implementation-status.md)を参照する。T-05の一部として内部renew quote/prepare/confirmed-recovery/unpaid-release処理は追加中だが、公開POST intent/payは依然503である。ここで定義するwire shapeは実接続済みAPIを意味しない。
 
 ## 共通
 
 正式な利用規約versionは `realaddr-v1`。Agent認証のchallengeへ渡す `termsVersion` と署名に含むversionを、[規約本文](terms.md)・eventの設定へ一致させる。利用者本人または代理権を与えられたAgentは本文を確認して同意してから署名する。CLIではその確認後に `TERMS_VERSION=realaddr-v1` を明示して認証する。既存のlocal default `event-demo-1` や過去の認証は正式v1への同意へ読み替えない。
 
 JSON、UUID、UTC ISO8601、token金額は整数文字列。未知のrequest fieldは拒否。
-AgentはBearer認証、人間はHttpOnly/Secure/SameSite=Laxのserver session cookie。cookie mutationはCSRF + Origin検査。anonymous sessionは承認画面表示で作るが、wallet proofとWorld検証前は保護データを返さない。
+AgentはBearer認証、人間は`__Host-realaddr_session`（HttpOnly/Secure/SameSite=Lax、Path=/、Domainなし）のserver session cookie。人間sessionは作成から10分で失効し、World認証成功時と明示承認適用時にIDを交換する。cookie mutationはCSRF + Origin検査。anonymous sessionは承認画面表示で作るが、wallet proofとWorld検証前は保護データを返さない。
 
 AgentのmutationはIdempotency-Key必須（8〜128文字）。同キー別bodyは409。cookie mutationはversion/CASと一回限りchallenge/approvalで再送制御する。
 
@@ -50,10 +50,11 @@ location/payment intent/subscription本体の識別子はid。参照先とpath p
 | GET /auth/world/callback | state-bound browser | code/error処理→303固定same-origin画面 |
 | POST /v1/approvals/{approvalId}/decision | World認証済みhuman+CSRF | approve/deny、actionHash/時刻検査 |
 | GET /v1/subscriptions/{subscriptionId}/mail-profile | 同一binding human | 状態と復号した転送先 |
+| POST /v1/subscriptions/{subscriptionId}/mail-destination-approval | 同一binding human+CSRF | expectedVersionを検査して宛先変更用の新承認URLを発行 |
 | PUT /v1/subscriptions/{subscriptionId}/mail-destination | 同一binding human+CSRF | expectedVersion付き宛先保存/更新 |
 | POST /v1/subscriptions/{subscriptionId}/mail-disable | 同一binding human+CSRF | enabledを取消 |
 
-/approve/{approvalId}はUIルートでありOpenAPI対象外。新browser sessionに同じ責任者が戻る場合もowner-wallet + fresh Worldを通す。再ログインは本人確認の更新であり、同一lease・同一宛先の承認を再要求しない。既存consentを他のbindingへ変更しない。
+/approve/{approvalId}はUIルートでありOpenAPI対象外。新browser sessionに同じ責任者が戻る場合もowner-wallet + fresh Worldを通す。再ログインは本人確認の更新であり、同一lease・同一宛先の承認を再要求しない。既存consentを他のbindingへ変更しない。適用済みconsentへのforceReauthは201・status=applied・expiresAt=nullのリンクを返し、新たな承認要求は作らない。Approval表示もappliedならexpiresAt=nullで、ブラウザsessionとOIDC試行には独立した短い期限がある。通常の適用済み照会は200のMailStatusを返す。宛先全文は有効な支払済み契約と同意が揃う人間sessionにだけ返し、disabled/suspended/期限切れは保存済み暗号文を保持したままdestination=nullとする。
 
 人間だけが宛先を入力する。AgentのAPIレスポンスはdestinationConfiguredのみ。初回approveの応答はenabled/未登録を返し、UIがフォームを表示する。初回フォーム保存は、適用済み承認と最初のdestinationVersionを原子的に束縛する。以後の宛先変更はtargetProfileVersion・targetDestinationVersionに束縛した新しい一回限りの人間write approvalが必要であり、承認時点では既存consentを置換しない。PUTはactiveな支払済みlease、本人確認、CSRF、write approvalとexpectedVersionのCASを検査し、宛先保存・approval消費・consent bindingの切替を原子的に行う。保存前の新宛先のeffective enabledは前提にせず、保存までは旧consentを維持する。人間の無効化・security suspensionをwrite approvalで迂回しない。フォーム保存はreal DB writeであり、成功表示だけのモックは不可。
 

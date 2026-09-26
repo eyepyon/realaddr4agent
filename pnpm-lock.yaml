@@ -35,6 +35,9 @@ importers:
       '@realaddr/intercepta':
         specifier: workspace:*
         version: link:../../packages/intercepta
+      '@realaddr/world':
+        specifier: workspace:*
+        version: link:../../packages/world
       fastify:
         specifier: 5.12.5
         version: 5.12.5
@@ -116,6 +119,12 @@ importers:
         version: 1.11.1
 
   packages/intercepta: {}
+
+  packages/world:
+    dependencies:
+      jose:
+        specifier: 6.2.12
+        version: 6.2.12
 
 packages:
 
@@ -833,6 +842,9 @@ packages:
     resolution: {integrity: sha512-I1fSfDCZL5P0v33sVqeTDSpcstAg/N+wF5HS033mogOVIp4B+oHC7oOCsA3axAbBSGTJ8QubbNmnIRN/h8U7hg==}
     peerDependencies:
       ws: '*'
+
+  jose@6.2.12:
+    resolution: {integrity: sha512-9NiFmJEex0sy2Dk58j2UGBSHgUs2ypF9eZSu4L6vjOX3Dp96Sw1F3uL+H+D1sx02jZZdzUT0HgvCy59CuvXcWw==}
 
   json-bigint@1.0.0:
     resolution: {integrity: sha512-SiPv/8VpZuWbvLSMtTDU8hEfrZWg/mH/nV/b4o0CYbSxu1UIQPLdwKOCIyLQX+VIPO5vrLX3i8qtqFyhdPSUSQ==}
@@ -1925,6 +1937,8 @@ snapshots:
   isows@1.0.7(ws@8.18.3):
     dependencies:
       ws: 8.18.3
+
+  jose@6.2.12: {}
 
   json-bigint@1.0.0:
     dependencies:

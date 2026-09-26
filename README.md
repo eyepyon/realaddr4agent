@@ -10,7 +10,9 @@ GCP登録準備として[Terraform bootstrap](infra/README.md)と[読み取り�
 
 LeaseRegistryをEthereum Sepoliaへ実配備し、独立RPCで検証、MultiBaasでread-only照合済みです。DB/outboxとworkerの確定block照合を実装し、ローカルで購入・更新とclaim/versionの検証を通しました。workerの照合は既定無効で、実leaseのrecord/revoke、eventでの有効化、indexed eventsと永続cursorによるreorg回復は未完了です。[コントラクトの検証と登録手順](docs/lease-registry.md)を参照してください。
 
-InterceptaのQuick Scan client、購入・更新の内部screening gate、`pnpm intercepta:scan`診断コマンドを追加しました。APIキー未取得でlive未検証です。数値の安全基準とchain範囲が未確定のため、現在は明示的な危険traitを拒否し、それ以外を保留します。公開pay/署名器へは未接続です。[Intercepta接続準備](docs/intercepta.md)を参照してください。
+InterceptaのQuick Scan client、購入・更新の内部screening gate、`pnpm intercepta:scan`診断コマンドを追加しました。認証付き診断でHTTP 200と応答schema一致を確認しましたが、結果は`hold/provider_policy_unconfirmed`です。数値の安全基準とchain範囲が未確定のため、現在は明示的な危険traitを拒否し、それ以外を保留します。公開pay/署名器へは未接続です。[Intercepta接続準備](docs/intercepta.md)を参照してください。
+
+World sandboxのOIDC adapter、人間sessionとowner wallet proof、Firestoreの明示同意・宛先version管理、人間専用フォームを追加しました。既定無効で、live認証・token交換と実paid leaseでの承認は未検証です。eventの模擬proofを本番の本人確認や法的KYCとは扱いません。[World接続手順](docs/world.md)を参照してください。
 
 ## 読む順序
 

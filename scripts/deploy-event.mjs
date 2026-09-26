@@ -7,7 +7,7 @@ import { CURRENT_TERMS_VERSION } from '../packages/domain/src/terms.ts';
 
 const origin = 'https://address.chain.tokyo';
 const digestPattern = /^sha256:[a-f0-9]{64}$/;
-export const buildPaths = ['Dockerfile', '.dockerignore', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.base.json', 'apps/api/package.json', 'apps/api/tsconfig.json', 'apps/api/src', 'apps/worker/package.json', 'apps/worker/tsconfig.json', 'apps/worker/src', 'apps/web/package.json', 'apps/web/tsconfig.json', 'apps/web/vite.config.ts', 'apps/web/index.html', 'apps/web/src', 'apps/web/scripts/build.mjs', 'packages/agent-cli/package.json', 'packages/db/package.json', 'packages/db/tsconfig.json', 'packages/db/src', 'packages/domain/package.json', 'packages/domain/tsconfig.json', 'packages/domain/src', 'packages/intercepta/package.json', 'packages/intercepta/tsconfig.json', 'packages/intercepta/src', 'docs/openapi.json', 'docs/terms.md', 'scripts/container-build.mjs', 'scripts/container-entrypoint.mjs'];
+export const buildPaths = ['Dockerfile', '.dockerignore', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.base.json', 'apps/api/package.json', 'apps/api/tsconfig.json', 'apps/api/src', 'apps/worker/package.json', 'apps/worker/tsconfig.json', 'apps/worker/src', 'apps/web/package.json', 'apps/web/tsconfig.json', 'apps/web/vite.config.ts', 'apps/web/index.html', 'apps/web/src', 'apps/web/scripts/build.mjs', 'packages/agent-cli/package.json', 'packages/db/package.json', 'packages/db/tsconfig.json', 'packages/db/src', 'packages/domain/package.json', 'packages/domain/tsconfig.json', 'packages/domain/src', 'packages/intercepta/package.json', 'packages/intercepta/tsconfig.json', 'packages/intercepta/src', 'packages/world/package.json', 'packages/world/tsconfig.json', 'packages/world/src', 'docs/openapi.json', 'docs/terms.md', 'scripts/container-build.mjs', 'scripts/container-entrypoint.mjs'];
 
 function demand(condition, code) {
   if (!condition) throw new Error(code);
@@ -146,7 +146,14 @@ function validateService(service, policy, revision, role, config) {
   for (const key of ['FIRESTORE_EMULATOR_HOST', 'GOOGLE_APPLICATION_CREDENTIALS', 'GOOGLE_CREDENTIALS', 'GOOGLE_CLOUD_KEYFILE_JSON', 'GCLOUD_KEYFILE_JSON']) demand(!env[key], 'event_credential_fallback_disallowed');
   if (role === 'web') {
     demand(env.PUBLIC_ORIGIN?.value === origin && env.TERMS_VERSION?.value === config.TERMS_VERSION && env.RATE_LIMIT_HMAC_KEY?.valueFrom?.secretKeyRef && !env.RATE_LIMIT_HMAC_KEY.value, 'web_runtime_configuration_mismatch');
+    demand(env.WORLD_ENABLED === undefined || (['true', 'false'].includes(env.WORLD_ENABLED.value) && !env.WORLD_ENABLED.valueFrom), 'world_enablement_unknown');
+    if (env.WORLD_REDIRECT_URI !== undefined) demand(env.WORLD_REDIRECT_URI.value === `${origin}/auth/world/callback` && !env.WORLD_REDIRECT_URI.valueFrom, 'world_callback_mismatch');
+    if (env.WORLD_ENABLED?.value === 'true') {
+      demand(env.WORLD_REDIRECT_URI?.value === `${origin}/auth/world/callback`, 'world_callback_mismatch');
+      for (const key of ['WORLD_CLIENT_ID', 'WORLD_CLIENT_SECRET', 'WORLD_SESSION_KEY', 'MAIL_ENCRYPTION_KEY']) demand(env[key]?.valueFrom?.secretKeyRef && env[key].value === undefined, 'world_secret_reference_required');
+    }
   }
+  if (role === 'worker') for (const key of ['WORLD_ENABLED', 'WORLD_REDIRECT_URI', 'WORLD_CLIENT_ID', 'WORLD_CLIENT_SECRET', 'WORLD_SESSION_KEY', 'MAIL_ENCRYPTION_KEY']) demand(!env[key], 'worker_world_configuration_disallowed');
   for (const entry of entries) if (entry.valueFrom) demand(entry.valueFrom.secretKeyRef && /^realaddr-event-[a-z0-9-]+$/.test(entry.valueFrom.secretKeyRef.name ?? '') && /^[1-9][0-9]*$/.test(entry.valueFrom.secretKeyRef.key ?? ''), 'secret_reference_must_be_dedicated_numeric_version');
   const invokers = (policy.bindings ?? []).filter(item => item.role === 'roles/run.invoker');
   const expectedInvokers = role === 'worker' ? [`serviceAccount:realaddr-event-tasks@${config.GCP_PROJECT_ID}.iam.gserviceaccount.com`, `serviceAccount:realaddr-event-sched@${config.GCP_PROJECT_ID}.iam.gserviceaccount.com`].sort() : ['allUsers'];

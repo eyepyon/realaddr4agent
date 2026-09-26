@@ -1,5 +1,13 @@
 mock_provider "google" {}
 override_resource {
+  target          = google_service_account.app["web"]
+  override_during = plan
+  values = {
+    email = "realaddr-event-web@demo-realaddr-local.iam.gserviceaccount.com"
+    name  = "projects/demo-realaddr-local/serviceAccounts/realaddr-event-web@demo-realaddr-local.iam.gserviceaccount.com"
+  }
+}
+override_resource {
   target          = google_service_account.app["worker"]
   override_during = plan
   values = {
@@ -112,6 +120,71 @@ run "reject_unready_runtime" {
   command = plan
   variables { deploy_services = true }
   expect_failures = [google_cloud_run_v2_service.app]
+}
+
+run "world_enablement_requires_complete_web_secrets" {
+  command = plan
+  variables {
+    world_enabled                = true
+    deploy_services              = true
+    runtime_ready                = true
+    firestore_access_reviewed    = true
+    retain_legacy_default_access = true
+    image_digest                 = "registry.example.invalid/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    worker_url                   = "https://worker.example.invalid"
+    terms_version                = "test-terms"
+    secret_purposes              = ["rate-limit-hmac"]
+    secret_versions              = { web = { RATE_LIMIT_HMAC_KEY = { purpose = "rate-limit-hmac", version = "1" } }, worker = {} }
+  }
+  expect_failures = [google_cloud_run_v2_service.app]
+}
+
+run "world_enablement_scopes_secrets_and_callback_logs" {
+  command = plan
+  variables {
+    world_enabled                = true
+    deploy_services              = true
+    runtime_ready                = true
+    firestore_access_reviewed    = true
+    retain_legacy_default_access = true
+    image_digest                 = "registry.example.invalid/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    worker_url                   = "https://worker.example.invalid"
+    terms_version                = "test-terms"
+    secret_purposes              = ["rate-limit-hmac", "world-client-id", "world-client-secret", "world-session-key", "mail-encryption-key"]
+    secret_versions = { web = {
+      RATE_LIMIT_HMAC_KEY  = { purpose = "rate-limit-hmac", version = "1" }
+      WORLD_CLIENT_ID     = { purpose = "world-client-id", version = "1" }
+      WORLD_CLIENT_SECRET = { purpose = "world-client-secret", version = "1" }
+      WORLD_SESSION_KEY   = { purpose = "world-session-key", version = "1" }
+      MAIL_ENCRYPTION_KEY = { purpose = "mail-encryption-key", version = "1" }
+    }, worker = {} }
+  }
+  assert {
+    condition     = local.service_env.web.WORLD_ENABLED == "true" && local.service_env.web.WORLD_REDIRECT_URI == "https://address.chain.tokyo/auth/world/callback" && !contains(keys(local.service_env.worker), "WORLD_ENABLED") && length(google_secret_manager_secret_iam_member.runtime) == 5 && alltrue([for grant in values(google_secret_manager_secret_iam_member.runtime) : endswith(grant.member, "realaddr-event-web@demo-realaddr-local.iam.gserviceaccount.com")])
+    error_message = "World opt-in must expose fixed controls and dedicated secrets only to web."
+  }
+  assert {
+    condition     = length(google_logging_project_exclusion.world_callback) == 1 && google_logging_project_exclusion.world_callback[0].name == "realaddr-event-world-callback" && google_logging_project_exclusion.world_callback[0].filter == "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"realaddr-event-web\" AND log_id(\"run.googleapis.com/requests\") AND httpRequest.requestUrl =~ \"/auth/world/callback([?]|$)\""
+    error_message = "Callback logging exclusion must target only this application's web callback request logs."
+  }
+}
+
+run "world_fixed_control_secret_injection_rejected" {
+  command = plan
+  variables {
+    secret_purposes = ["world-fixture"]
+    secret_versions = { web = { WORLD_ENABLED = { purpose = "world-fixture", version = "1" } }, worker = {} }
+  }
+  expect_failures = [var.secret_versions]
+}
+
+run "worker_world_secrets_rejected" {
+  command = plan
+  variables {
+    secret_purposes = ["world-fixture"]
+    secret_versions = { web = {}, worker = { WORLD_CLIENT_SECRET = { purpose = "world-fixture", version = "1" } } }
+  }
+  expect_failures = [var.secret_versions]
 }
 
 run "public_mapping_requires_review" {

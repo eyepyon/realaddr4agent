@@ -136,6 +136,42 @@ test('ordinary deploy refuses legacy default database before image build or upda
   assert.equal(fake.calls.some(call => call.program === 'docker'), false);
 });
 
+function enableWorld(service) {
+  const env = service.spec.template.spec.containers[0].env;
+  env.push({ name: 'WORLD_ENABLED', value: 'true' }, { name: 'WORLD_REDIRECT_URI', value: 'https://address.chain.tokyo/auth/world/callback' });
+  for (const [name, purpose] of [['WORLD_CLIENT_ID', 'world-client-id'], ['WORLD_CLIENT_SECRET', 'world-client-secret'], ['WORLD_SESSION_KEY', 'world-session-key'], ['MAIL_ENCRYPTION_KEY', 'mail-encryption-key']]) env.push({ name, valueFrom: { secretKeyRef: { name: `realaddr-event-${purpose}`, key: '1' } } });
+}
+test('World opt-in preserves complete dedicated web configuration during deployment', async () => {
+  const fake = fakeSubprocess(null, services => enableWorld(services.web));
+  assert.deepEqual(await deploy(config, dependencies(fake)), { status: 'deployed' });
+  assert.equal(fake.updates.length, 2);
+});
+test('World opt-in rejects missing or plaintext credentials and invalid fixed controls before update', async () => {
+  for (const key of ['WORLD_CLIENT_ID', 'WORLD_CLIENT_SECRET', 'WORLD_SESSION_KEY', 'MAIL_ENCRYPTION_KEY', 'WORLD_REDIRECT_URI', 'WORLD_ENABLED']) {
+    const fake = fakeSubprocess(null, services => {
+      enableWorld(services.web);
+      const env = services.web.spec.template.spec.containers[0].env;
+      const item = env.find(entry => entry.name === key);
+      if (key === 'WORLD_ENABLED') item.value = 'unknown';
+      else if (key === 'WORLD_REDIRECT_URI') item.value = 'https://other.example/callback';
+      else { delete item.valueFrom; item.value = 'private'; }
+    });
+    await assert.rejects(deploy(config, dependencies(fake)), /world_/);
+    assert.equal(fake.updates.length, 0);
+  }
+  const missing = fakeSubprocess(null, services => { services.web.spec.template.spec.containers[0].env.push({ name: 'WORLD_ENABLED', value: 'true' }); });
+  await assert.rejects(deploy(config, dependencies(missing)), /world_callback_mismatch/);
+});
+test('World disabled configuration tolerates old absence and worker rejects all World credentials', async () => {
+  const disabled = fakeSubprocess(null, services => { services.web.spec.template.spec.containers[0].env.push({ name: 'WORLD_ENABLED', value: 'false' }); });
+  assert.deepEqual(await deploy(config, dependencies(disabled)), { status: 'deployed' });
+  for (const key of ['WORLD_CLIENT_ID', 'WORLD_CLIENT_SECRET', 'WORLD_SESSION_KEY', 'MAIL_ENCRYPTION_KEY']) {
+    const fake = fakeSubprocess(null, services => { services.worker.spec.template.spec.containers[0].env.push({ name: key, valueFrom: { secretKeyRef: { name: 'realaddr-event-world-fixture', key: '1' } } }); });
+    await assert.rejects(deploy(config, dependencies(fake)), /worker_world_configuration_disallowed/);
+    assert.equal(fake.updates.length, 0);
+  }
+});
+
 test('missing configuration, wrong main SHA, unapproved deployment and mismatched terms fail before subprocesses', () => {
   assert.throws(() => configFromEnv({ ...environment, DEPLOY_CONFIG: '' }), /deploy_configuration_required/);
   assert.throws(() => configFromEnv({ ...environment, SELECTED_COMMIT: 'd'.repeat(40) }), /commit_must_equal_current_main/);

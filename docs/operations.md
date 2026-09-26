@@ -30,8 +30,8 @@ T-01で秘密のない.env.exampleを作る。secretは環境/secret managerに�
 | GCS_BUCKET, ARTIFACT_REPOSITORY | privateファイルbucket、image格納先 |
 | TASKS_QUEUE, WORKER_URL, TASK_INVOKER_SA, SCHEDULER_INVOKER_SA | 非公開worker呼出先とOIDC主体 |
 | DAILY_NEW_LEASE_LIMIT, BILLING_ALERT_USD | 初期100件/UTC日、月$5は本アプリの運用目標。共有projectの既存予算・通知は別管理であり強制課金上限ではない |
-| SESSION_SECRET, DATA_ENCRYPTION_KEY_ID | session/個人情報暗号化 |
-| WORLD_ISSUER, WORLD_CLIENT_ID, WORLD_CLIENT_SECRET, WORLD_REDIRECT_URI | backend OIDC |
+| WORLD_SESSION_KEY, MAIL_ENCRYPTION_KEY | web専用の別々の32byte鍵（canonical base64）。World sessionの秘匿情報と転送先を分けて暗号化 |
+| WORLD_ENABLED, WORLD_CLIENT_ID, WORLD_CLIENT_SECRET, WORLD_REDIRECT_URI | 既定falseのbackend OIDC。issuerはsandbox固定、clientはBasic認証、callbackは公開originの/auth/world/callback。[設定手順](world.md) |
 | INTERCEPTA_API_KEY, INTERCEPTA_BASE_URL | live risk |
 | PAYMENT_NETWORK, PAYMENT_ASSET, PAYMENT_DECIMALS, PAYMENT_PAY_TO | 決済条件。network/asset allowlistとrate整合を検査 |
 | X402_FACILITATOR_URL, X402_FACILITATOR_CREDENTIAL | 接続先、必要な場合の認証 |

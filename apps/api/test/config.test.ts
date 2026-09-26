@@ -54,3 +54,13 @@ test('local API requires the named emulator database without a default fallback'
   assert.throws(() => loadConfig({ ...local, FIRESTORE_DATABASE_ID: undefined }), { message: 'invalid_firestore_database' });
   assert.throws(() => loadConfig({ APP_ENV: 'local', FIRESTORE_DATABASE_ID: 'realaddr' }), { message: 'firestore_emulator_required_for_local_execution' });
 });
+
+test('World stays disabled by default and enabled configuration fails closed', () => {
+  assert.equal(loadConfig(eventEnvironment).world, undefined);
+  assert.throws(() => loadConfig({ ...eventEnvironment, WORLD_ENABLED: 'yes' }), { message: 'invalid_world_enabled' });
+  assert.throws(() => loadConfig({ ...eventEnvironment, WORLD_ENABLED: 'true' }), { message: 'world_configuration_incomplete' });
+  const configured = { ...eventEnvironment, WORLD_ENABLED: 'true', WORLD_CLIENT_ID: 'fixture-client', WORLD_CLIENT_SECRET: 'fixture-secret', WORLD_REDIRECT_URI: 'https://address.chain.tokyo/auth/world/callback', WORLD_SESSION_KEY: Buffer.alloc(32, 1).toString('base64'), MAIL_ENCRYPTION_KEY: Buffer.alloc(32, 2).toString('base64') };
+  assert.ok(loadConfig(configured).world);
+  assert.throws(() => loadConfig({ ...configured, WORLD_REDIRECT_URI: 'https://example.invalid/callback' }), { message: 'invalid_world_redirect_uri' });
+  assert.throws(() => loadConfig({ ...configured, MAIL_ENCRYPTION_KEY: 'invalid' }), { message: 'invalid_world_encryption_key' });
+});

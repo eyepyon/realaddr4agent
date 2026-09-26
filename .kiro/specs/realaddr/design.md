@@ -8,7 +8,7 @@ TypeScript strict / pnpm workspace。公開説明ページはbuild時にHTML生�
 
 UI/APIは同一Cloud Runサービス、workerは非公開の別Cloud Runサービス。ともにrequest-based / min instances=0。UI/APIは同じHTTPS origin。GCS、GitHub Actions、Tasks/Scheduler、Firestore実装詳細は[インフラ仕様](../../../docs/infrastructure.md)を正とする。3ツールの実利用は共通HTTP/JSON CLIで対応し、MCPを必須にしない。
 
-既存サービスと同一のGCP projectを使用する。専用リソースは `RESOURCE_PREFIX=realaddr-event` で命名し、Terraform state、実行主体、secret、image、queue、bucketを分ける。業務データは専用名前付き`realaddr` Firestore DBに保存する。共有`(default)` DBは歴史的な参照・inventory対象に限り、Terraformへimport・管理せず、実行時fallbackもしない。fresh inventoryで名前と所有権を確認した後、`realaddr` DB本体とdeny-all client RulesをアプリTerraformで管理し、delete protectionと`prevent_destroy`を有効にする。共有projectのIAM/API/予算は管理しない。移行前のDBにある業務データは、ID・予約/契約/決済・冪等性を照合する保守移行を行い、maintenance中に新旧writerを止め、同じimageと環境設定を一体で切り替える。現時点ではnamed DB作成完了は未確認で、データ移行とcutoverは未完了。実施範囲は実装状況に記録する。
+既存サービスと同一のGCP projectを使用する。専用リソースは `RESOURCE_PREFIX=realaddr-event` で命名し、Terraform state、実行主体、secret、image、queue、bucketを分ける。業務データは専用名前付き`realaddr` Firestore DBに保存する。共有`(default)` DBは歴史的な参照・inventory対象に限り、Terraformへimport・管理せず、実行時fallbackもしない。fresh inventoryで名前と所有権を確認した後、`realaddr` DB本体とdeny-all client RulesをアプリTerraformで管理し、delete protectionと`prevent_destroy`を有効にする。共有projectのIAM/API/予算は管理しない。移行前のDBにある業務データは、ID・予約/契約/決済・冪等性を照合する保守移行を行い、maintenance中に新旧writerを止め、同じimageと環境設定を一体で切り替える。named DB作成・保守移行・cutoverと実runtime IAM分離は確認済み。実施範囲は実装状況に記録する。
 
 ```mermaid
 flowchart LR
@@ -68,8 +68,8 @@ event起動時はprefix空値・不正値・設定の不一致を拒否し、未
 | risk_assessments | id, orderId, side, subjectAddress, paymentNetwork, riskNetwork, decision, reasonCodes, responseHash, checkedAt, expiresAt, policyVersion |
 | human_bindings | id, leaseId 一意, ownerWallet, encryptedIssuer, encryptedSubject, keyedSubjectHash, createdAt |
 | approvals | id, leaseId, agentId, actionHash, nonce, targetDestinationVersion, targetProfileVersion, status, expiresAt, authTime, consentAt, bindingId?, appliedAt, destinationWriteAuthorized, destinationWriteConsumedAt? |
-| oidc_sessions | id, approvalId, stateHash 一意, nonceHash, encryptedPkceVerifier, browserSessionId, expiresAt, consumedAt |
-| browser_sessions | idHash, ownerWallet?, walletProvedAt?, candidateIssuer?, candidateSubject?, worldAuthTime?, expiresAt |
+| oidc_sessions | id, approvalId, stateHash 一意, nonce, encryptedPkceVerifier, browserSessionId, expiresAt, consumedAt |
+| browser_sessions | idHash, ownerWallet?, walletProvedAt?, encryptedIssuer?, encryptedSubject?, keyedSubjectHash?, worldAuthTime?, expiresAt |
 | mail_profiles | leaseId PK, status, enabledByApprovalId?, approvedDestinationVersion?, initialDestinationPending, destinationVersion, version, encryptedDestination?, destinationConfigured, updatedAt |
 | refunds | paymentId PK, orderId, reason(issuance_failed_final), originalPayer, network, asset, amountAtomic, signerAddress, transferNonce?, encryptedSignedTx?, txHash?, status(prepared/submitting/unknown/confirmed), settlementEvidence?, createdAt, updatedAt, version; 一確定paymentに一件、宛先・額は元決済から固定。confirmedが返金記録の終端状態 |
 | outbox | id, aggregateId, version, eventType, payload, state, availableAt, attempts; 一意(aggregateId,version,eventType) |
@@ -88,7 +88,7 @@ event起動時はprefix空値・不正値・設定の不一致を拒否し、未
 
 価格は[料金仕様](../../../docs/pricing.md)に従い、住所30日mainnet 55 USDC / testnet・dev 0.55 USDCを購入・更新へ適用する。ENS初回追加は標準名/独自名の選択ごとにmainnet 10/30 USDC、testnet・dev 0.10/0.30 USDCを別intentで課金する。独自名は30 USDCの一回分で、標準名料金を重ねない。検証済みUSDC decimals=6とnetwork別allowlistを使用し、APP_ENVだけで安い価格をmainnetへ流せないよう価格profileも検証する。mainnetは今回の起動許可対象外。設定欠落・価格profile不一致なら販売不可。管理画面から固定された料金・期間・資産条件を変更できない。見積にはkind、対象、名前選択、価格versionを固定し、支払い確定後に他商品へ読み替えない。
 
-Browser sessionはidle 15分/absolute 60分、owner proofは承認時点で10分以内とする。承認適用時とログイン成功時にsession IDをrotateする。API credentialは初期30日有効、登録/失効操作を監査する。新規challengeはIP単位毎分10件、通常Agent APIは毎分60件、未決済区画holdはwallet単位同時3件を初期上限とし、超過は429。settling/reconcilingも上限へ含め、解放目的で消さない。これらはanti-abuseの補助であり、無料wallet作成によるSybil耐性を保証するものではない。
+Browser sessionはabsolute 10分で、操作やID交換で期限を延長しない。owner proofは承認時点で10分以内とする。承認適用時とログイン成功時にsession IDをrotateする。API credentialは初期30日有効、登録/失効操作を監査する。新規challengeはIP単位毎分10件、通常Agent APIは毎分60件、未決済区画holdはwallet単位同時3件を初期上限とし、超過は429。settling/reconcilingも上限へ含め、解放目的で消さない。これらはanti-abuseの補助であり、無料wallet作成によるSybil耐性を保証するものではない。
 
 ## 4. 住所購入
 
@@ -135,7 +135,7 @@ finality前のreorgは保留、確認後のreorg検知はsuspendedと運用通�
 6. 一つのDB transactionで初回binding確定、Approval=appliedとする。初回はMailProfileへinitialDestinationPendingと承認対象profile/versionを固定し、初回保存前のenabled表示を許す。初回保存・宛先変更ともApprovalにtargetProfileVersion/targetDestinationVersionへ束縛した一回限りのdestinationWriteAuthorizedを記録する。宛先変更の承認だけでは既存profileの宛先・enabledByApprovalId・approvedDestinationVersionを変更しない。同じ宛先への適用済み同意には期限を設けない。World認証だけでは同意を作らず、二回目の同一承認は同じ結果を返す。
 7. UIに「郵便転送可」「転送先未登録」と人間用フォームを表示。recipient、郵便番号、都道府県、市区町村、番地、任意建物名を本人が入力する。
 8. PUT /v1/subscriptions/{subscriptionId}/mail-destination は人間sessionのみ受理。ownerWalletとWorld binding、有効人間session、activeな支払い済み契約と期限、CSRF、expectedVersion、未消費のdestinationWriteAuthorizedとtargetProfileVersion/targetDestinationVersionのCASを検査する。変更先について保存前のeffective enabled一致を要求しない。初回はinitialDestinationPendingも比較する。暗号化宛先保存、destination/profile version更新、enabledByApprovalId/approvedDestinationVersionの切替、初回保存待ち解除、write authorization消費を同一transactionで行う。取消・明示security suspension後の既存write authorizationは拒否し、PUTだけで解除しない。以後の変更は変更先destination versionへのfresh World認証と明示承認が必須で、旧宛先同意を流用しない。成功後「転送先登録済み」を表示。実発送・送料決済は発生させない。
-9. AgentのGETはstatusとdestinationConfiguredのみ返す。人間のGETだけ転送先を復号。再ログイン・同宛先の閲覧は同じwallet+World認証の有効sessionで許可し、新たなmail.enable同意は要求しない。宛先変更だけは別Approvalで変更先versionを明示承認する。既存bindingを変えない。
+9. AgentのGETはstatusとdestinationConfiguredのみ返す。有効な支払済み契約と同意を検査した人間のGETだけ転送先を復号し、disabled/suspended/期限切れは暗号文を保持してdestination=nullを返す。再ログイン・同宛先の閲覧は同じwallet+World認証の有効sessionで許可し、新たなmail.enable同意は要求しない。宛先変更だけは別Approvalで変更先versionを明示承認する。既存bindingを変えない。
 10. 人間のdisable操作は同意を取り消し、再開には新承認が必要。明示security suspensionもrenewで解除しない。lease期限切れは同意を取り消さずeffective enabledだけを停止する。期限内renewと期限切れ後のsame-lease paid renewal/revivalは同じ宛先への同意を維持して再開し、新承認を要求しない。renewのversion変更は未適用approvalだけを失効させる。保存済み住所はAgentへ返さず、認可された人間sessionの取得だけを許可する。
 
 actionHash=SHA-256(JCS({schemaVersion, action:'mail.enable', leaseId, leaseVersion, agentId, ownerWallet, policyVersion, targetProfileVersion, targetDestinationVersion, nonce, expiresAt}))。

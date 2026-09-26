@@ -42,7 +42,7 @@ workflowは`${{ secrets.DEPLOY_CONFIG }}`を読み、認証actionへ渡す識別
 | 認証・価格profile | `TERMS_VERSION=realaddr-v1`、`PRICE_PROFILE=testnet`、`PRICING_VERSION=<reviewed-price-version>`。eventの`RATE_LIMIT_HMAC_KEY`は下の秘密設定に置く。mainnet profileを指定しても販売を開始しない |
 | app resource | `GCS_BUCKET=<app-private-bucket>`、`TASKS_QUEUE=realaddr-event-jobs`、`WORKER_URL=<verified-https-worker-origin>`、`TASK_INVOKER_SA=<new-app-task-invoker>`、`SCHEDULER_INVOKER_SA=<new-app-scheduler-invoker>`。実IDはinventory後のmanifestから取得。`ARTIFACT_REPOSITORY`はActionsのimage push先でありruntimeに不要 |
 | 上限 | `DAILY_NEW_LEASE_LIMIT=100`。`BILLING_ALERT_USD=5`は本アプリの月次運用目標であり、共有projectの既存予算通知や課金停止を設定するキーではない |
-| World・risk | `WORLD_ISSUER=<verified-issuer>`、`WORLD_CLIENT_ID=<event-client-id>`、`WORLD_REDIRECT_URI=https://address.chain.tokyo/auth/world/callback`、`INTERCEPTA_BASE_URL=<verified-live-api-url>`。World issuerとIntercepta endpoint/schemaはT-00の実接続で確定 |
+| World | webのみ`WORLD_ENABLED=false`を既定とし、`WORLD_REDIRECT_URI=https://address.chain.tokyo/auth/world/callback`を固定。issuerは`https://sandbox.auth.world.org`固定。client IDを含む4つの設定は下の秘密参照へ置く。productionではsandbox構成を受け付けない |
 | x402決済 | `PAYMENT_NETWORK=<verified-base-sepolia-caip2>`、`PAYMENT_ASSET=<verified-base-sepolia-usdc-address>`、`PAYMENT_DECIMALS=6`、`PAYMENT_PAY_TO=<reviewed-receiving-address>`、`X402_FACILITATOR_URL=<verified-facilitator>`、`PAYMENT_FINALITY_POLICY=<tested-policy>`。Base Sepoliaのasset・facilitator・receipt/finalityはT-00で実測 |
 | 価格・期間 | `LEASE_PRICE_TESTNET_ATOMIC=550000`、`LEASE_PRICE_MAINNET_ATOMIC=55000000`、`LEASE_PERIOD_DAYS=30`、`ENS_ADDON_STANDARD_PRICE_TESTNET_DEV_ATOMIC=100000`、`ENS_ADDON_STANDARD_PRICE_MAINNET_ATOMIC=10000000`、`ENS_ADDON_CUSTOM_PRICE_TESTNET_DEV_ATOMIC=300000`、`ENS_ADDON_CUSTOM_PRICE_MAINNET_ATOMIC=30000000`。mainnet値は将来の価格定義でありeventでのmainnet決済を有効化しない |
 | LeaseRegistry・MultiBaas | `MULTIBAAS_URL=<verified-deployment-url>`、`MULTIBAAS_CHAIN_LABEL=<verified-sepolia-label>`、`REGISTRY_ADDRESS=<verified-contract-address>`、`REGISTRY_CHAIN_ID=11155111`、`REGISTRY_CONTRACT_LABEL=<verified-label>`。登録先と権限は実deploymentで確認 |
@@ -61,9 +61,10 @@ Web buildは`VITE_APP_ENV=local|event`と`VITE_TERMS_VERSION`をbuild時に固�
 
 | 用途 | 既存キー | 入力・取扱い |
 | --- | --- | --- |
-| web session/宛先暗号化 | `SESSION_SECRET`、`DATA_ENCRYPTION_KEY_ID` | web等の必要なruntimeだけ。値や復号鍵は機密管理 |
+| World session/宛先暗号化 | `WORLD_SESSION_KEY`、`MAIL_ENCRYPTION_KEY` | webだけに別々の32byte鍵をcanonical base64で注入。値や復号鍵は機密管理 |
 | 公開APIのrate limit | `RATE_LIMIT_HMAC_KEY` | eventでは64桁のhexで表した32byteの秘密。IPをHMAC化してFirestoreのrate bucketへ保存し、raw IPを保存しない。localのみ未指定時に起動ごとに生成 |
-| World/Intercepta/x402 | `WORLD_CLIENT_SECRET`、`INTERCEPTA_API_KEY`、`X402_FACILITATOR_CREDENTIAL` | providerから取得後に登録。facilitator認証が不要と確認される場合はcredentialを作らない |
+| World OIDC | `WORLD_CLIENT_ID`、`WORLD_CLIENT_SECRET` | PortalのBasic認証clientを登録後、webのみ参照。client secretは一度だけ表示されるため保護設定へ直接保存 |
+| Intercepta/x402 | `INTERCEPTA_API_KEY`、`X402_FACILITATOR_CREDENTIAL` | providerから取得後に登録。facilitator認証が不要と確認される場合はcredentialを作らない |
 | MultiBaas | `MULTIBAAS_API_KEY` | 最小権限の実API key |
 | chain/返金署名 | `REGISTRY_SIGNER_KEY_REF`、`REFUND_SIGNER_KEY_REF`、`ENS_PUBLISHER_KEY_REF` | 役割を分離した鍵参照。署名方式と参照値の保存先は実接続で確定。復旧不能と確定した発行失敗の自動返金だけに返金鍵を使う |
 | 管理者認証 | `ADMIN_GOOGLE_CLIENT_SECRET`、`ADMIN_SESSION_SECRET` | server側だけ。`ADMIN_ALLOWED_EMAILS`は保護された初回bootstrap入力であり稼働中の認可正本ではない |
@@ -83,6 +84,14 @@ T-00でWorld/Intercepta/facilitator/USDC/MultiBaas/ENSの実endpoint・address�
 コンテナは`VITE_APP_ENV`と`VITE_TERMS_VERSION`を必須build引数とし、同一imageを`web`/`worker`引数で使う。現実装のweb起動には`APP_ENV=event`、`GCP_PROJECT_ID`、上表の`PUBLIC_ORIGIN`、正式な`TERMS_VERSION`、実`RATE_LIMIT_HMAC_KEY`が必要。worker起動は環境・project・prefix・named database `realaddr`と、実`WORKER_URL`・専用Tasks/Scheduler invokerを必要とする。provider secretは現在の閉じた起動経路では必須でなく、値を仮置きして販売を開かない。APIもeventでは専用prefixとnamed `realaddr` databaseの明示設定を要求し、demo project、不正project、Emulator、鍵credentialの環境変数を拒否する。
 
 `infra/app`では非秘密設定を固定し、`secret_versions`でweb/workerごとの既存numeric versionだけを指定する。`secret_purposes`はmetadata作成対象で、payload/version作成を行わない。service配備・runtime ready・公開・Scheduler・dispatch・共有Firestore grantのopt-inは全て既定false。初期基盤applyとその後のruntime gateは別工程である。backend設定は保護されたbucketと専用prefixを使い、`TF_DATA_DIR`も保護directoryへ分ける。bootstrapはGCS移行済みで、cloneは既存remote stateへ接続する。[初期化手順](../infra/README.md)を参照。
+
+## Worldの明示的な有効化
+
+`infra/app`の`world_enabled`は既定false。有効化時には`secret_purposes`へ`world-client-id`、`world-client-secret`、`world-session-key`、`mail-encryption-key`を宣言し、`secret_versions.web`から`WORLD_CLIENT_ID`、`WORLD_CLIENT_SECRET`、`WORLD_SESSION_KEY`、`MAIL_ENCRYPTION_KEY`に既存の数値versionを割り当てる。secret payloadをTerraformへ渡さない。4つの参照が欠ける配備、`WORLD_ENABLED`/`WORLD_REDIRECT_URI`のsecret injection、workerへのWorld/mail secret割当を拒否する。
+
+有効化前に専用resourceの所有権をinventoryし、`realaddr-event-world-callback` logging exclusionを作成する。filterは`cloud_run_revision`、`realaddr-event-web`、`run.googleapis.com/requests`、`/auth/world/callback`に限定し、code/stateを含むcallback request URLを通常logへ保存しない。Cloud Runはこのexclusionに依存する。他のservice・routeや共有logging設定は変更しない。独立のsinkなど別保存経路がある場合も秘匿値の保存有無を確認する。app診断はtoken/code/state/subject/宛先を出さない。
+
+image更新guardは旧構成のWorld設定欠落を無効状態として許容し、有効状態では固定callbackと4つの専用numeric secret参照を要求する。設定とimageの反映はWorld live認証・承認完了の証拠ではない。[World設定手順](world.md)に従い、実paid leaseでの成功と代表的な拒否を別途確認する。
 
 ## image-onlyの入力と権限境界
 

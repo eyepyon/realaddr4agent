@@ -5141,6 +5141,222 @@
           }
         }
       }
+    },
+    "/v1/subscriptions/{subscriptionId}/mail-destination-approval": {
+      "post": {
+        "operationId": "createMailDestinationApproval",
+        "summary": "Request fresh explicit approval for a destination change",
+        "security": [
+          {
+            "humanSession": [],
+            "csrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "subscriptionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalLink"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected. See error and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected. See error and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected. See error and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected. See error and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected. See error and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "410": {
+            "description": "Request rejected. See error and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "422": {
+            "description": "Request rejected. See error and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected. See error and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected. See error and traceId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Redacted diagnostic correlation ID"
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DisableRequest"
+              }
+            }
+          }
+        },
+        "description": "Human session and CSRF only. Compare expectedVersion, bind a new request to the next destination version, and keep existing consent until an authorized destination save. The new approval requires owner proof, fresh World authentication and explicit consent."
+      }
     }
   },
   "components": {
@@ -5153,7 +5369,7 @@
       "humanSession": {
         "type": "apiKey",
         "in": "cookie",
-        "name": "realaddr_session",
+        "name": "__Host-realaddr_session",
         "description": "Server-side browser session. Each endpoint also enforces required wallet and World verification state."
       },
       "csrfToken": {
@@ -6037,7 +6253,8 @@
             "type": "string",
             "enum": [
               "pending",
-              "authenticated"
+              "authenticated",
+              "applied"
             ]
           },
           "approvalUrl": {
@@ -6045,9 +6262,12 @@
             "format": "uri"
           },
           "expiresAt": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "date-time",
-            "description": "Short-lived approval request deadline, at most 10 minutes after creation; not an expiry of applied same-destination consent."
+            "description": "Pending requests expire within 10 minutes. Applied consent has no time limit and returns null; opening its reauthentication link creates a separate browser session with an absolute 10-minute lifetime."
           }
         },
         "required": [
@@ -6097,9 +6317,12 @@
             "pattern": "^0x[0-9a-fA-F]{40}$"
           },
           "expiresAt": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "date-time",
-            "description": "Short-lived approval request deadline, at most 10 minutes after creation; not an expiry of applied same-destination consent."
+            "description": "Pending requests expire within 10 minutes. Applied consent has no time limit and returns null; opening its reauthentication link creates a separate browser session with an absolute 10-minute lifetime."
           },
           "worldAuthenticated": {
             "type": "boolean"
@@ -6293,7 +6516,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Decrypted only for the matching authenticated human while paid lease and consent are effective. Null while disabled, suspended or expired; stored ciphertext is retained."
           }
         },
         "required": [

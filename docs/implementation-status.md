@@ -8,6 +8,7 @@
 | --- | --- | --- |
 | T-01 実行基盤 | 実装中 | pnpm workspace、strict TypeScript、Fastify、web/worker、共通CLI、CI workflowとローカル`.env.example`を作成。全経路の起動確認は未完了 |
 | T-02 認証・Firestore・区画 | 部分実装 | wallet challenge、Bearer hash、collection prefix、64 shard予約に加え、住所購入の決済受付・不明状態保持・確定後の契約発行・未払い確定後のhold解放をrepositoryへ実装。外部の検証済み結果を受け取る内部DB境界であり、実決済・外部照合・返金は未実装。更新の内部DB処理はT-05として追加 |
+| T-03/T-06 World・郵便承認 | 実装・ローカル検証済み、live縦断未検証 | owner署名、OIDC/PKCE、明示承認、暗号化宛先、変更時の再承認と取消を実装。実支払済み契約でのWorld認証・同意・保存は未検証 |
 | T-05 住所更新 | 部分実装・ローカル検証済み | 同一leaseの更新排他、固定見積、確定支払いの一度だけの反映、結果不明保持、保存済みreceiptからのworker復旧。公開更新API・実決済・chain/ENS同期は未接続 |
 | T-00/T-04 Intercepta | 初期client・内部gate実装、live疎通確認済み | 認証付きQuick ScanでHTTP 200・schema一致を確認。危険traitのdeny・未知holdと購入/更新の検査を実装。安全基準・coverage未確認でallowは無効。公開pay・実署名器は未接続 |
 | T-07 LeaseRegistry | 配備済み・DB/worker読み取り照合を部分実装、全体未完了 | 初期権限とMultiBaas紐づけを確認済み。購入・更新のpaid provenance、永続identity、claim/version付き確定block照合を実装しローカル検証。照合は既定無効。実lease記録・取消、event有効化、indexed eventsと永続cursor/reorg回復は未完了 |
@@ -15,10 +16,22 @@
 | T-05/T-16 worker・outbox | 部分実装・ローカル検証済み | Firestore claim/generation/期限、保存済み支払いからの発行復旧、Cloud Tasks REST配信・結果照合とSchedulerの永続cursor。実送金・eventのchain照合・実Cloud Tasks/Scheduler接続は未検証 |
 | T-08/T-18/T-19 UI | 部分着手 | 公開HTML/AEO、標準SaaSの画面、実APIへの接続。業務統合・実管理者ログインは別途 |
 | T-02/T-08/T-19 利用規約 | v1正式採用・event配信確認済み | realaddr-v1として15条を正式採用。単一Markdownから/termsへ初期HTML配信し、正式versionの同意欄・API/build/deploy設定を一致させる。提供開始準備と実利用者の同意確認は別途 |
-| T-00 外部連携 | 一部のread-only疎通を確認・全体未完了 | MultiBaasのSepolia status、registry linkと初期権限のreadを確認。実lease write/read・indexed eventsは未確認。World、Intercepta、x402、ENS、管理者OIDCの必要設定も揃っていない |
+| T-00 外部連携 | 一部の疎通を確認・全体未完了 | MultiBaasのSepolia status、registry linkと初期権限のread、Intercepta認証付きscanを確認。World client設定は取得済み。Worldのlive縦断、実lease write/read・indexed events、x402、ENS、管理者OIDCは残件 |
 | T-16 GCP | 独自ドメインHTTPS確認済み・全体未完了 | WIFとeventイメージbuild/push、runtime IAM検査、初回Cloud Run配備、公開後100項目と後続plan差分0を確認。TLS発行・独自ドメイン8経路の表示と拒否を確認。Tasks/Schedulerの実配信、実Firebase利用者client試験、外部業務連携は残件 |
 
 ## 検証の記録
+
+### T-03/T-06 World sandboxと人間専用の郵便設定
+
+`packages/world`に固定sandbox issuerのauthorization code + PKCE S256、Basic client認証、RS256/JWKS・issuer/audience/nonce/auth_time検査を追加した。HTTPは期限・サイズ・redirectを制限し、生tokenやprovider errorを返さない。APIはowner署名を同一browser sessionへ束縛し、stateの一回限りのclaim、候補identityの暗号化保存、明示同意時だけの初回bindingを実装した。短期要求は10分、OIDCは5分、browser sessionはabsolute 10分。`__Host-` cookie・CSRF・厳密Originと認証/承認後のsession ID交換を使い、交換で期限を延長しない。
+
+Firestore transactionで確認済み支払い根拠・現在lease・同意・対象versionを検査する。適用済み同意は同じ宛先のまま期限を設けず保持し、paid renewal/revivalで復帰する。人間による取消やsecurity suspensionは更新で解除しない。人間専用の宛先変更要求を追加し、変更の承認と実際の保存を分け、保存時に同意を原子的に切り替える。期限切れ/disabled/suspendedでは保存済み暗号文を保持し、全文のGETはnullを返す。Agentには全文とWorld識別子を返さない。適用済みconsentの再ログインリンクは`status=applied, expiresAt=null`で、未適用要求の期限とは区別する。
+
+検証: World adapter 7件、API設定/人間認可・cookie・wire shape 7件、DB World/owner read/renewal 9件を確認。追加したstale認証・異なるWorld本人・旧session失効・宛先version競合・取消後の更新保持を含むDB重点3件を再実行して通過した。Terraform validate/mock 12件、World deploy guard 3件も通過。これらのidentity/支払いは試験fixtureで、liveの本人認証や決済の証拠ではない。
+
+`WORLD_ENABLED`は既定無効。eventの専用4つのSecret version、webだけへの参照・権限、固定callbackとcallback request-log除外を適用し、live設定のread-backを確認した。workerへのこれらのsecret参照はない。独立のlog export sinkは観測されず、既存の標準sinkを保持した。この設定反映では既存imageを変更しておらず、新しいWorld実装のimage配備は未実施。実支払済み契約が未成立のため、公開アプリでのWorld code交換・明示同意・宛先保存と代表的なlive拒否は未実施。T-03/T-06の完了チェックは付けない。
+
+最終workspace確認は`pnpm --config.verifyDepsBeforeRun=false typecheck`と`pnpm --config.verifyDepsBeforeRun=false build`が通過（World無効、UIはlocal設定）。World adapterとAPI設定/人間HTTPの重点14件、archiveを除くdeploy guard 25件が通過した。新しいWorld packageを含むHEAD archiveの検査はcommit後に行う。通常pnpm実行がimplicit dependency refreshで非対話時に停止したため、依存の再取得をせず上記設定で検証した。
 
 ### T-02/T-16 専用Firestoreへの切替
 

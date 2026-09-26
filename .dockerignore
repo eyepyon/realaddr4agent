@@ -43,6 +43,11 @@
 !packages/intercepta/tsconfig.json
 !packages/intercepta/src/
 !packages/intercepta/src/**
+!packages/world/
+!packages/world/package.json
+!packages/world/tsconfig.json
+!packages/world/src/
+!packages/world/src/**
 !docs/
 !docs/openapi.json
 !docs/terms.md

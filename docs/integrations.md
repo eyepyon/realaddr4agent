@@ -21,11 +21,13 @@
 | advertised ACR | `https://world.org/oidc/acr/orb-v3` |
 | client authentication | `client_secret_basic`, `client_secret_post`, `private_key_jwt` |
 
-T-00ではこのmetadataを再取得し差分を記録する。providerの広告値は動作確認の代わりではない。ACR表記があってもイベントproofを本物のOrb認証済みと主張しない。
+このmetadataの再取得を確認した。providerの広告値はlive認証の動作確認の代わりではない。ACR表記があってもイベントproofを本物のOrb認証済みと主張しない。
 
 ### 採用方式
 
 confidential backendのAuthorization Code + PKCE S256。scopeはopenid。callbackは`https://address.chain.tokyo/auth/world/callback`をportalへ完全一致登録。HTTP localhostが使えると仮定せず、開発用HTTPS originを用意する。
+
+OIDC adapterと人間session・approvalの永続化・明示同意・宛先管理を実装した。`WORLD_ENABLED`は既定falseで、4つのweb専用secretと固定callbackを必要とする。Portal登録、設定契約と残るlive確認は[World接続手順](world.md)を参照。live token交換と有効なpaid leaseでの承認は未検証であり、T-00/T-03/T-06完了とは扱わない。
 
 1. backendがapproval/sessionに一回限りのstateとnonceを保存する。PKCE verifierはbackendのみ。
 2. providerへclient_id、redirect_uri、response_type=code、scope=openid、state、nonce、code_challenge、code_challenge_method=S256、prompt=login、max_age=0を送る。
@@ -83,7 +85,7 @@ facilitatorからsuccessだけを受け取って無条件にfulfilledにしな�
 
 レスポンスの正確なfield/enum、対応chainId列挙、APIのrisk閾値は認証付きサンプル/OpenAPIを取得して固定する。独自の`score > 80`などをベンダー仕様として捏造しない。
 
-初期clientと購入・更新の内部screening gateを実装した。公開OpenAPIから応答構造・trait enumを確認したが、認証付き応答・安全基準・endpointのchain範囲は未確認。現在のpolicyは既知の直接危険traitをdeny、その他をholdとし、allowを出さない。具体的な設定・診断コマンド・残件は[Intercepta接続準備](intercepta.md)に記録する。
+初期clientと購入・更新の内部screening gateを実装した。公開OpenAPIの応答構造・trait enumに加え、認証付き診断のHTTP 200、`toxicScore=0`、空traits、schema一致を確認した。安全基準・endpointのchain範囲は未確認で、診断結果は`hold/provider_policy_unconfirmed`。現在のpolicyは既知の直接危険traitをdeny、その他をholdとし、allowを出さない。支払い先/支払者の評価や決済許可を確認した証拠ではない。具体的な設定・診断コマンド・残件は[Intercepta接続準備](intercepta.md)に記録する。
 
 内部正規化型:
 

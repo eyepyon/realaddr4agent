@@ -88,7 +88,7 @@ export class RealAddrRepository {
     return { message: data.message, address: data.address, chain: data.chain, domain: data.domain };
   }
 
-  async consumeRateLimit(subjectHash: string, action: 'wallet_challenge' | 'agent_api', limit: number, windowMs: number): Promise<void> {
+  async consumeRateLimit(subjectHash: string, action: 'wallet_challenge' | 'agent_api' | 'human_api' | 'human_bootstrap', limit: number, windowMs: number): Promise<void> {
     if (!/^[a-f0-9]{64}$/.test(subjectHash) || !Number.isInteger(limit) || limit < 1 || !Number.isInteger(windowMs) || windowMs < 1_000 || windowMs > 86_400_000) throw new DomainError('invalid_rate_limit', 503);
     const windowStart = Math.floor(Date.now() / windowMs) * windowMs;
     const ref = this.collections.doc('rate_limits', guardId(action, subjectHash, String(windowMs), String(windowStart)));

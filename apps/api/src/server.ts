@@ -9,6 +9,8 @@ import { ownerCursor, uuidPattern } from './owner-cursor.js';
 import { recoverMessageAddress } from 'viem';
 import type { ApiConfig } from './config.js';
 import { repoRoot } from './paths.js';
+import { WorldRepository } from '@realaddr/db';
+import { registerWorldRoutes } from './world.js';
 
 const mime: Record<string, string> = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
@@ -194,17 +196,10 @@ export function createApp(config: ApiConfig, repository: RealAddrRepository | nu
   });
   for (const [method, path] of [
     ['POST', '/v1/payment-intents'], ['POST', '/v1/payment-intents/:intentId/pay'],
-    ['POST', '/v1/subscriptions/:subscriptionId/mail-approval'],
     ['POST', '/v1/subscriptions/:subscriptionId/ens-description-transaction'],
   ] as const) app.route({ method, url: path, handler: protectedUnavailable });
   app.get('/v1/ens/resolve', async (request, reply) => failure(reply, request, 503, 'ens_dependency_unavailable', 'ENS verification is unavailable', true));
-  for (const [method, path] of [
-    ['POST', '/v1/approvals/:approvalId/owner-challenge'], ['POST', '/v1/approvals/:approvalId/owner-proof'],
-    ['GET', '/v1/approvals/:approvalId'], ['POST', '/v1/approvals/:approvalId/authenticate'],
-    ['POST', '/v1/approvals/:approvalId/decision'], ['GET', '/v1/subscriptions/:subscriptionId/mail-profile'],
-    ['PUT', '/v1/subscriptions/:subscriptionId/mail-destination'], ['POST', '/v1/subscriptions/:subscriptionId/mail-disable'],
-    ['GET', '/auth/world/callback'],
-  ] as const) app.route({ method, url: path, handler: async (request, reply) => failure(reply, request, 401, 'human_session_required') });
+  const bootstrapHuman = registerWorldRoutes(app, config, repository, db ? new WorldRepository(db, config.collectionPrefix) : null, principal);
   for (const [method, path] of [
     ['GET', '/v1/admin/session'], ['DELETE', '/v1/admin/session'],
     ['GET', '/v1/admin/overview'], ['GET', '/v1/admin/locations'], ['POST', '/v1/admin/locations'],
@@ -241,7 +236,7 @@ export function createApp(config: ApiConfig, repository: RealAddrRepository | nu
   app.get('/app/payments', (request, reply) => staticRoute(request, reply, 'app/index.html', true));
   app.get('/app/subscriptions/:subscriptionId', (request, reply) => staticRoute(request, reply, 'app/index.html', true));
   app.get('/admin', (request, reply) => staticRoute(request, reply, 'admin/index.html', true));
-  app.get('/approve/:approvalId', (request, reply) => staticRoute(request, reply, 'approve/index.html', true));
+  app.get('/approve/:approvalId', async (request, reply) => { await bootstrapHuman(request, reply); return staticRoute(request, reply, 'approve/index.html', true); });
   for (const file of ['robots.txt', 'sitemap.xml', 'llms.txt']) app.get(`/${file}`, (request, reply) => staticRoute(request, reply, file, false));
   app.get<{ Params: { asset: string } }>('/assets/:asset', (request, reply) => {
     if (!/^[A-Za-z0-9._-]+$/.test(request.params.asset)) return failure(reply, request, 404, 'not_found');

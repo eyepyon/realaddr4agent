@@ -71,6 +71,10 @@ variable "dispatch_enabled" {
   type    = bool
   default = false
 }
+variable "world_enabled" {
+  type    = bool
+  default = false
+}
 variable "firestore_access_reviewed" {
   type    = bool
   default = false
@@ -110,7 +114,7 @@ variable "secret_versions" {
   type    = map(map(object({ purpose = string, version = string })))
   default = { web = {}, worker = {} }
   validation {
-    condition     = alltrue([for role, entries in var.secret_versions : contains(["web", "worker"], role) && alltrue([for key, ref in entries : can(regex("^[A-Z][A-Z0-9_]+$", key)) && !contains(["APP_ENV", "NODE_ENV", "RESOURCE_PREFIX", "FIRESTORE_COLLECTION_PREFIX", "FIRESTORE_DATABASE_ID", "FIRESTORE_EMULATOR_HOST", "GCP_PROJECT_ID", "GCP_REGION", "PRICE_PROFILE", "PAYMENT_NETWORK", "WORKER_URL", "TASKS_QUEUE", "TASK_INVOKER_SA", "SCHEDULER_INVOKER_SA", "CLOUD_TASKS_DISPATCH_ENABLED", "PUBLIC_ORIGIN", "TERMS_VERSION", "PORT", "GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_CREDENTIALS", "GOOGLE_CLOUD_KEYFILE_JSON", "GCLOUD_KEYFILE_JSON"], key) && contains(var.secret_purposes, ref.purpose) && can(regex("^[1-9][0-9]*$", ref.version))])])
+    condition     = alltrue([for role, entries in var.secret_versions : contains(["web", "worker"], role) && alltrue([for key, ref in entries : can(regex("^[A-Z][A-Z0-9_]+$", key)) && !contains(["APP_ENV", "NODE_ENV", "RESOURCE_PREFIX", "FIRESTORE_COLLECTION_PREFIX", "FIRESTORE_DATABASE_ID", "FIRESTORE_EMULATOR_HOST", "GCP_PROJECT_ID", "GCP_REGION", "PRICE_PROFILE", "PAYMENT_NETWORK", "WORKER_URL", "TASKS_QUEUE", "TASK_INVOKER_SA", "SCHEDULER_INVOKER_SA", "CLOUD_TASKS_DISPATCH_ENABLED", "WORLD_ENABLED", "WORLD_REDIRECT_URI", "PUBLIC_ORIGIN", "TERMS_VERSION", "PORT", "GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_CREDENTIALS", "GOOGLE_CLOUD_KEYFILE_JSON", "GCLOUD_KEYFILE_JSON"], key) && (role != "worker" || !contains(["WORLD_CLIENT_ID", "WORLD_CLIENT_SECRET", "WORLD_SESSION_KEY", "MAIL_ENCRYPTION_KEY"], key)) && contains(var.secret_purposes, ref.purpose) && can(regex("^[1-9][0-9]*$", ref.version))])])
     error_message = "Reference declared secret metadata and an existing numeric version for web/worker only; fixed runtime controls and credential files cannot be injected."
   }
 }

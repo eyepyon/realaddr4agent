@@ -16,13 +16,20 @@ locals {
     SCHEDULER_INVOKER_SA         = google_service_account.app["sched"].email,
     CLOUD_TASKS_DISPATCH_ENABLED = tostring(var.dispatch_enabled)
   }
-  service_env = { for role in local.runtime_roles : role => merge(local.common_env, role == "web" ? { PUBLIC_ORIGIN = "https://address.chain.tokyo", TERMS_VERSION = var.terms_version } : {}) }
+  service_env = { for role in local.runtime_roles : role => merge(local.common_env, role == "web" ? { PUBLIC_ORIGIN = "https://address.chain.tokyo", TERMS_VERSION = var.terms_version, WORLD_ENABLED = tostring(var.world_enabled), WORLD_REDIRECT_URI = "https://address.chain.tokyo/auth/world/callback" } : {}) }
 }
 resource "google_service_account" "app" {
   for_each     = toset(["web", "worker", "tasks", "sched"])
   project      = var.project_id
   account_id   = "realaddr-event-${each.key}"
   display_name = "RealAddr event ${each.key}"
+}
+resource "google_logging_project_exclusion" "world_callback" {
+  count       = var.world_enabled ? 1 : 0
+  project     = var.project_id
+  name        = "realaddr-event-world-callback"
+  description = "Omit this application's OIDC callback request URLs to keep authorization codes out of ordinary request logs."
+  filter      = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"realaddr-event-web\" AND log_id(\"run.googleapis.com/requests\") AND httpRequest.requestUrl =~ \"/auth/world/callback([?]|$)\""
 }
 resource "google_storage_bucket" "data" {
   project                     = var.project_id
@@ -159,11 +166,15 @@ resource "google_cloud_run_v2_service" "app" {
   lifecycle {
     ignore_changes = [template[0].containers[0].image]
     precondition {
+      condition     = !var.world_enabled || alltrue([for key in ["WORLD_CLIENT_ID", "WORLD_CLIENT_SECRET", "WORLD_SESSION_KEY", "MAIL_ENCRYPTION_KEY"] : contains(keys(lookup(var.secret_versions, "web", {})), key)])
+      error_message = "World enablement requires all four dedicated web secret references with declared metadata and numeric versions."
+    }
+    precondition {
       condition     = var.runtime_ready && var.firestore_access_reviewed && (var.firestore_database_id == "(default)" ? var.retain_legacy_default_access : var.firestore_database_ownership_reviewed && var.firestore_rules_reviewed) && var.image_digest != "" && var.worker_url != "" && var.terms_version != "" && contains(keys(lookup(var.secret_versions, "web", {})), "RATE_LIMIT_HMAC_KEY")
       error_message = "Services require reviewed runtime IAM/configuration, real secret versions, terms, worker origin and an image digest."
     }
   }
-  depends_on = [google_secret_manager_secret_iam_member.runtime, google_project_iam_member.firestore, google_project_iam_member.firestore_realaddr, google_firestore_index.realaddr_outbox_due, google_firestore_index.realaddr_owner_lists]
+  depends_on = [google_secret_manager_secret_iam_member.runtime, google_project_iam_member.firestore, google_project_iam_member.firestore_realaddr, google_firestore_index.realaddr_outbox_due, google_firestore_index.realaddr_owner_lists, google_logging_project_exclusion.world_callback]
 }
 resource "google_cloud_run_v2_service_iam_member" "worker_invoker" {
   for_each = var.deploy_services ? toset(["tasks", "sched"]) : toset([])

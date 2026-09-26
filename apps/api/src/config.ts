@@ -1,5 +1,6 @@
 import { CURRENT_TERMS_VERSION, type PricingConfig } from '@realaddr/domain';
 import { randomBytes } from 'node:crypto';
+import { secretKey } from './world-crypto.js';
 
 export interface ApiConfig {
   appEnv: 'local' | 'event' | 'production';
@@ -11,6 +12,7 @@ export interface ApiConfig {
   termsVersion: string;
   rateLimitKey: Buffer;
   pricing: PricingConfig | null;
+  world?: { clientId: string; clientSecret: string; redirectUri: string; sessionKey: Buffer; mailKey: Buffer };
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
@@ -59,5 +61,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     ensFloorAmountAtomic: env.ENS_ADDON_STANDARD_PRICE_TESTNET_DEV_ATOMIC!,
     ensCustomAmountAtomic: env.ENS_ADDON_CUSTOM_PRICE_TESTNET_DEV_ATOMIC!,
   } satisfies PricingConfig : null;
-  return { appEnv, port, origin, projectId, databaseId, collectionPrefix, termsVersion, rateLimitKey, pricing };
+  if (env.WORLD_ENABLED && !['true', 'false'].includes(env.WORLD_ENABLED)) throw new Error('invalid_world_enabled');
+  let world: ApiConfig['world'];
+  if (env.WORLD_ENABLED === 'true') {
+    if (appEnv === 'production') throw new Error('world_sandbox_only');
+    if (!env.WORLD_CLIENT_ID?.trim() || !env.WORLD_CLIENT_SECRET?.trim()) throw new Error('world_configuration_incomplete');
+    const redirectUri = `${origin}/auth/world/callback`;
+    if (parsedOrigin.protocol !== 'https:') throw new Error('world_https_required');
+    if (env.WORLD_REDIRECT_URI !== redirectUri) throw new Error('invalid_world_redirect_uri');
+    world = { clientId: env.WORLD_CLIENT_ID, clientSecret: env.WORLD_CLIENT_SECRET, redirectUri, sessionKey: secretKey(env.WORLD_SESSION_KEY), mailKey: secretKey(env.MAIL_ENCRYPTION_KEY) };
+  }
+  return { appEnv, port, origin, projectId, databaseId, collectionPrefix, termsVersion, rateLimitKey, pricing, ...(world ? { world } : {}) };
 }
