@@ -26,6 +26,8 @@ Web/APIの型検査、local demoと正式event設定のWeb buildが通過した�
 
 DBに接続しないFastify injectで `/terms` と `/terms/` の両200、正式version・第15条を含むHTML、metaのindex/follow、HTTPのnoindex headerがないことを確認した。
 
+v1反映commitの通常CIとLinux container checkが成功した。local demo imageの実build/runで、正式規約の配信・index方針、web health、worker未認証拒否と未知role拒否を確認し、検査用container/imageをcleanupした。これはevent imageの配備や実利用者の同意の検証ではない。
+
 正式version未確定の待ち条件は解消した。保護された配備設定・実runtimeへの反映、実wallet同意操作、公開originへの到達、GCPへのevent image配備はこの変更では実施していない。問い合わせ窓口・プライバシー案内等の提供準備は[採用記録と提供準備](terms-review.md)に残す。以降の原案・基盤節にあるterms未確定の記載は、その作業当時の記録である。
 
 ### 利用規約原案の反映（v1採用前の記録）
