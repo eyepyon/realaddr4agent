@@ -30,7 +30,7 @@
 
 ## メタ情報と発見用ファイル
 
-利用規約の原案は[単一本文](terms.md)から `/terms` の初期HTMLを生成する。原案の全文はJavaScriptなしで読めるが、未施行のためHTMLとHTTP headerに `noindex,follow` を付け、sitemapとllms.txtから除外する。公開ナビゲーション・footerと利用者画面からリンクし、正式規約への同意と混同しない。`/terms/` も同じ本文を返し、canonicalは `/terms` とする。正式採用の手順・残件は[規約確認事項](terms-review.md)に記録する。
+利用規約バージョン1（`realaddr-v1`）は[単一本文](terms.md)から `/terms` の初期HTMLを生成する。全文をJavaScriptなしで読めるようにし、他の公開ページと同じ `index,follow` でsitemapとllms.txtに掲載する。公開ナビゲーション・footerと利用者画面の同意欄からリンクする。`/terms/` も同じ本文を返し、canonicalは `/terms` とする。単なる閲覧・過去の署名・local demo認証を正式規約への同意とみなさない。[採用記録と提供準備](terms-review.md)を参照する。
 
 各公開HTMLの初回レスポンスに固有の日本語 `<title>`、内容に一致する `meta description`、`<link rel="canonical" href="https://address.chain.tokyo/…">`、Open Graphの `og:title` / `og:description` / `og:url` / `og:type` を置く。Open Graph画像は実際の公開画像がある場合のみ指定する。トップに `WebSite` と `Service` のJSON-LDを置けるが、説明やOfferは画面に見える事実と一致させる。FAQPageを使う場合も表示本文と同じ回答だけにし、rich resultは保証しない。[Googleの構造化データ指針](https://developers.google.com/search/docs/appearance/structured-data/sd-policies)は表示内容との一致と正確性を求める。
 
@@ -57,7 +57,7 @@ AIエージェントによる日本の住所利用契約のためのサービス
 | Route | 状態・Content-Type | Cache-Control | インデックス方針 |
 | --- | --- | --- | --- |
 | `/`, `/developers`, `/faq` | 200 `text/html; charset=utf-8`。初回HTMLに本文とリンク | `public, max-age=300` を開始値とし更新時に再確認 | canonicalを持つ公開ページ |
-| `/terms`, `/terms/` | 200 `text/html; charset=utf-8`。原案全文と未施行表示 | `public, max-age=300` | `noindex,follow`。原案の間はsitemap/llms.txtから除外 |
+| `/terms`, `/terms/` | 200 `text/html; charset=utf-8`。正式versionと規約全文 | `public, max-age=300` | `index,follow`。canonical `/terms` をsitemap/llms.txtに掲載 |
 | `/assets/*` | 存在するassetは200で正しいCSS/JS/画像型。未知assetは404 | hash付き名は `public, max-age=31536000, immutable` | HTMLに必要なassetをbotから遮断しない |
 | `/robots.txt`, `/llms.txt` | 200 `text/plain; charset=utf-8` | `public, max-age=300` | 公開説明のみ |
 | `/sitemap.xml` | 200 `application/xml; charset=utf-8` | `public, max-age=300` | 公開canonical HTMLだけを列挙 |

@@ -24,8 +24,8 @@ export const PUBLIC_PAGES: Record<PublicPageKey, { path: string; title: string; 
   },
   terms: {
     path: "/terms",
-    title: "利用規約原案 | RealAddr for Agents",
-    description: "正式な規約として未確定の利用規約原案です。施行日と正式な同意対象は未確定です。",
+    title: "利用規約 | RealAddr for Agents",
+    description: "RealAddr for Agentsの正式な利用規約version 1です。適用範囲と利用条件を説明します。",
   },
 };
 
@@ -57,7 +57,6 @@ export function getPublicPage(path: string): PublicPageKey | undefined {
 
 export function sitemapXml(): string {
   const urls = Object.values(PUBLIC_PAGES)
-    .filter((page) => page.path !== "/terms")
     .map((page) => `  <url><loc>${PUBLIC_ORIGIN}${page.path}</loc></url>`)
     .join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
@@ -78,5 +77,6 @@ export function llmsTxt(): string {
     `- API契約: ${PUBLIC_ORIGIN}/openapi.json`,
     `- 開発者ガイド: ${PUBLIC_ORIGIN}/developers`,
     `- FAQ: ${PUBLIC_ORIGIN}/faq`,
+    `- 利用規約 version 1: ${PUBLIC_ORIGIN}/terms`,
   ].join("\n");
 }

@@ -3,6 +3,7 @@ import { appendFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { CURRENT_TERMS_VERSION } from '../packages/domain/src/terms.ts';
 
 const origin = 'https://address.chain.tokyo';
 const digestPattern = /^sha256:[a-f0-9]{64}$/;
@@ -47,7 +48,7 @@ export function configFromEnv(env = process.env) {
   demand(new RegExp(`^[a-z][a-z0-9-]{4,28}[a-z0-9]@${config.GCP_PROJECT_ID}\\.iam\\.gserviceaccount\\.com$`).test(config.DEPLOY_SERVICE_ACCOUNT), 'invalid_deploy_account');
   const wif = /^projects\/([1-9][0-9]*)\/locations\/global\/workloadIdentityPools\/realaddr-event-gh\/providers\/github$/.exec(config.WIF_PROVIDER);
   demand(wif, 'invalid_dedicated_wif');
-  demand(/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(config.TERMS_VERSION) && config.TERMS_VERSION !== 'event-demo-1' && env.SELECTED_TERMS_VERSION === config.TERMS_VERSION, 'published_terms_must_match');
+  demand(config.TERMS_VERSION === CURRENT_TERMS_VERSION && env.SELECTED_TERMS_VERSION === CURRENT_TERMS_VERSION, 'published_terms_must_match');
   demand(/^https:\/\/[a-z0-9.-]+\.run\.app$/.test(config.WORKER_URL), 'invalid_worker_origin');
   return { ...config, projectNumber: wif[1], ...source };
 }

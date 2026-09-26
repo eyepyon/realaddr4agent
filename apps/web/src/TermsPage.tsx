@@ -1,4 +1,5 @@
 import termsMarkdown from "../../../docs/terms.md?raw";
+import { CURRENT_TERMS_VERSION } from "../../../packages/domain/src/terms";
 
 type TermsBlock = { kind: "title" | "heading" | "paragraph"; text: string } | { kind: "list"; items: string[] };
 
@@ -14,9 +15,9 @@ function termsBlocks(): TermsBlock[] {
   return blocks;
 }
 
-export function TermsDraft() {
-  return <article className="terms-draft">
-    <div className="notice warning"><strong>利用規約の原案です。正式な規約は未確定です。</strong><p>施行日は未定で、この原案は現在のwallet認証における同意対象ではありません。原案を読む操作によって、契約や同意は成立しません。</p></div>
+export function TermsPage() {
+  return <article className="terms-page">
+    <div className="notice"><strong>正式な利用規約 version 1（{CURRENT_TERMS_VERSION}）</strong><p>このversionの提示と同意から適用されます。過去の開発用署名へ遡って適用しません。機能の提供状態はサービスの接続状況をご確認ください。</p></div>
     {termsBlocks().map((block, index) => block.kind === "title" ? <h1 key={index}>{block.text}</h1>
       : block.kind === "heading" ? <h2 key={index}>{block.text}</h2>
       : block.kind === "list" ? <ul key={index}>{block.items.map((item, itemIndex) => <li key={itemIndex}>{item}</li>)}</ul>

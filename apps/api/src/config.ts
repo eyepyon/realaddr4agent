@@ -1,4 +1,4 @@
-import type { PricingConfig } from '@realaddr/domain';
+import { CURRENT_TERMS_VERSION, type PricingConfig } from '@realaddr/domain';
 import { randomBytes } from 'node:crypto';
 
 export interface ApiConfig {
@@ -43,6 +43,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   if (env.PAYMENT_NETWORK && env.PAYMENT_NETWORK !== 'eip155:84532') throw new Error('payment_network_disabled');
   const termsVersion = env.TERMS_VERSION ?? (local ? 'event-demo-1' : '');
   if (!termsVersion || termsVersion.length > 64) throw new Error('invalid_terms_version');
+  if (!local && termsVersion !== CURRENT_TERMS_VERSION) throw new Error('invalid_terms_version');
   if (!local && !/^[a-fA-F0-9]{64}$/.test(env.RATE_LIMIT_HMAC_KEY ?? '')) throw new Error('invalid_rate_limit_key');
   const rateLimitKey = env.RATE_LIMIT_HMAC_KEY ? Buffer.from(env.RATE_LIMIT_HMAC_KEY, 'hex') : randomBytes(32);
   if (rateLimitKey.length !== 32) throw new Error('invalid_rate_limit_key');

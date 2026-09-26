@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { ens_normalize } from '@adraffy/ens-normalize';
+export { CURRENT_TERMS_VERSION } from './terms.js';
 
 export const SCHEMA_VERSION = 1;
 export const SLOT_CAPACITY = 65_535;

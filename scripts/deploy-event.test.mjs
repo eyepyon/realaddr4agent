@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { CURRENT_TERMS_VERSION } from '../packages/domain/src/terms.ts';
 import { configFromEnv, deploy, smoke, sourceFromEnv, verifySource } from './deploy-event.mjs';
 
 const commit = 'a'.repeat(40);
@@ -11,7 +12,7 @@ const metadata = {
   WIF_PROVIDER: 'projects/123456789012/locations/global/workloadIdentityPools/realaddr-event-gh/providers/github',
   CLOUD_RUN_WEB_SERVICE: 'realaddr-event-web', CLOUD_RUN_WORKER_SERVICE: 'realaddr-event-worker',
   ARTIFACT_REPOSITORY: 'realaddr-event-images', DEPLOY_SERVICE_ACCOUNT: 'realaddr-event-deploy@test-realaddr-local.iam.gserviceaccount.com',
-  TERMS_VERSION: 'published-fixture-v1', WORKER_URL: 'https://worker-fixture.run.app', DEPLOYMENT_APPROVED: 'true',
+  TERMS_VERSION: CURRENT_TERMS_VERSION, WORKER_URL: 'https://worker-fixture.run.app', DEPLOYMENT_APPROVED: 'true',
 };
 const sourceEnv = { GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_REF: 'refs/heads/main', GITHUB_SHA: commit, SELECTED_COMMIT: commit, GITHUB_REPOSITORY: 'fixture-owner/fixture-repository' };
 const environment = { ...sourceEnv, SELECTED_TERMS_VERSION: metadata.TERMS_VERSION, DEPLOY_CONFIG: JSON.stringify(metadata) };
@@ -85,6 +86,9 @@ test('missing configuration, wrong main SHA, unapproved deployment and mismatche
   assert.throws(() => configFromEnv({ ...environment, SELECTED_COMMIT: 'd'.repeat(40) }), /commit_must_equal_current_main/);
   assert.throws(() => configFromEnv({ ...environment, GITHUB_REF: 'refs/heads/other' }), /deployment_not_authorized/);
   assert.throws(() => configFromEnv({ ...environment, SELECTED_TERMS_VERSION: 'different-version' }), /published_terms_must_match/);
+  for (const terms of ['event-demo-1', 'realaddr-event-draft-1', 'unapproved-version']) {
+    assert.throws(() => configFromEnv({ ...environment, SELECTED_TERMS_VERSION: terms, DEPLOY_CONFIG: JSON.stringify({ ...metadata, TERMS_VERSION: terms }) }), /published_terms_must_match/);
+  }
   assert.throws(() => configFromEnv({ ...environment, DEPLOY_CONFIG: JSON.stringify({ ...metadata, DEPLOYMENT_APPROVED: 'false' }) }), /deployment_not_authorized/);
 });
 test('CI gate uses exact current main SHA and rejects failed latest completed run', () => {

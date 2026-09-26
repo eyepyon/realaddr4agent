@@ -1,11 +1,11 @@
 import { OPERATOR_NAME, OPERATOR_URL, PUBLIC_COPY, PUBLIC_ORIGIN, PUBLIC_PAGES, type PublicPageKey } from "./public-content";
-import { TermsDraft } from "./TermsDraft";
+import { TermsPage } from "./TermsPage";
 
 const navigation = [
   ["/", "概要"],
   ["/developers", "開発者向け"],
   ["/faq", "よくある質問"],
-  ["/terms", "利用規約原案"],
+  ["/terms", "利用規約"],
 ] as const;
 
 function Header({ page }: { page: PublicPageKey }) {
@@ -20,7 +20,7 @@ function Header({ page }: { page: PublicPageKey }) {
 }
 
 function Footer() {
-  return <footer className="public-footer"><span>{OPERATOR_NAME}</span><a href={OPERATOR_URL} target="_blank" rel="noreferrer">運営者サイト</a><a href="/terms">利用規約原案（正式規約は未確定）</a><span>サービス仕様・接続状況は更新時点の内容です。</span></footer>;
+  return <footer className="public-footer"><span>{OPERATOR_NAME}</span><a href={OPERATOR_URL} target="_blank" rel="noreferrer">運営者サイト</a><a href="/terms">利用規約（version 1）</a><span>サービス仕様・接続状況は更新時点の内容です。</span></footer>;
 }
 
 function Pricing() {
@@ -87,7 +87,7 @@ function Faq() {
 }
 
 export function PublicPage({ page }: { page: PublicPageKey }) {
-  const body = page === "home" ? <Home /> : page === "developers" ? <Developers /> : page === "terms" ? <TermsDraft /> : <Faq />;
+  const body = page === "home" ? <Home /> : page === "developers" ? <Developers /> : page === "terms" ? <TermsPage /> : <Faq />;
   const organization = { "@type": "Organization", name: OPERATOR_NAME, url: OPERATOR_URL };
   const structuredData = page === "home" ? {
     "@context": "https://schema.org",

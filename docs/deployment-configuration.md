@@ -25,7 +25,7 @@ GitHub repositoryの **Settings → Environments → event** でmain限定の保
 | `CLOUD_RUN_WORKER_SERVICE` | `realaddr-event-worker` |
 | `ARTIFACT_REPOSITORY` | `realaddr-event-images` |
 | `DEPLOY_SERVICE_ACCOUNT` | `<deploy-sa>@<project-id>.iam.gserviceaccount.com`。既存accountの所有者・binding・実効権限を確認。Terraform lifecycle対象外 |
-| `TERMS_VERSION` | 確定済み正式version。手動入力`terms_version`と既存web runtimeに一致し、local demo versionや未施行の原案識別子を使用しない。[規約原案の採用準備](terms-review.md)を参照 |
+| `TERMS_VERSION` | 正式version `realaddr-v1`。手動入力`terms_version`・Web build・既存web runtimeに一致させる。未承認の版やlocal demo versionはeventで拒否する。[採用記録と提供準備](terms-review.md)を参照 |
 | `WORKER_URL` | 初回配備後に確認した専用workerの実HTTPS `run.app` origin |
 | `DEPLOYMENT_APPROVED` | 配備前レビューを済ませてから文字列`true`を指定。未設定時はcloud認証前に停止 |
 
@@ -39,7 +39,7 @@ workflowは`${{ secrets.DEPLOY_CONFIG }}`を読み、認証actionへ渡す識別
 | --- | --- |
 | 環境・公開 | `APP_ENV=event`、`PUBLIC_ORIGIN=https://address.chain.tokyo`、`GCP_PROJECT_ID=<event-project-id>`、`GCP_REGION=<verified-region>`、`FIRESTORE_DATABASE_ID=(default)`、`FIRESTORE_COLLECTION_PREFIX=realaddr_event_`、`RESOURCE_PREFIX=realaddr-event` |
 | Cloud Tasks dispatch | `CLOUD_TASKS_DISPATCH_ENABLED=false`をdefaultとする。`true`は`APP_ENV=event`のみ許可し、`GCP_REGION`、`TASKS_QUEUE=realaddr-event-jobs`、workerと同一projectであること、専用worker runtime identity、`WORKER_URL`のHTTPS origin、専用`TASK_INVOKER_SA`を構成検査する。key file、service account key、ADC fallbackを使用しない。Cloud Run metadata serverで得るruntime identity emailを検証する |
-| 認証・価格profile | `TERMS_VERSION=<published-terms-version>`、`PRICE_PROFILE=testnet`、`PRICING_VERSION=<reviewed-price-version>`。eventの`RATE_LIMIT_HMAC_KEY`は下の秘密設定に置く。mainnet profileを指定しても販売を開始しない |
+| 認証・価格profile | `TERMS_VERSION=realaddr-v1`、`PRICE_PROFILE=testnet`、`PRICING_VERSION=<reviewed-price-version>`。eventの`RATE_LIMIT_HMAC_KEY`は下の秘密設定に置く。mainnet profileを指定しても販売を開始しない |
 | app resource | `GCS_BUCKET=<app-private-bucket>`、`TASKS_QUEUE=realaddr-event-jobs`、`WORKER_URL=<verified-https-worker-origin>`、`TASK_INVOKER_SA=<new-app-task-invoker>`、`SCHEDULER_INVOKER_SA=<new-app-scheduler-invoker>`。実IDはinventory後のmanifestから取得。`ARTIFACT_REPOSITORY`はActionsのimage push先でありruntimeに不要 |
 | 上限 | `DAILY_NEW_LEASE_LIMIT=100`。`BILLING_ALERT_USD=5`は本アプリの月次運用目標であり、共有projectの既存予算通知や課金停止を設定するキーではない |
 | World・risk | `WORLD_ISSUER=<verified-issuer>`、`WORLD_CLIENT_ID=<event-client-id>`、`WORLD_REDIRECT_URI=https://address.chain.tokyo/auth/world/callback`、`INTERCEPTA_BASE_URL=<verified-live-api-url>`。World issuerとIntercepta endpoint/schemaはT-00の実接続で確定 |
@@ -51,7 +51,7 @@ workflowは`${{ secrets.DEPLOY_CONFIG }}`を読み、認証actionへ渡す識別
 
 Cloud Tasks dispatchはlocal/defaultで無効とし、event設定のCloud Tasks/worker接続が検証されるまで有効化しない。`WORKER_URL`は完全なHTTPS originとして検査し、末尾path等を補完・推測せず、設定した専用worker URLと完全一致させる。Tasks HTTP targetのaudienceと宛先originは同じworker originに固定する。dispatchが有効な構成でも、queueにtaskが存在することはoutbox jobの業務完了やpayment successを意味しない。Cloud Tasks/Scheduler/GCPへの実接続やIAM/Rules gateの確認は未実施・未検証である。
 
-Web buildは`VITE_APP_ENV=local|event`と`VITE_TERMS_VERSION=<published-terms-version>`をbuild時に固定する。event buildは正式なterms versionと公開設定が確認できるまで実施しない。ブラウザへsecretを含む`VITE_`変数を渡さない。
+Web buildは`VITE_APP_ENV=local|event`と`VITE_TERMS_VERSION`をbuild時に固定する。eventは正式採用済みの `realaddr-v1` を必須とし、本文のversionとの一致も確認する。正式version未確定の待ち条件は解消しており、実配備には公開設定・runtime等の残りの確認を要する。ブラウザへsecretを含む`VITE_`変数を渡さない。
 
 `PAYMENT_NETWORK`はBase Sepolia、`REGISTRY_CHAIN_ID`と`ENS_CHAIN_ID`はEthereum Sepoliaに対応する。両chain間のbridgeや別の決済chainを設定しない。ENSは住所購入と別の初回add-on決済であり、renewに購入済みENSの維持を含む。`FIRESTORE_EMULATOR_HOST`はlocal/CIだけに設定し、event/productionでは拒否する。ENSの拠点別registryは各拠点登録とreceipt検証で得る永続stateであり、全拠点共通の環境変数で代用しない。
 

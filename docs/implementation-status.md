@@ -12,13 +12,25 @@
 | T-02/T-08 所有者向け状態取得 | 部分実装・ローカル検証済み | 注文・契約の一覧と詳細、ENS購入状態をFirestoreから返す。所有権、応答の公開field制限、署名付きcursor、既存CLIの状態取得を確認 |
 | T-05/T-16 worker・outbox | 部分実装・ローカル検証済み | Firestore claim/generation/期限、保存済み支払いからの発行復旧、Cloud Tasks REST配信・結果照合とSchedulerの永続cursor。実送金・chain同期・実Cloud Tasks/Scheduler接続は未検証 |
 | T-08/T-18/T-19 UI | 部分着手 | 公開HTML/AEO、標準SaaSの画面、実APIへの接続。業務統合・実管理者ログインは別途 |
-| T-02/T-08/T-19 利用規約 | 原案作成・画面反映済み | 15条の未施行原案を単一Markdownから/termsへ初期HTML配信。公開nav/footer・認証前の利用条件からリンク。正式version・施行・法務確認は未確定 |
+| T-02/T-08/T-19 利用規約 | v1正式採用・画面反映 | realaddr-v1として15条を正式採用。単一Markdownから/termsへ初期HTML配信し、正式versionの同意欄・API/build/deploy設定を一致させる。提供開始準備と実配備は別途 |
 | T-00 外部連携 | 設定の有無を確認・実接続未実施 | MultiBaasの接続設定は一部入力済み。chain・registry設定、権限、実疎通は未確認。World、Intercepta、x402、ENS、管理者OIDCの必要設定も揃っていない。値を表示せずキーの有無だけ確認し、接続済みとは扱わない |
 | T-16 GCP | bootstrap初期登録済み・全体未完了 | 専用state bucket・Artifact Registry・WIFと限定IAMのTerraform、read-only metadata inventoryを追加。認証済みlive inventoryは20件成功・1件incomplete。live Rulesの初期適用・公式engine評価と実未認証拒否を確認。bootstrap5件の作成とlive設定確認済み。実効IAM、実Firebase利用者client試験、app resource、DNS/TLSは残件 |
 
 ## 検証の記録
 
-### 利用規約原案の反映
+### 利用規約バージョン1の正式採用
+
+2026-09-26に本文15条を `realaddr-v1` として正式採用した。原案用の前文と表示を正式版へ置換し、本versionの提示・同意から適用する。過去の開発用署名は正式同意に読み替えない。`/terms` はindex対象の初期HTMLとし、nav/footer、同意欄、sitemap、llms.txtから参照する。API・Web build・deployは共通の承認済version定数との一致を要求する。本文のversion行と定数の一致もbuild時に確認する。
+
+Web/APIの型検査、local demoと正式event設定のWeb buildが通過した。本文の全非空行が初期HTMLへ含まれること、正式版表示、index/followとsitemap/llms掲載を確認した。eventのversion欠落・開発用版・不一致のWeb build拒否、API設定テスト3件、deploy script限定テスト10件が通過した。通常CIのWeb buildにはlocal demo設定を明示し、local認証条件と正式規約の同意を画面で区別した。container smokeを正式versionとindex方針の確認へ更新し、構文検査も通過した。
+
+DBに接続しないFastify injectで `/terms` と `/terms/` の両200、正式version・第15条を含むHTML、metaのindex/follow、HTTPのnoindex headerがないことを確認した。
+
+正式version未確定の待ち条件は解消した。保護された配備設定・実runtimeへの反映、実wallet同意操作、公開originへの到達、GCPへのevent image配備はこの変更では実施していない。問い合わせ窓口・プライバシー案内等の提供準備は[採用記録と提供準備](terms-review.md)に残す。以降の原案・基盤節にあるterms未確定の記載は、その作業当時の記録である。
+
+### 利用規約原案の反映（v1採用前の記録）
+
+以下は原案時点の検証記録。現在は正式v1へ移行しており、原案のnoindex・version未確定という条件は適用しない。[採用記録](terms-review.md)を参照。
 
 [規約原案](terms.md)を新規作成し、[正式採用前の確認事項](terms-review.md)を整理した。同じ宛先への適用済み同意と支払いで決まる利用期間を分離し、testnet料金、任意ENS追加、限定的な発行失敗返金、実郵便を扱わない範囲を既存仕様と照合した。法的適法性の確認が済んだことを意味しない。
 

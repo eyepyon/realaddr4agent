@@ -200,10 +200,10 @@ bootstrap applyは終了code 0で成功し、専用state bucket、Docker reposit
 
 bootstrap stateをGCSへ移行し、lineage・5 resource・outputsの一致と後続plan差分0を確認した。保護されたlocal backupは復旧専用で、通常操作はremote stateから行う。`infra/app`の専用4 account、7日保持のprivate業務bucket、queue、secret metadata、限定IAMと条件付きRun/Schedulerを追加し、基盤applyは17 add・0 update・0 deleteで完了した。共有Firestore grant、service配備、公開、dispatch、Schedulerは既定で無効であり、各gateの明示レビューを必要とする。
 
-一つのimageにAPI/worker bundleとWeb distを含めるDockerfile、source allowlistの`.dockerignore`、role指定entrypointを追加した。固定済み既存ツールでlocal build/typecheckは通過した。端末のDocker daemonは利用できなかったが、後続のLinux CIでlocal demo imageのbuildとweb/workerの起動・未認証拒否を実確認した。正式なtermsと公開設定が未確定のためevent image build、Cloud Run公開、DNSは未実施。手順は[infra README](../infra/README.md)、設定契約は[deployment configuration](deployment-configuration.md)を正とする。
+一つのimageにAPI/worker bundleとWeb distを含めるDockerfile、source allowlistの`.dockerignore`、role指定entrypointを追加した。固定済み既存ツールでlocal build/typecheckは通過した。端末のDocker daemonは利用できなかったが、後続のLinux CIでlocal demo imageのbuildとweb/workerの起動・未認証拒否を実確認した。正式termsはrealaddr-v1として採用済み。event image build、Cloud Run公開、DNSは未実施で、残る公開設定・runtime確認は配備工程で行う。手順は[infra README](../infra/README.md)、設定契約は[deployment configuration](deployment-configuration.md)を正とする。
 
 ## app基盤の実登録結果
 
 app foundationの実applyは17 add・0 update・0 deleteで成功した。live再取得で専用4 service accountがenabled・user-managed key 0、既存project IAM memberの保持、業務bucketのuniform access/public access prevention有効・soft delete 0・7日削除、queueの毎秒1・同時実行1・最大10試行、作成secretのversion 0件を確認した。web/workerの共有default DB限定IAM grantは個別レビュー後に今回の保護設定で有効にした。入力の既定値は引き続きfalseであり、同DB内のcollection隔離を意味しない。
 
-正式termsは未確定で、今回は基盤登録までとの利用者指定に従う。event image、Cloud Run、公開IAM、Scheduler、dispatch、deploy CI/WIFの有効化は行っていない。専用主体のFirestore操作・DB拒否とqueue権限の代表検査は通過し、合成documentと短期grantのcleanupを確認した。Cloud Run invoker、Tasks OIDC、スポンサー、別Firebase利用者のclient試験は未検証。詳しい証跡範囲は実装状況のruntime IAM節を参照する。appのremote post-apply planはdetailed exit code 0で差分なし。state pullの17 resource instance、保護backupとmanifest更新を確認した。T-16全体は未完了。
+基盤登録時は正式terms未確定のため配備を保留した。その後realaddr-v1を正式採用し、規約versionの待ち条件は解消した。event image、Cloud Run、公開IAM、Scheduler、dispatch、deploy CI/WIFの有効化は行っていない。専用主体のFirestore操作・DB拒否とqueue権限の代表検査は通過し、合成documentと短期grantのcleanupを確認した。Cloud Run invoker、Tasks OIDC、スポンサー、別Firebase利用者のclient試験は未検証。詳しい証跡範囲は実装状況のruntime IAM節を参照する。appのremote post-apply planはdetailed exit code 0で差分なし。state pullの17 resource instance、保護backupとmanifest更新を確認した。T-16全体は未完了。

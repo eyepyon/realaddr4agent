@@ -27,4 +27,7 @@ jobs:
       - run: node --test scripts/deploy-event.test.mjs
       - run: pnpm typecheck
       - run: pnpm build
+        env:
+          VITE_APP_ENV: local
+          VITE_TERMS_VERSION: event-demo-1
       - run: pnpm test

@@ -10,6 +10,8 @@ Agent認証済みowner向けに、payment-intentとsubscriptionの一覧・詳�
 
 ## 共通
 
+正式な利用規約versionは `realaddr-v1`。Agent認証のchallengeへ渡す `termsVersion` と署名に含むversionを、[規約本文](terms.md)・eventの設定へ一致させる。利用者本人または代理権を与えられたAgentは本文を確認して同意してから署名する。CLIではその確認後に `TERMS_VERSION=realaddr-v1` を明示して認証する。既存のlocal default `event-demo-1` や過去の認証は正式v1への同意へ読み替えない。
+
 JSON、UUID、UTC ISO8601、token金額は整数文字列。未知のrequest fieldは拒否。
 AgentはBearer認証、人間はHttpOnly/Secure/SameSite=Laxのserver session cookie。cookie mutationはCSRF + Origin検査。anonymous sessionは承認画面表示で作るが、wallet proofとWorld検証前は保護データを返さない。
 

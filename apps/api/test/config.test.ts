@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { loadConfig } from '../src/config.js';
+import { CURRENT_TERMS_VERSION } from '@realaddr/domain';
 
 const eventEnvironment: NodeJS.ProcessEnv = {
   APP_ENV: 'event',
@@ -9,7 +10,7 @@ const eventEnvironment: NodeJS.ProcessEnv = {
   FIRESTORE_COLLECTION_PREFIX: 'realaddr_event_',
   FIRESTORE_DATABASE_ID: '(default)',
   PUBLIC_ORIGIN: 'https://address.chain.tokyo',
-  TERMS_VERSION: 'test-terms',
+  TERMS_VERSION: CURRENT_TERMS_VERSION,
   RATE_LIMIT_HMAC_KEY: 'a'.repeat(64),
 };
 
@@ -27,6 +28,9 @@ test('event API requires explicit shared database and application namespace', ()
     ['GCP_PROJECT_ID', 'demo-local', 'invalid_event_project'],
     ['GCP_PROJECT_ID', 'invalid/project', 'invalid_event_project'],
     ['FIRESTORE_EMULATOR_HOST', '127.0.0.1:8085', 'emulator_disallowed_outside_local'],
+    ['TERMS_VERSION', 'event-demo-1', 'invalid_terms_version'],
+    ['TERMS_VERSION', 'realaddr-event-draft-1', 'invalid_terms_version'],
+    ['TERMS_VERSION', 'unapproved-version', 'invalid_terms_version'],
   ] as const) {
     assert.throws(() => loadConfig({ ...eventEnvironment, [key]: value }), { message });
   }

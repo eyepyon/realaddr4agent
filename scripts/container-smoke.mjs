@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
 import { setTimeout as delay } from 'node:timers/promises';
+import { CURRENT_TERMS_VERSION } from '../packages/domain/src/terms.ts';
 
 const execute = promisify(execFile);
 const runId = randomUUID();
@@ -43,8 +44,8 @@ async function health(id, role) {
       if (response.status !== 200 || body.status !== 'ok') throw new Error('web_health_failed');
       const terms = await fetch('http://127.0.0.1:8080/terms', { signal: AbortSignal.timeout(2000) });
       const html = await terms.text();
-      if (terms.status !== 200 || !html.includes('realaddr-event-draft-1') || !html.includes('第15条')) throw new Error('draft_terms_not_served');
-      if (!terms.headers.get('x-robots-tag')?.includes('noindex') || !/<meta[^>]+name="robots"[^>]+content="[^\"]*noindex/.test(html)) throw new Error('draft_terms_must_be_noindex');
+      if (terms.status !== 200 || !html.includes(${JSON.stringify(CURRENT_TERMS_VERSION)}) || !html.includes('第15条')) throw new Error('approved_terms_not_served');
+      if (terms.headers.get('x-robots-tag')?.includes('noindex') || !/<meta[^>]+name="robots"[^>]+content="index,follow"/.test(html)) throw new Error('approved_terms_must_be_indexable');
     } else {
       if (response.status !== 401 || body.error !== 'unauthorized') throw new Error('worker_auth_not_closed');
     }

@@ -185,8 +185,8 @@ tbody tr:last-child td { border-bottom: 0; }
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
 
-.terms-draft { max-width: 760px; margin: 40px auto 64px; line-height: 1.8; overflow-wrap: anywhere; }
-.terms-draft h1 { margin: 32px 0 24px; font-size: clamp(26px, 4vw, 36px); }
-.terms-draft h2 { margin: 36px 0 16px; font-size: 22px; }
-.terms-draft p, .terms-draft ul { margin: 16px 0; }
-.terms-draft li + li { margin-top: 8px; }
+.terms-page { max-width: 760px; margin: 40px auto 64px; line-height: 1.8; overflow-wrap: anywhere; }
+.terms-page h1 { margin: 32px 0 24px; font-size: clamp(26px, 4vw, 36px); }
+.terms-page h2 { margin: 36px 0 16px; font-size: 22px; }
+.terms-page p, .terms-page ul { margin: 16px 0; }
+.terms-page li + li { margin-top: 8px; }

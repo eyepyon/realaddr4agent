@@ -3,11 +3,14 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "vite";
 import { PUBLIC_ORIGIN, PUBLIC_PAGES, canonicalUrl, llmsTxt, robotsTxt, sitemapXml } from "../src/public-content.ts";
+import { CURRENT_TERMS_VERSION } from "../../../packages/domain/src/terms.ts";
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const projectRoot = resolve(appRoot, "../..");
 const dist = join(appRoot, "dist");
 const prerenderDir = join(appRoot, ".tmp", "prerender");
+const termsSource = await readFile(join(projectRoot, "docs/terms.md"), "utf8");
+if (!termsSource.split("\n").includes(`規約version: ${CURRENT_TERMS_VERSION}`)) throw new Error("terms_document_version_mismatch");
 
 await build({ configFile: join(appRoot, "vite.config.ts") });
 await build({
@@ -28,7 +31,7 @@ function setPublicMetadata(html, page) {
   const config = PUBLIC_PAGES[page];
   let result = html.replace(/<title>[^<]*<\/title>/, `<title>${config.title}</title>`);
   result = result.replace(/<meta name="description" content="[^"]*"\s*\/>/, `<meta name="description" content="${config.description}" />`);
-  result = result.replace("<meta name=\"theme-color\" content=\"#f5f7fa\" />", `<meta name="theme-color" content="#f5f7fa" />\n    <meta name="robots" content="${page === "terms" ? "noindex,follow" : "index,follow"}" />\n    <meta property="og:type" content="website" />\n    <meta property="og:title" content="${config.title}" />\n    <meta property="og:description" content="${config.description}" />\n    <meta property="og:url" content="${canonicalUrl(page)}" />\n    <link rel="canonical" href="${canonicalUrl(page)}" />`);
+  result = result.replace("<meta name=\"theme-color\" content=\"#f5f7fa\" />", `<meta name="theme-color" content="#f5f7fa" />\n    <meta name="robots" content="index,follow" />\n    <meta property="og:type" content="website" />\n    <meta property="og:title" content="${config.title}" />\n    <meta property="og:description" content="${config.description}" />\n    <meta property="og:url" content="${canonicalUrl(page)}" />\n    <link rel="canonical" href="${canonicalUrl(page)}" />`);
   const markup = renderPublicPage(page);
   result = result.replace(/<div id="root">[\s\S]*?<\/div>/, `<div id="root" data-prerender="public">${markup}</div>`);
   return result;
