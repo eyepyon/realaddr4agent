@@ -82,3 +82,13 @@ test('Admin configuration is opt-in, uses exact HTTPS callback and independent s
   assert.throws(() => loadConfig({ ...configured, ADMIN_OIDC_REDIRECT_URI: 'https://other.invalid/callback' }), { message: 'invalid_admin_redirect_uri' });
   assert.throws(() => loadConfig({ ...configured, ADMIN_SESSION_SECRET: 'invalid' }), { message: 'invalid_admin_session_secret' });
 });
+
+test('complete pricing is validated at configuration load while partial settings stay disabled', () => {
+  const configured = { ...eventEnvironment, PRICE_PROFILE: 'testnet', PAYMENT_NETWORK: 'eip155:84532', PAYMENT_ASSET: '0x'+'1'.repeat(40), PAYMENT_PAY_TO: '0x'+'2'.repeat(40), PAYMENT_DECIMALS: '6', PRICING_VERSION: 'testnet-fixture-v1', LEASE_PRICE_TESTNET_ATOMIC: '550000', ENS_ADDON_STANDARD_PRICE_TESTNET_DEV_ATOMIC: '100000', ENS_ADDON_CUSTOM_PRICE_TESTNET_DEV_ATOMIC: '300000', LEASE_PERIOD_DAYS: '30' };
+  const config=loadConfig(configured);assert.equal(config.pricing?.addressAmountAtomic,'550000');assert.equal(config.pricing?.network,'eip155:84532');assert.equal(config.pricing?.decimals,6);assert.ok(Object.isFrozen(config.pricing));
+  for(const key of ['PAYMENT_ASSET','PAYMENT_PAY_TO','PAYMENT_DECIMALS','PRICING_VERSION','LEASE_PRICE_TESTNET_ATOMIC','ENS_ADDON_STANDARD_PRICE_TESTNET_DEV_ATOMIC','ENS_ADDON_CUSTOM_PRICE_TESTNET_DEV_ATOMIC'])assert.equal(loadConfig({...configured,[key]:undefined}).pricing,null);
+  for(const [key,value] of [['PAYMENT_DECIMALS','18'],['LEASE_PRICE_TESTNET_ATOMIC','55000000'],['ENS_ADDON_STANDARD_PRICE_TESTNET_DEV_ATOMIC','0'],['ENS_ADDON_CUSTOM_PRICE_TESTNET_DEV_ATOMIC','400000'],['PAYMENT_ASSET','invalid'],['PAYMENT_PAY_TO','invalid'],['PAYMENT_ASSET','0x'+'0'.repeat(40)],['PAYMENT_PAY_TO','0x'+'0'.repeat(40)],['PRICING_VERSION','   ']] as const)assert.throws(()=>loadConfig({...configured,[key]:value}),{message:'pricing_unavailable'});
+  assert.throws(()=>loadConfig({...configured,PRICE_PROFILE:'mainnet'}),{message:'mainnet_disabled'});assert.throws(()=>loadConfig({...configured,PAYMENT_NETWORK:'eip155:1'}),{message:'payment_network_disabled'});
+  for(const days of ['29','31','030','', '30.0'])assert.throws(()=>loadConfig({...configured,LEASE_PERIOD_DAYS:days}),{message:'invalid_lease_period_days'});
+  assert.equal(loadConfig({...eventEnvironment,LEASE_PERIOD_DAYS:'30'}).pricing,null);
+});

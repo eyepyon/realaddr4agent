@@ -15,12 +15,20 @@
 | T-00/T-12/T-13/T-14 ENSv2 | 部分実装・ローカル検証、公式Sepolia読み取り確認済み | 名前予約・一回限りの購入権、controller、exact hierarchy照合、公開/owner API、CLIを実装。親名取得とreceipt最終確定は確認済み。namespace構築、書込worker、paid leaseでのlive発行・権限拒否は残件。販売とevent ENS照合は既定無効 |
 | T-02/T-08 所有者向け状態取得 | 部分実装・ローカル検証済み | 注文・契約の一覧と詳細、ENS購入状態をFirestoreから返す。所有権、応答の公開field制限、署名付きcursor、既存CLIの状態取得を確認 |
 | T-05/T-16 worker・outbox | 部分実装・ローカル検証済み | Firestore claim/generation/期限、保存済み支払いからの発行復旧、Cloud Tasks REST配信・結果照合とSchedulerの永続cursor。実送金・eventのchain照合・実Cloud Tasks/Scheduler接続は未検証 |
-| T-08/T-18/T-19 UI | 管理UI・認証・限定APIをevent配備、liveログイン未確認 | Google OIDC/専用session、許可運営者の固定binding、拠点の登録・更新とbounded一覧を接続。価格未設定時は拠点登録不可。販売再開・読取再照合の実接続は残件 |
+| T-08/T-18/T-19 UI | 管理UI・認証・限定APIをevent配備、本人のログイン成功報告あり | Google OIDC/専用session、許可運営者の固定binding、拠点の登録・更新とbounded一覧を接続。停止状態での拠点登録に必要な固定testnet料金設定を追加。販売再開・読取再照合の実接続は残件 |
 | T-02/T-08/T-19 利用規約 | v1正式採用・event配信確認済み | realaddr-v1として15条を正式採用。単一Markdownから/termsへ初期HTML配信し、正式versionの同意欄・API/build/deploy設定を一致させる。提供開始準備と実利用者の同意確認は別途 |
 | T-00 外部連携 | 一部の疎通を確認・全体未完了 | MultiBaasのSepolia status、registry linkと初期権限のread、Intercepta認証付きscanを確認。World client設定は取得済み。Worldのlive縦断、実lease write/read・indexed events、x402、ENS、管理者OIDCは残件 |
 | T-16 GCP | 独自ドメインHTTPS確認済み・全体未完了 | WIFとeventイメージbuild/push、runtime IAM検査、初回Cloud Run配備、公開後100項目と後続plan差分0を確認。TLS発行・独自ドメイン8経路の表示と拒否を確認。Tasks/Schedulerの実配信、実Firebase利用者client試験、外部業務連携は残件 |
 
 ## 検証の記録
+
+### T-18/T-16 拠点登録用のtestnet料金設定
+
+利用者から管理Googleログイン成功の報告を受けた。拠点の停止状態での登録を可能にするため、保護されたTerraform入力`testnet_pricing`からwebだけに料金7項目を注入するopt-inを追加した。既定は未設定。料金・6 decimals・Base Sepoliaを固定し、完全な設定はAPI起動時にも検証する。0アドレス、空の料金version、30日以外の期間、不完全な配備設定を拒否する。部分的なローカル設定は従来どおり料金未設定として扱う。
+
+検証: API設定重点7件、API型検査・bundle build、Terraform fmt/validateとmock17件、配備guard29件が通過。公式USDC資料とlive RPCでBase Sepolia chain ID・token code・symbol・6 decimalsを照合した。受取先は利用者指定を保護設定で扱い、リポジトリへ実値を記録しない。料金設定だけで購入API・販売再開・実決済を有効にせず、実拠点の登録は管理者操作で検証する。
+
+専用webへの料金7項目追加を適用し、live値の一致・readyを確認した。planでは既存image・環境設定を保持し、付随差分がweb/workerのデプロイclient metadataだけであることを検査した。workerへの料金注入は0件。公開管理HTML・未認証API拒否・Google遷移も再確認した。実拠点登録・購入・送金はこの検証では実行していない。
 
 ### T-18 Google callbackの標準issuer対応
 

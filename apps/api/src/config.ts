@@ -1,4 +1,4 @@
-import { CURRENT_TERMS_VERSION, type PricingConfig } from '@realaddr/domain';
+import { CURRENT_TERMS_VERSION, validatePricing, type PricingConfig } from '@realaddr/domain';
 import { randomBytes } from 'node:crypto';
 import { secretKey } from './world-crypto.js';
 import { validateNamespaceConfig, type NamespaceConfig } from '@realaddr/ens';
@@ -52,8 +52,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   if (!local && !/^[a-fA-F0-9]{64}$/.test(env.RATE_LIMIT_HMAC_KEY ?? '')) throw new Error('invalid_rate_limit_key');
   const rateLimitKey = env.RATE_LIMIT_HMAC_KEY ? Buffer.from(env.RATE_LIMIT_HMAC_KEY, 'hex') : randomBytes(32);
   if (rateLimitKey.length !== 32) throw new Error('invalid_rate_limit_key');
+  if (env.LEASE_PERIOD_DAYS !== undefined && env.LEASE_PERIOD_DAYS !== '30') throw new Error('invalid_lease_period_days');
   const pricingReady = Boolean(env.PAYMENT_ASSET && env.PAYMENT_PAY_TO && env.LEASE_PRICE_TESTNET_ATOMIC && env.ENS_ADDON_STANDARD_PRICE_TESTNET_DEV_ATOMIC && env.ENS_ADDON_CUSTOM_PRICE_TESTNET_DEV_ATOMIC && env.PAYMENT_DECIMALS && env.PRICING_VERSION);
-  const pricing = pricingReady ? {
+  const pricing = pricingReady ? validatePricing({
     profile: 'testnet' as const,
     network: 'eip155:84532',
     asset: env.PAYMENT_ASSET!,
@@ -63,7 +64,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     addressAmountAtomic: env.LEASE_PRICE_TESTNET_ATOMIC!,
     ensFloorAmountAtomic: env.ENS_ADDON_STANDARD_PRICE_TESTNET_DEV_ATOMIC!,
     ensCustomAmountAtomic: env.ENS_ADDON_CUSTOM_PRICE_TESTNET_DEV_ATOMIC!,
-  } satisfies PricingConfig : null;
+  } satisfies PricingConfig) : null;
   if (env.WORLD_ENABLED && !['true', 'false'].includes(env.WORLD_ENABLED)) throw new Error('invalid_world_enabled');
   let world: ApiConfig['world'];
   if (env.WORLD_ENABLED === 'true') {

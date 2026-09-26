@@ -142,6 +142,13 @@ function validateService(service, policy, revision, role, config) {
   demand(entries.length === Object.keys(env).length, 'duplicate_runtime_environment');
   const required = { APP_ENV: 'event', NODE_ENV: 'production', RESOURCE_PREFIX: 'realaddr-event', FIRESTORE_COLLECTION_PREFIX: 'realaddr_event_', FIRESTORE_DATABASE_ID: 'realaddr', GCP_PROJECT_ID: config.GCP_PROJECT_ID, GCP_REGION: config.GCP_REGION, PRICE_PROFILE: 'testnet', PAYMENT_NETWORK: 'eip155:84532', WORKER_URL: config.WORKER_URL, TASKS_QUEUE: 'realaddr-event-jobs', TASK_INVOKER_SA: `realaddr-event-tasks@${config.GCP_PROJECT_ID}.iam.gserviceaccount.com`, SCHEDULER_INVOKER_SA: `realaddr-event-sched@${config.GCP_PROJECT_ID}.iam.gserviceaccount.com` };
   for (const [key, value] of Object.entries(required)) demand(env[key]?.value === value && !env[key].valueFrom, 'runtime_environment_mismatch');
+  const pricingKeys = ['PAYMENT_ASSET', 'PAYMENT_PAY_TO', 'PAYMENT_DECIMALS', 'PRICING_VERSION', 'LEASE_PRICE_TESTNET_ATOMIC', 'ENS_ADDON_STANDARD_PRICE_TESTNET_DEV_ATOMIC', 'ENS_ADDON_CUSTOM_PRICE_TESTNET_DEV_ATOMIC'];
+  if (pricingKeys.some(key => env[key] !== undefined)) {
+    demand(pricingKeys.every(key => typeof env[key]?.value === 'string' && !env[key].valueFrom), 'testnet_pricing_incomplete');
+    for (const key of ['PAYMENT_ASSET', 'PAYMENT_PAY_TO']) demand(/^0x[0-9a-fA-F]{40}$/.test(env[key].value) && !/^0x0{40}$/i.test(env[key].value), 'testnet_pricing_address_invalid');
+    demand(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(env.PRICING_VERSION.value), 'testnet_pricing_version_invalid');
+    demand(env.PAYMENT_DECIMALS.value === '6' && env.LEASE_PRICE_TESTNET_ATOMIC.value === '550000' && env.ENS_ADDON_STANDARD_PRICE_TESTNET_DEV_ATOMIC.value === '100000' && env.ENS_ADDON_CUSTOM_PRICE_TESTNET_DEV_ATOMIC.value === '300000', 'testnet_pricing_fixed_amounts_required');
+  }
   demand(['true', 'false'].includes(env.CLOUD_TASKS_DISPATCH_ENABLED?.value), 'dispatch_configuration_unknown');
   for (const key of ['FIRESTORE_EMULATOR_HOST', 'GOOGLE_APPLICATION_CREDENTIALS', 'GOOGLE_CREDENTIALS', 'GOOGLE_CLOUD_KEYFILE_JSON', 'GCLOUD_KEYFILE_JSON']) demand(!env[key], 'event_credential_fallback_disallowed');
   if (role === 'web') {

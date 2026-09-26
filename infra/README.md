@@ -1,5 +1,7 @@
 # eventインフラ準備（T-16）
 
+`app.testnet_pricing`は既定`null`の明示opt-inであり、レビュー済みの`asset`、`pay_to`、`pricing_version`だけを保護設定から渡す。Base Sepoliaのtestnet価格profileを維持し、webだけへUSDC 6 decimals、住所`550000`、ENS標準`100000`、custom`300000` atomicを固定して設定する。零address・空version・部分設定・secret経由の価格上書きは拒否する。設定はpaused拠点登録の固定planに必要な料金契約を提供するもので、未接続の決済route、mainnet、ENS販売を有効化しない。通常のimage更新は既存料金環境を検査して保持する。tokenと受取walletの実値はこの文書へ記録しない。
+
 `bootstrap/`はTerraformの初期基盤rootで、専用state bucket、Docker repository、専用GitHub WIF pool/provider、既存deploy service accountへの限定的なimpersonation member、専用repositoryへのwriter memberを定義する。最初の5資源の登録とGCS state移行は完了し、その後writer memberを追加した。`app/`の基盤applyとコンテナ準備は完了した。このrootだけでサービスは稼働しない。最新のFirestore切替ではruntime設定をnamed `realaddr`へ向けているが、fresh inventory時点でDBは未作成だった。named DB用のTerraform planをレビューしapply中だが、作成完了・データ移行・cutoverは未確認/未完了である。`(default)`へfallbackしない。DB作成前にfresh ownership/region inventoryを行い、delete protection・Terraform `prevent_destroy`・database全体のdeny-all client Rulesを設定し、専用runtime IAMを検証する。既存データの照合/maintenance移行と同一image・envのjoint rollout/cutoverを完了するまでlive completionと扱わない。実施範囲は[実装状況](../docs/implementation-status.md)を参照する。
 
 Terraform 1.14.6、Google provider 8.4.0を固定し、Windows上でfmt、validate、mock test 2件を確認した。lockfileには公式署名を検証したWindows/Linux amd64 packageのchecksumを含む。Linuxでの実行は未検証。作成後のlive metadata確認は下記に記録する。

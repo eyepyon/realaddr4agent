@@ -16,7 +16,16 @@ locals {
     SCHEDULER_INVOKER_SA         = google_service_account.app["sched"].email,
     CLOUD_TASKS_DISPATCH_ENABLED = tostring(var.dispatch_enabled)
   }
-  service_env = { for role in local.runtime_roles : role => merge(local.common_env, role == "web" ? { PUBLIC_ORIGIN = "https://address.chain.tokyo", TERMS_VERSION = var.terms_version, WORLD_ENABLED = tostring(var.world_enabled), WORLD_REDIRECT_URI = "https://address.chain.tokyo/auth/world/callback", ADMIN_ENABLED = tostring(var.admin_enabled), ADMIN_OIDC_REDIRECT_URI = "https://address.chain.tokyo/auth/admin/callback" } : {}) }
+  pricing_env = var.testnet_pricing == null ? {} : {
+    PAYMENT_ASSET                               = lower(var.testnet_pricing.asset)
+    PAYMENT_PAY_TO                              = lower(var.testnet_pricing.pay_to)
+    PAYMENT_DECIMALS                            = "6"
+    PRICING_VERSION                             = var.testnet_pricing.pricing_version
+    LEASE_PRICE_TESTNET_ATOMIC                  = "550000"
+    ENS_ADDON_STANDARD_PRICE_TESTNET_DEV_ATOMIC = "100000"
+    ENS_ADDON_CUSTOM_PRICE_TESTNET_DEV_ATOMIC   = "300000"
+  }
+  service_env = { for role in local.runtime_roles : role => merge(local.common_env, role == "web" ? local.pricing_env : {}, role == "web" ? { PUBLIC_ORIGIN = "https://address.chain.tokyo", TERMS_VERSION = var.terms_version, WORLD_ENABLED = tostring(var.world_enabled), WORLD_REDIRECT_URI = "https://address.chain.tokyo/auth/world/callback", ADMIN_ENABLED = tostring(var.admin_enabled), ADMIN_OIDC_REDIRECT_URI = "https://address.chain.tokyo/auth/admin/callback" } : {}) }
   admin_list_indexes = {
     buildings_status       = { collection = "buildings", filters = ["status"], sort = "updatedAt" }
     orders_status          = { collection = "orders", filters = ["status"], sort = "createdAt" }

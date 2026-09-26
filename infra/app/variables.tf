@@ -79,6 +79,27 @@ variable "admin_enabled" {
   type    = bool
   default = false
 }
+variable "testnet_pricing" {
+  type = object({
+    asset           = string
+    pay_to          = string
+    pricing_version = string
+  })
+  default     = null
+  sensitive   = true
+  description = "Optional reviewed Base Sepolia token, receiving wallet and pricing version; all amounts, decimals and network are fixed. This does not enable payment routes."
+  validation {
+    condition = var.testnet_pricing == null ? true : (
+      can(regex("^0x[0-9a-fA-F]{40}$", var.testnet_pricing.asset)) &&
+      can(regex("^0x[0-9a-fA-F]{40}$", var.testnet_pricing.pay_to)) &&
+      lower(var.testnet_pricing.asset) != "0x0000000000000000000000000000000000000000" &&
+      lower(var.testnet_pricing.pay_to) != "0x0000000000000000000000000000000000000000" &&
+      length(var.testnet_pricing.pricing_version) <= 128 &&
+      can(regex("^[A-Za-z0-9][A-Za-z0-9._-]*$", var.testnet_pricing.pricing_version))
+    )
+    error_message = "Pricing requires reviewed nonzero token and receiving wallet addresses and a nonblank version of at most 128 characters."
+  }
+}
 variable "firestore_access_reviewed" {
   type    = bool
   default = false
@@ -118,7 +139,7 @@ variable "secret_versions" {
   type    = map(map(object({ purpose = string, version = string })))
   default = { web = {}, worker = {} }
   validation {
-    condition     = alltrue([for role, entries in var.secret_versions : contains(["web", "worker"], role) && alltrue([for key, ref in entries : can(regex("^[A-Z][A-Z0-9_]+$", key)) && !contains(["APP_ENV", "NODE_ENV", "RESOURCE_PREFIX", "FIRESTORE_COLLECTION_PREFIX", "FIRESTORE_DATABASE_ID", "FIRESTORE_EMULATOR_HOST", "GCP_PROJECT_ID", "GCP_REGION", "PRICE_PROFILE", "PAYMENT_NETWORK", "WORKER_URL", "TASKS_QUEUE", "TASK_INVOKER_SA", "SCHEDULER_INVOKER_SA", "CLOUD_TASKS_DISPATCH_ENABLED", "WORLD_ENABLED", "WORLD_REDIRECT_URI", "ADMIN_ENABLED", "ADMIN_OIDC_REDIRECT_URI", "ADMIN_ALLOWED_EMAILS", "PUBLIC_ORIGIN", "TERMS_VERSION", "PORT", "GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_CREDENTIALS", "GOOGLE_CLOUD_KEYFILE_JSON", "GCLOUD_KEYFILE_JSON"], key) && (role != "worker" || !contains(["WORLD_CLIENT_ID", "WORLD_CLIENT_SECRET", "WORLD_SESSION_KEY", "MAIL_ENCRYPTION_KEY", "ADMIN_GOOGLE_CLIENT_ID", "ADMIN_GOOGLE_CLIENT_SECRET", "ADMIN_SESSION_SECRET"], key)) && contains(var.secret_purposes, ref.purpose) && can(regex("^[1-9][0-9]*$", ref.version))])])
+    condition     = alltrue([for role, entries in var.secret_versions : contains(["web", "worker"], role) && alltrue([for key, ref in entries : can(regex("^[A-Z][A-Z0-9_]+$", key)) && !contains(["APP_ENV", "NODE_ENV", "RESOURCE_PREFIX", "FIRESTORE_COLLECTION_PREFIX", "FIRESTORE_DATABASE_ID", "FIRESTORE_EMULATOR_HOST", "GCP_PROJECT_ID", "GCP_REGION", "PRICE_PROFILE", "PAYMENT_NETWORK", "PAYMENT_ASSET", "PAYMENT_PAY_TO", "PAYMENT_DECIMALS", "PRICING_VERSION", "LEASE_PRICE_TESTNET_ATOMIC", "ENS_ADDON_STANDARD_PRICE_TESTNET_DEV_ATOMIC", "ENS_ADDON_CUSTOM_PRICE_TESTNET_DEV_ATOMIC", "WORKER_URL", "TASKS_QUEUE", "TASK_INVOKER_SA", "SCHEDULER_INVOKER_SA", "CLOUD_TASKS_DISPATCH_ENABLED", "WORLD_ENABLED", "WORLD_REDIRECT_URI", "ADMIN_ENABLED", "ADMIN_OIDC_REDIRECT_URI", "ADMIN_ALLOWED_EMAILS", "PUBLIC_ORIGIN", "TERMS_VERSION", "PORT", "GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_CREDENTIALS", "GOOGLE_CLOUD_KEYFILE_JSON", "GCLOUD_KEYFILE_JSON"], key) && (role != "worker" || !contains(["WORLD_CLIENT_ID", "WORLD_CLIENT_SECRET", "WORLD_SESSION_KEY", "MAIL_ENCRYPTION_KEY", "ADMIN_GOOGLE_CLIENT_ID", "ADMIN_GOOGLE_CLIENT_SECRET", "ADMIN_SESSION_SECRET"], key)) && contains(var.secret_purposes, ref.purpose) && can(regex("^[1-9][0-9]*$", ref.version))])])
     error_message = "Reference declared secret metadata and an existing numeric version for web/worker only; fixed runtime controls and credential files cannot be injected."
   }
 }

@@ -127,6 +127,32 @@ function fakeSubprocess(failure, changeBefore, policies = {}) {
 }
 const dependencies = fake => ({ run: fake.run, prepareContext: () => 'fixture-build-context', smokeCheck: async () => {} });
 
+function addPricing(service) {
+  const values = { PAYMENT_ASSET: `0x${'1'.repeat(40)}`, PAYMENT_PAY_TO: `0x${'2'.repeat(40)}`, PAYMENT_DECIMALS: '6', PRICING_VERSION: 'testnet-v1', LEASE_PRICE_TESTNET_ATOMIC: '550000', ENS_ADDON_STANDARD_PRICE_TESTNET_DEV_ATOMIC: '100000', ENS_ADDON_CUSTOM_PRICE_TESTNET_DEV_ATOMIC: '300000' };
+  service.spec.template.spec.containers[0].env.push(...Object.entries(values).map(([name, value]) => ({name,value})));
+}
+test('ordinary deploy preserves a complete fixed testnet pricing configuration', async () => {
+  const fake = fakeSubprocess(null, services => { addPricing(services.web); });
+  const before = structuredClone(fake.services.web.spec.template.spec.containers[0].env);
+  assert.deepEqual(await deploy(config, dependencies(fake)), {status:'deployed'});
+  assert.deepEqual(fake.services.web.spec.template.spec.containers[0].env, before);
+  assert.ok(fake.updates.every(update => update.args.every(arg => !/--(?:set|update|remove)-env/.test(arg))));
+});
+test('ordinary deploy rejects partial, secret, zero-address and nonfixed testnet pricing before updates', async () => {
+  for (const [key, value] of [['PAYMENT_DECIMALS','18'],['LEASE_PRICE_TESTNET_ATOMIC','55000000'],['ENS_ADDON_STANDARD_PRICE_TESTNET_DEV_ATOMIC','0'],['ENS_ADDON_CUSTOM_PRICE_TESTNET_DEV_ATOMIC','400000'],['PAYMENT_ASSET',`0x${'0'.repeat(40)}`],['PAYMENT_PAY_TO','invalid'],['PRICING_VERSION',' '],['PAYMENT_ASSET',null],['PAYMENT_ASSET','secret']]) {
+    const fake = fakeSubprocess(null, services => {
+      addPricing(services.web);
+      const entries = services.web.spec.template.spec.containers[0].env;
+      const entry = entries.find(item => item.name === key);
+      if (value === null) entries.splice(entries.indexOf(entry),1);
+      else if (value === 'secret') {delete entry.value;entry.valueFrom={secretKeyRef:{name:'realaddr-event-pricing-fixture',key:'1'}};}
+      else entry.value=value;
+    });
+    await assert.rejects(deploy(config, dependencies(fake)), /testnet_pricing_/);
+    assert.equal(fake.updates.length,0);assert.equal(fake.calls.some(call=>call.program==='docker'),false);
+  }
+});
+
 test('ordinary deploy refuses legacy default database before image build or update', async () => {
   const fake = fakeSubprocess(null, services => {
     services.worker.spec.template.spec.containers[0].env.find(item => item.name === 'FIRESTORE_DATABASE_ID').value = '(default)';

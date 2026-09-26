@@ -52,13 +52,13 @@ export function shardCapacity(shard: number): number {
 }
 
 export function validatePricing(config: PricingConfig): Readonly<PricingConfig> {
-  if (config.decimals !== 6 || !config.network || !config.asset || !config.payTo || !config.pricingVersion) {
+  if (config.decimals !== 6 || !config.network || !config.asset || !config.payTo || typeof config.pricingVersion !== 'string' || !config.pricingVersion.trim()) {
     throw new DomainError('pricing_unavailable', 503);
   }
   if (config.profile === 'mainnet' || config.network !== 'eip155:84532' || config.profile !== 'testnet') {
     throw new DomainError('pricing_unavailable', 503);
   }
-  if (!/^0x[a-fA-F0-9]{40}$/.test(config.asset) || !/^0x[a-fA-F0-9]{40}$/.test(config.payTo)) {
+  if (!/^0x[a-fA-F0-9]{40}$/.test(config.asset) || !/^0x[a-fA-F0-9]{40}$/.test(config.payTo) || /^0x0{40}$/i.test(config.asset) || /^0x0{40}$/i.test(config.payTo)) {
     throw new DomainError('pricing_unavailable', 503);
   }
   const expected = EXPECTED[config.profile];

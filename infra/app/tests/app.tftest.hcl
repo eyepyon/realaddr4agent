@@ -22,6 +22,45 @@ variables {
   deploy_service_account = "realaddr-event-test@demo-realaddr-local.iam.gserviceaccount.com"
   firestore_database_id  = "(default)"
 }
+run "testnet_pricing_default_is_closed" {
+  command = plan
+  assert {
+    condition     = var.testnet_pricing == null && length(local.pricing_env) == 0 && !contains(keys(local.service_env.web), "PAYMENT_ASSET") && !contains(keys(local.service_env.worker), "PAYMENT_ASSET")
+    error_message = "Default pricing must remain absent on both services."
+  }
+}
+run "testnet_pricing_sets_only_fixed_web_contract" {
+  command = plan
+  variables {
+    testnet_pricing = { asset = "0x1111111111111111111111111111111111111111", pay_to = "0x2222222222222222222222222222222222222222", pricing_version = "testnet-v1" }
+  }
+  assert {
+    condition     = local.service_env.web.PRICE_PROFILE == "testnet" && local.service_env.web.PAYMENT_NETWORK == "eip155:84532" && local.service_env.web.PAYMENT_DECIMALS == "6" && local.service_env.web.LEASE_PRICE_TESTNET_ATOMIC == "550000" && local.service_env.web.ENS_ADDON_STANDARD_PRICE_TESTNET_DEV_ATOMIC == "100000" && local.service_env.web.ENS_ADDON_CUSTOM_PRICE_TESTNET_DEV_ATOMIC == "300000" && local.service_env.web.PRICING_VERSION == "testnet-v1" && !contains(keys(local.service_env.worker), "PAYMENT_ASSET")
+    error_message = "Pricing opt-in must use only the fixed Base Sepolia web configuration."
+  }
+}
+run "testnet_pricing_rejects_zero_address" {
+  command = plan
+  variables {
+    testnet_pricing = { asset = "0x0000000000000000000000000000000000000000", pay_to = "0x2222222222222222222222222222222222222222", pricing_version = "testnet-v1" }
+  }
+  expect_failures = [var.testnet_pricing]
+}
+run "testnet_pricing_rejects_blank_version" {
+  command = plan
+  variables {
+    testnet_pricing = { asset = "0x1111111111111111111111111111111111111111", pay_to = "0x2222222222222222222222222222222222222222", pricing_version = " " }
+  }
+  expect_failures = [var.testnet_pricing]
+}
+run "testnet_pricing_rejects_secret_override" {
+  command = plan
+  variables {
+    secret_purposes = ["pricing-fixture"]
+    secret_versions = {web = {PAYMENT_ASSET = {purpose = "pricing-fixture", version = "1"}}, worker = {}}
+  }
+  expect_failures = [var.secret_versions]
+}
 
 run "named_setup_has_no_legacy_access_without_opt_in" {
   command = plan
