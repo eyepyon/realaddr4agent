@@ -1,6 +1,8 @@
 # event環境の設定値と投入先
 
-この資料はT-00/T-01/T-16の設定準備用である。ローカル用`.env.example`、GitHub Actionsの`ci` workflow、[Terraform bootstrap](../infra/README.md)と[read-only inventory](gcp-inventory.md)は作成済み。bootstrap5件の初期登録とlive設定確認は完了した。`infra/app`の基盤・条件付きサービス定義とコンテナ準備を追加し、GCS state移行は完了した。app基盤applyは完了した。`deploy-event` workflowを追加したが、実行は未検証。Cloud Run/Scheduler、Secret Managerの値は未作成。ローカル検証結果は[実装状況](implementation-status.md)へ記録する。ここに書いた外部設定例は払い出し済みの値を意味しない。設定の正本は[運用仕様](operations.md)、[インフラ仕様](infrastructure.md)、[管理仕様](admin.md)、[料金仕様](pricing.md)とする。実際の外部account識別子、secret、鍵、個人住所をリポジトリ文書・source comment・例・commit messageへ載せない。Terraformの保護されたstate/planにはresource metadataが必要だが、secret payload、署名鍵、個人住所を入れない。Actions logにも実値やcredentialを出力しない。
+Node/pnpmの共通commandとWindows PowerShell・WSL bash・macOS zshの環境変数、hash、起動手順は[開発環境](development.md)を参照する。本文の設定名はOS共通の契約であり、WSL/macOSでの実行成功を示すものではない。
+
+この資料はT-00/T-01/T-16の設定契約と投入手順である。2026-09-27時点で、bootstrap/app基盤、GCS state移行、専用WIF、event imageの作成、Cloud Run初回配備と更新、専用named `realaddr` DBへの移行を確認済み。World/admin等の設定済みsecret参照と、未接続の決済・外部効果runnerを区別する。Scheduler等のresource登録は実OIDC配信の完了を意味しない。実施・未実施は[実装状況](implementation-status.md)へ記録する。ここに書いた外部設定例は払い出し済みの値を意味しない。設定の正本は[運用仕様](operations.md)、[インフラ仕様](infrastructure.md)、[管理仕様](admin.md)、[料金仕様](pricing.md)とする。実際の外部account識別子、secret、鍵、個人住所をリポジトリ文書・source comment・例・commit messageへ載せない。Terraformの保護されたstate/planにはresource metadataが必要だが、secret payload、署名鍵、個人住所を入れない。Actions logにも実値やcredentialを出力しない。
 
 ## 投入先と順序
 
@@ -8,7 +10,7 @@
 2. T-16のread-only live inventoryを行う。共有projectの所有者、既存resource、共有`(default)`の履歴とnamed `realaddr` DBのlocation/rules/index、API、IAM、予算、名前の空き、指定したdeploy service accountの所有者・binding・実効権限を確認する。Security Rulesが適用されるclientから本アプリprefixへの未認証・他利用者のread/write拒否を確認する。planが他サービスや共有`(default)` DB/rules/index・project IAM等へ触れるならapplyしない。
 3. 管理主体が`infra/bootstrap`の本アプリ専用state bucket、Artifact Registry、repository制限付きWIFを作る。bootstrap stateの専用bucketへの移行は別途記録する。管理主体が`infra/app`の専用web/worker/Tasks invoker/Scheduler invoker service account、Cloud Run、queue、secret metadata、必要な限定IAMを作る。4つのservice accountは別々に新規作成し、default accountを使わない。指定されたdeploy service accountは本アプリのTerraformで作成・import・削除しない。既存bindingを保ち、確認済みの本アプリresourceへのgrantと専用WIF principalの狭いimpersonation memberだけを追加する。
 4. 権限のある運用者がsecretの**値**をSecret Managerへ別途登録し、web/workerに必要なsecret versionだけを参照させる。値をTerraform変数に渡さない。runtime主体の実IAM権限と対象外DB拒否を、業務データ投入・公開route有効化前に検証する。
-5. GitHubの保護された`event` Environmentで、mainのCI成功済みcommitから手動`deploy-event`を実行する。これは既存2サービスのimage更新用であり、初回のCloud Run作成はTerraformで別途実施する。WIFの短期credentialを使い、同じimage digestをworkerとwebに適用する。JSON service account keyはGitHub Secretsへ登録しない。workflowを追加したが、Environment・WIFの有効化と実配備は未実施。
+5. GitHubの保護された`event` Environmentで、mainのCI成功済みcommitから手動`deploy-event`を実行する。これは既存2サービスのimage更新用であり、初回のCloud Run作成はTerraformで別途実施する。WIFの短期credentialを使い、同じimage digestをworkerとwebに適用する。JSON service account keyはGitHub Secretsへ登録しない。Environment・専用WIFの有効化、image作成と既存サービスの更新は確認済みだが、以後の配備でも対象・commit・digest・事後状態を個別に検証する。
 
 ## GitHub Actionsへ渡す値
 

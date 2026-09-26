@@ -2,21 +2,22 @@
 
 AIエージェントがx402で実住所の利用区画を契約し、ENSv2名で住所契約を参照し、World IDによる人間承認後に郵便転送設定を有効化するサービス。
 
-**仕様に加えて、ローカルの実行基盤、Agent認証、Firestore repository、公開ページと一部APIを実装中です。** Agent認証済みownerのpayment-intent/subscription一覧・詳細とENS状態readが利用できます。これらはtenant・agentで範囲を限定し、転送先全文などの秘匿fieldは返しません。購入・更新・支払いmutationは公開せず、ENS名前検索による契約取得は、namespaceとcode pinを検証した明示設定がある場合だけ利用できます。eventでは未有効です。外部ENS検証なしにENSをreadyとせず、mailは支払い根拠と適用済み同意を検査し、根拠のないenabled profileはfail closedです。住所購入の内部DB処理には、決済結果不明時の予約保持、確認済み支払いからの契約発行、未払い確定時の解放を追加しました。更新の内部処理も一つの未解決注文、支払い結果不明の保持、確認済みreceiptからの復旧、確定未払い時の解放を扱います。これらは公開更新APIや実決済の有効化を意味しません。外部検証adapterと決済workerは未接続で、公開購入・更新APIは引き続き販売を拒否します。Firestore Emulatorでの検証範囲は[実装状況](docs/implementation-status.md)を参照してください。GCP公開とMultiBaasのSepolia status照会は確認済みですが、x402決済・World・Intercepta・ENSv2と契約操作の実接続は未完了です。仕様作成日: 2026-09-25。初回リリースは実サービス接続と永続化を伴う縦断フローを完成させます。
+## 現在の状態
 
-HTTP workerにはFirestoreの実行権・再試行管理と、保存済みの確認済み支払いから契約発行を復旧する処理、Cloud Tasks REST dispatcher、Scheduler sweep recoveryを実装しました。送金handlerは未接続、chain照合は既定無効で、専用主体のFirestore操作・DB拒否とqueue権限は確認しました。Cloud Runの未認証拒否は確認済みですが、実GCPのCloud Tasks/SchedulerによるOIDC配信は未検証です。管理主体によるlive Rulesのdeny評価と実未認証拒否は確認済みで、実Firebase他利用者client試験は残件です。未接続処理を成功扱いせず、状態を永続化して保留します。
+仕様と部分実装を公開しています。event環境の公開HTTPS、専用named Firestore `realaddr`、公開ページ、所有者向け状態取得、管理画面を確認済みです。購入・更新の公開mutationと実決済は未接続で、販売を停止しています。mainnet運用は対象外です。
 
-GCP登録準備として[Terraform bootstrap](infra/README.md)と[読み取り専用inventory](docs/gcp-inventory.md)を追加しました。bootstrap applyで専用state bucket・Artifact Registry・無効WIF pool/provider・限定IAM memberの5件を作成し、live設定と既存IAM member保持を確認しました。GCS state移行は完了しました。appの基盤17件を登録し、live設定を確認しました。通常更新用の手動deploy workflowと、GCP認証なしでコンテナを検査するCIを追加しました。正式termsのevent image-only workflowが成功し、同一immutable digestを非公開Cloud Run 2サービスへ初回配備しました。private構成の検証99件は通過しました。Cloud Runの公開と公開後100件の確認は完了しました。独自ドメインのTLS発行とHTTPS応答も確認済みです。
+| 項目 | 確認済み | 残る接続・検証 |
+| --- | --- | --- |
+| GCP・管理 | 公開HTTPS、runtime IAM、named DB、管理ログインの本人報告、停止中拠点の登録 | Tasks/Schedulerの実OIDC配信、実Firebase利用者clientのRules試験 |
+| 住所契約・決済 | DB予約・一意性・不明決済の保持・確認済みreceiptからの復旧をローカル検証 | Base Sepoliaのx402実決済、公開pay、署名器 |
+| LeaseRegistry・MultiBaas | Sepolia配備、独立RPC検証、MultiBaas read-only照合 | 実lease記録・取消、eventのworker有効化、indexed events/reorg回復 |
+| Intercepta | 認証付きQuick ScanのHTTP 200・schema一致 | 安全policy・chain coverageが未確定のためhold。公開pay・署名器未接続 |
+| World sandbox | OIDC・人間専用承認フォームをevent配備、未認証・Agent拒否 | live認証・token交換、実paid leaseでの明示同意・宛先保存 |
+| ENSv2 | 親名、上位registry接続、NameControllerのreceipt・runtime・権限・最終確定を独立検証。永続buildingKey保存と拠点5操作helperを準備 | 拠点署名操作の完了検証、公式解決、paid leaseの名前発行。`namespaceReady=false`・販売停止を維持 |
 
-LeaseRegistryをEthereum Sepoliaへ実配備し、独立RPCで検証、MultiBaasでread-only照合済みです。DB/outboxとworkerの確定block照合を実装し、ローカルで購入・更新とclaim/versionの検証を通しました。workerの照合は既定無効で、実leaseのrecord/revoke、eventでの有効化、indexed eventsと永続cursorによるreorg回復は未完了です。[コントラクトの検証と登録手順](docs/lease-registry.md)を参照してください。
+最新の証拠、実行した検査と履歴は[実装状況](docs/implementation-status.md)、残件は[未解決事項](docs/open-items.md)を参照してください。ローカルfixtureや署名helperの起動を外部接続の完了とは扱いません。郵便のデモは人間承認、有効表示、宛先フォームに限定します。
 
-InterceptaのQuick Scan client、購入・更新の内部screening gate、`pnpm intercepta:scan`診断コマンドを追加しました。認証付き診断でHTTP 200と応答schema一致を確認しましたが、結果は`hold/provider_policy_unconfirmed`です。数値の安全基準とchain範囲が未確定のため、現在は明示的な危険traitを拒否し、それ以外を保留します。公開pay/署名器へは未接続です。[Intercepta接続準備](docs/intercepta.md)を参照してください。
-
-World sandboxのOIDC adapter、人間sessionとowner wallet proof、Firestoreの明示同意・宛先version管理、人間専用フォームをeventへ配備しました。設定の既定は無効で、eventでは専用web設定を有効化し、公開後の未認証・Agent拒否を確認しました。live認証・token交換と実paid leaseでの承認は未検証です。eventの模擬proofを本番の本人確認や法的KYCとは扱いません。[World接続手順](docs/world.md)を参照してください。
-
-ENSv2の名前予約・一度だけの購入権、契約別Resolverを生成するNameController、finalized blockでの階層・契約照合、owner APIとCLIを実装しました。公式Sepolia deploymentを照合し、人間署名による親名取得と上位registry接続の最終確定を確認しました。NameControllerの配備取引も独立RPCで直接CREATE・runtime・immutable・権限・canonical receiptと最終確定を照合しました。停止中の未使用拠点へ永続buildingKeyを原子的に保存し、拠点registryの作成からcontroller接続までの5操作を扱うローカル署名画面を起動して未送信状態を確認しました。拠点の実取引・公式解決・実paid leaseでの名前発行は未実施で、`namespaceReady=false`と販売停止を維持しています。[ENSv2設計と設定](docs/ensv2.md)を参照してください。
-
-運営管理画面は`/admin`です。Google OIDCと専用session、拠点の停止状態での登録・更新、決済・契約・処理・監査の限定一覧を実装しました。eventではGoogleクライアント、DBの運営者allowlist、専用secret・indexを設定し、Googleへの遷移と未認証拒否を確認しました。本人からログイン成功の報告を受け、固定testnet料金で停止状態の拠点登録も確認しました。外部決済が未接続の間は販売再開を拒否し、読取再照合の実行は未接続です。[管理画面の設定](docs/admin.md)を参照してください。
+日本語が仕様の正本です。[ドキュメント案内](docs/README.md)、[English overview](README.en.md)、[English documentation guide](docs/en/README.md)から目的別の資料を参照できます。現況更新: 2026-09-27。
 
 ## 読む順序
 
@@ -60,7 +61,7 @@ AGENTS.mdとREADME.mdから仕様を読み、.kiro/specs/realaddr/tasks.mdの
 
 ## 公開URLと画面方針
 
-公開予定originは **https://address.chain.tokyo**。ドメイン/DNS設定はユーザーが担当します。Cloud Runのweb公開とworker非公開を確認済みで、独自ドメインのTLS発行とHTTPS応答も確認済みです。公開サイト、利用者画面、人間承認画面、管理画面を白〜薄いグレーと控えめな青の標準的なSaaSデザインへ統一します。公開説明は検索/AI向けにも初期HTMLで読めるようにします。
+公開originは **https://address.chain.tokyo**。ドメイン/DNS設定はユーザーが担当します。Cloud Runのweb公開とworker非公開を確認済みで、独自ドメインのTLS発行とHTTPS応答も確認済みです。公開サイト、利用者画面、人間承認画面、管理画面は白〜薄いグレーと控えめな青の標準的なSaaSデザインを使用します。公開説明は検索/AI向けにも初期HTMLで配信します。公開到達性は、未接続の購入・決済機能の利用開始を意味しません。
 
 ## スコープ
 
@@ -68,8 +69,9 @@ AGENTS.mdとREADME.mdから仕様を読み、.kiro/specs/realaddr/tasks.mdの
 - 共有GCP projectでは `RESOURCE_PREFIX=realaddr-event` と `FIRESTORE_COLLECTION_PREFIX=realaddr_event_` を使う。`(default)` DB等は共有参照に限定し、Terraform stateへimport・一括管理しない。デプロイ用service accountは保護された設定の`DEPLOY_SERVICE_ACCOUNT`で指定し、所有者・binding・実効権限を事前に確認する。そのaccountの作成・import・削除は本アプリのTerraform対象外とし、限定的なIAM追加は[インフラ仕様](docs/infrastructure.md)に従う。Cloud Run runtime/invoker等のservice accountは専用とする。prefixはIAM境界ではなく、project全体で無料枠/予算を評価する。基盤登録とCloud Run公開は完了し、独自ドメインHTTPSも確認済みで、スポンサー実接続は未完了。
 - 1拠点につき1〜65,535の仮想区画。住所表記は実際の建物階数と区別する。
 - 住所契約は30日ごとにmainnet想定55 USDC、testnet/dev 0.55 USDC（USDC 6 decimalsでそれぞれ55,000,000 / 550,000 atomic）。purchase/renew共通。今回mainnet決済は無効で、test価格をmainnetへ流用しない。
-- 安全性判定 → x402決済 → 永続的な住所利用契約 → オンチェーン記録。
+- 安全性判定 → x402決済 → 期間付き住所利用契約の永続保存 → オンチェーン記録。
 - World再認証と人間の明示承認 → 「郵便転送可」表示 → 人間が転送先住所を入力・保存。
+- 住所利用期間は確定支払いだけで決まり、人間承認では延長しない。宛先を変えない適用済み同意に期限はなく、支払済み契約の期限切れでは利用を停止し、同じ契約の確定更新で再承認なく復帰する。宛先変更には新しい承認が必要で、人間取消・security suspensionを更新で解除しない。
 - 今回、実郵便の受領・発送・送料決済は行わない。
 - ENS名は希望者が別の明示的な初回ENS add-on決済で購入する。標準名 `f00042.<拠点slug>.<parent>.eth` はmainnet想定10 USDC / testnet-dev 0.10 USDC、custom名 `<customLabel>.<拠点slug>.<parent>.eth` は30 / 0.30 USDC。住所決済では自動付与せず、未購入でも住所利用できる。価格設定欠落やnetwork不整合は販売を拒否する。名前空きと確定見積はCLIで作成するintentが正本。購入済みENSは住所renew料金に期間同期を含む。
 - World、Intercepta、MultiBaas、ENSv2の接続結果と失敗経路を画面・監査ログに表示。
@@ -80,7 +82,7 @@ AGENTS.mdとREADME.mdから仕様を読み、.kiro/specs/realaddr/tasks.mdの
 
 料金の金額・購入順序・ENS add-onの制約は[料金仕様](docs/pricing.md)を参照してください。
 
-Curvegridは**Best AI Agent Project**を主対象とする設計です。RWA Tokenizationは追加候補ですが、初回スコープにNFT市場や不動産所有権の表現を追加しません。ENSは**Best Use of ENSv2**も対象とし、親名取得・Sepolia実接続は実装時に確認します。賞への適合方針は[資料一覧](docs/sources.md)を参照。
+Curvegridは**Best AI Agent Project**を主対象とする設計です。RWA Tokenizationは追加候補ですが、初回スコープにNFT市場や不動産所有権の表現を追加しません。ENSは**Best Use of ENSv2**も対象とし、親名と上位接続は確認済みで、拠点接続・名前発行の実接続検証を進めています。賞への適合方針は[資料一覧](docs/sources.md)を参照。
 
 ## 完成の意味
 
@@ -94,18 +96,20 @@ Worldのイベント環境は主催者側の模擬proofを利用する旨が告�
 
 ## ローカル起動と検証
 
+Windowsでの実行とLinux CIの結果を記録済みです。WSL・macOSの手動起動は未検証で、以下の対応コマンドを実行済みの結果とは扱いません。WSLではLinux版のNode.js・pnpm・Javaと、contract作業時のforgeを使い、別のLinux checkoutで依存関係を取得してください。Windowsの`node_modules`を流用せず、Windows/Linuxの実行ファイルを混在させないでください。
+
 Node.js 22.21.0、pnpm 11.19.0、Java 21、Firestore Emulator 1.22.0を使用します。依存関係は`pnpm install --frozen-lockfile`で取得します。`.env.example`を未追跡の`.env`に複製し、既存の`.env`は上書きしないでください。`APP_ENV=local`と`GCP_PROJECT_ID=demo-realaddr-local`はローカルEmulator用です。`PAYMENT_ASSET`、`PAYMENT_PAY_TO`等の実設定が未確認の間、決済可能なintentは作成しません。
 
 公式Firestore Emulator 1.22.0のJARを取得し、`FIRESTORE_EMULATOR_JAR`にそのファイルのパスを設定します。この作業で照合したJARのSHA-256は`9b6498b7f62714d67f48f59b3818883cd682dbcd46b9f59511de81c97bb5166c`です。hashが一致することを確認してから、以下のEmulatorコマンドを別のターミナルで起動します。
 
-PowerShell:
+Windows PowerShell:
 
 ```powershell
 Get-FileHash -Algorithm SHA256 -Path $env:FIRESTORE_EMULATOR_JAR
 java -jar $env:FIRESTORE_EMULATOR_JAR --host 127.0.0.1 --port 8085 --project_id demo-realaddr-local --single_project_mode true
 ```
 
-別のPowerShell:
+別のWindows PowerShell:
 
 ```powershell
 pnpm install --frozen-lockfile
@@ -117,20 +121,29 @@ pnpm build
 pnpm dev
 ```
 
-POSIX shell:
+WSL bash:
 
 ```sh
 sha256sum "$FIRESTORE_EMULATOR_JAR"
 java -jar "$FIRESTORE_EMULATOR_JAR" --host 127.0.0.1 --port 8085 --project_id demo-realaddr-local --single_project_mode true
 ```
 
-別のshell:
+macOS zsh/bash:
+
+```sh
+shasum -a 256 "$FIRESTORE_EMULATOR_JAR"
+java -jar "$FIRESTORE_EMULATOR_JAR" --host 127.0.0.1 --port 8085 --project_id demo-realaddr-local --single_project_mode true
+```
+
+別のWSL bash / macOS zsh/bash:
 
 ```sh
 pnpm install --frozen-lockfile
 test -e .env || cp .env.example .env
-VITE_APP_ENV=local VITE_TERMS_VERSION=event-demo-1 pnpm build
+export VITE_APP_ENV=local
+export VITE_TERMS_VERSION=event-demo-1
 pnpm typecheck
+pnpm build
 pnpm dev
 ```
 
@@ -138,10 +151,14 @@ pnpm dev
 
 `.env.example`では`CLOUD_TASKS_DISPATCH_ENABLED=false`です。dispatchを有効にできるのは、専用Cloud Tasks queueと同じprojectのworker、verified HTTPS `WORKER_URL`、専用invoke/runtime identitiesを備えた`APP_ENV=event`構成だけです。現時点でGCP上のCloud Tasks/Scheduler dispatchは未接続・未検証です。
 
+Windows PowerShell:
+
 ```powershell
 $env:FIRESTORE_EMULATOR_HOST = '127.0.0.1:8085'
 pnpm --filter @realaddr/db test:emulator
 ```
+
+WSL bash / macOS zsh/bash:
 
 ```sh
 FIRESTORE_EMULATOR_HOST=127.0.0.1:8085 pnpm --filter @realaddr/db test:emulator
@@ -151,7 +168,9 @@ FIRESTORE_EMULATOR_HOST=127.0.0.1:8085 pnpm --filter @realaddr/db test:emulator
 
 すべてのテキストはUTF-8・BOMなし・LFに統一します。`.editorconfig`で編集時、`.gitattributes`でGitの改行処理を設定します。バイナリは対象外です。
 
-```sh
+以下はWindows PowerShell・WSL bash・macOS zsh/bash共通です。
+
+```text
 git config core.hooksPath .githooks
 node scripts/check-text-format.mjs
 node scripts/check-text-format.mjs --staged
@@ -159,6 +178,6 @@ node scripts/check-text-format.mjs --staged
 
 初回clone後にhookを有効化してください。Linux/macOSでは必要に応じて `chmod +x .githooks/pre-commit` も実行します。既存hookがある場合は置き換えず検査を統合します。pre-commitはステージ済みの実データを検査し、不正なUTF-8・BOM・CR/CRLFがあればコミットを拒否します。改行の自動変換だけでは文字コードやBOMを保証できないため、検査も必須です。これらはアプリ実装前から利用できるリポジトリ管理用コマンドです。
 
-## 実装後にREADMEへ追記するもの
+## 提出前に揃えるもの
 
 起動・テストの実コマンド、公開デモURL、デプロイ情報、コントラクト、各スポンサー呼び出し箇所、チーム紹介・SNS、実測した連携フィードバック。未実行のコマンドや未取得の成功結果を掲載しないこと。

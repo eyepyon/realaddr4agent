@@ -1,20 +1,20 @@
 # 未解決事項一覧
 
-アプリは部分実装済みで、ローカルの基礎検証に加え、GCP初回配備と独自ドメインHTTPSを確認した。スポンサー統合やWorld/admin callback、Cloud Tasks/Schedulerの実配信、実Firebase利用者client Rules試験などは未確認。以下は引き続き確認が必要な項目であり、すべての開発を止めるものではない。詳細契約・運用手順・受入条件は参照先を正本とする。
+アプリは部分実装済みで、ローカルの基礎検証に加え、GCP初回配備と独自ドメインHTTPSを確認した。管理ログインの本人報告と停止状態の拠点登録、LeaseRegistryの独立検証・MultiBaas read、ENS親名・上位接続・controllerの最終確定を確認した。Worldのpaid lease縦断、x402実決済、ENS拠点接続・名前発行、Cloud Tasks/Schedulerの実配信、実Firebase利用者client Rules試験は未確認。以下は引き続き確認が必要な項目であり、すべての開発を止めるものではない。詳細契約・運用手順・受入条件は参照先を正本とする。
 
 最優先はU-03〜U-07の外部疎通。GCPへのapply前にU-08、公開・提出までにU-01/U-09〜U-11を完了する。U-02の通常返金方針と発行失敗時の自動返金条件は決定済みで、実鍵・asset・finalityの疎通はU-05に含める。画面/DBなど独立部分は並行して実装できる。
 
 | ID | 項目 | 種別と完了時点 | 正本 |
 | --- | --- | --- | --- |
 | U-01 | 販売開始前に、権限のある管理画面から運営者が提供拠点の住所・郵便番号・slug・表示名・公開エリア/文言を登録し、公開許可と表示内容を確認する。これは通常の運用入力であり、事前にチャットで住所を提示したり、実住所をコード/seedへ固定したりする必要はない。 | 運営者による登録・検証。販売開始前 | [operations O-01/O-14](operations.md)、[管理仕様](admin.md) |
-| U-03 | World client設定、callback登録、eventで使うproof/auth手順とfresh認証確認を取得・検証する。 | 外部設定/実接続。T-03 live前 | [operations O-03](operations.md)、[integrations](integrations.md) |
-| U-04 | Intercepta live key、実schema/verdict、対象network、test addressのallow/denyを取得・検証する。 | 外部資格情報/実接続。T-04前 | [operations O-04](operations.md)、[integrations](integrations.md) |
+| U-03 | World client/callbackと保護設定は登録済み。freshなlive認証・token交換、実paid leaseの明示同意・宛先保存と拒否を検証する。 | 外部実接続。T-03/T-06完了前 | [operations O-03](operations.md)、[integrations](integrations.md) |
+| U-04 | Intercepta keyによるHTTP 200とschema一致は確認済み。安全policy、対象network、実allow/denyを確定・検証する。現在はpolicy未確定のためhold。 | 外部policy/実接続。T-04完了前 | [operations O-04](operations.md)、[integrations](integrations.md) |
 | U-05 | Base SepoliaのUSDC contract/decimals、facilitatorと認証、finality、送金結果不明時の照合経路を固定・実測する。 | 外部設定/実接続。T-05 live前 | [operations O-05](operations.md)、[pricing](pricing.md)、[acceptance](acceptance.md) |
-| U-06 | status APIは再検査でHTTP 200、応答schema検証通過、Ethereum Sepolia (chain ID 11155111)との一致を確認。前回の照会ではchain不一致だった。必要role/permission、registry設定、署名方式、contract read/write/eventの実疎通は未確認。 | 外部設定/実接続。T-07完了前 | [operations O-06/O-11](operations.md)、[ensv2](ensv2.md) |
-| U-07 | ENS parent名と運営鍵、公式deployment/ABI/SDK、親→拠点→name registry接続、gas実測と拠点別registry登録receiptを確定する。 | 外部設定/実接続。T-12/13完了前 | [operations O-09–O-11](operations.md)、[ensv2](ensv2.md)、[pricing](pricing.md) |
+| U-06 | status APIは再検査でHTTP 200、応答schema検証通過、Ethereum Sepolia (chain ID 11155111)との一致を確認。前回の照会ではchain不一致だった。LeaseRegistry配備・初期権限とMultiBaas read-only照合は確認済み。実lease write、署名方式、indexed eventsの疎通は未確認。 | 外部設定/実接続。T-07完了前 | [operations O-06/O-11](operations.md)、[ensv2](ensv2.md) |
+| U-07 | 親名・公式deployment pin・上位接続・NameControllerの最終確定は確認済み。拠点の5操作は署名対応中で完了証拠未取得。拠点registry登録receipt・公式解決・paid lease名前発行とgas実測を確認する。 | 外部設定/実接続。T-12/13完了前 | [operations O-09–O-11](operations.md)、[ensv2](ensv2.md)、[pricing](pricing.md) |
 | U-08 | 初回配備に必要なlive inventory、専用resource登録、runtime IAMの代表検査を実施済み。残件はCloud Tasks/Scheduler実OIDC配信、実Firebase他利用者clientによるRules確認など。 | 基盤の初回配備済み。残る稼働前/運用検証は未完了 | [operations O-12](operations.md)、[infrastructure](infrastructure.md)、[acceptance A-41](acceptance.md) |
-| U-09 | 本アプリ専用Google OIDC client/callbackと初期運用者allowlistを設定する。 | 外部設定。T-18前 | [operations O-13](operations.md)、[admin](admin.md) |
-| U-10 | Cloud Run公開、独自ドメインTLS、固定originのHTTPS主要経路を確認済み。World/admin callbackの実接続と業務E2Eは未確認。ユーザー管理のDNS変更は行っていない。 | 公開HTTPS確認済み。callback/E2E検証は未完了 | [operations O-07](operations.md)、[infrastructure](infrastructure.md)、[acceptance A-49](acceptance.md) |
+| U-09 | 本アプリ専用Google OIDC client/callbackと初期運用者allowlistは設定済み。本人のログイン成功報告と停止中拠点登録を確認済み。販売再開・読取再照合の実接続は残件。 | 設定済み。T-18全体の完了は別途 | [operations O-13](operations.md)、[admin](admin.md) |
+| U-10 | Cloud Run公開、独自ドメインTLS、固定originのHTTPS主要経路を確認済み。adminは本人のログイン成功報告あり。World live認証と業務E2Eは未確認。ユーザー管理のDNS変更は行っていない。 | 公開HTTPS確認済み。callback/E2E検証は未完了 | [operations O-07](operations.md)、[infrastructure](infrastructure.md)、[acceptance A-49](acceptance.md) |
 | U-11 | 提出時点のtrack条件、チーム/SNS、live証跡・feedback、動画を揃える。 | 提出準備。提出前 | [operations O-08](operations.md)、[acceptance](acceptance.md)、[sources](sources.md) |
 
 ## 確定済みの前提
@@ -27,7 +27,7 @@ U-02（決定済み）: 任意取消・通常運用では返金しない。決�
 
 - 本アプリ専用のweb/worker/Tasks/Scheduler service accountとrepository制限付きWIFを作る。デプロイ用service accountは保護された`DEPLOY_SERVICE_ACCOUNT`設定で指定し、accountの作成・import・削除は本アプリのstate対象外とする。所有者・現在のgrant・実効権限を確認し、本アプリresourceへの必要grantと限定WIF impersonation memberだけを追加する。そのaccountの実効権限が本アプリに限られるとは仮定しない。
 - 共有Firestoreのcollection prefixは名前衝突対策であり、権限分離ではない。apply前に既存client Security Rulesの許可とIAM計画を審査し、広い許可を解消できなければapplyしない。新設したserver runtime service accountの実IAM検査は作成後・業務データ取扱い前に別途実施する。
-- eventの公開接続方式はCloud Run直接domain mappingとmanaged TLSに固定した。公開originの固定HTTPS healthとcallback/同一origin動作を確認するが、region対応・所有権・DNS/TLSのlive結果はU-10として残る。
-- U-01は提供拠点情報を運営者が認可管理画面へ登録し、公開許可と表示内容を確認する販売開始前の運用タスクとして残る。管理画面の権限と入力項目は[管理仕様](admin.md)を正とする。U-09の本アプリ専用管理者OIDC/bootstrapは引き続き未実施。U-02の通常方針・発行失敗時の例外は決定済みである。
+- eventの公開接続方式はCloud Run直接domain mappingとmanaged TLSに固定した。公開originの固定HTTPS healthとcallback/同一origin動作を確認するが、公開HTTPSは確認済みで、World live callbackと業務E2EをU-10として残す。
+- U-01は提供拠点情報を運営者が認可管理画面へ登録し、公開許可と表示内容を確認する販売開始前の運用タスクとして残る。管理画面の権限と入力項目は[管理仕様](admin.md)を正とする。U-09の管理者OIDC/bootstrapは設定済みで、本人のログイン成功報告と停止中拠点登録を確認した。U-02の通常方針・発行失敗時の例外は決定済みである。
 
 詳細設計と対象外スコープに従い、実郵便処理や商用の法的本人確認/KYCは今回の未解決blockerに含めない。秘密やcredential値はこの一覧・README・repositoryへ記録せず、secret manager等の指定保管先を使う。

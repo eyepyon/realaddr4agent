@@ -6,13 +6,21 @@ T-00/T-04の初期実装。認証付きQuick Scanのlive照会でHTTP 200と必�
 
 `packages/intercepta/src/index.ts`のserver-only clientは公式Quick Scan Address endpointだけを呼ぶ。`X-API-KEY`は未追跡の`.env`の`INTERCEPTA_API_KEY`へ設定する。URLを利用者入力から選ばず、redirectも許可しない。応答は64 KiBまで、1照会の総期限は8秒。429のRetry-Afterが短時間で満たせる場合だけ最大1回再試行し、それ以外は保留する。生の応答・description・APIキーは出力しない。
 
-repository rootで次を実行する。`$env:INTERCEPTA_SCAN_ADDRESS`には検査対象の公開EOA addressを指定する。診断だけを行い、署名・送金・注文変更はしない。
+repository rootで次を実行する。環境変数`INTERCEPTA_SCAN_ADDRESS`には検査対象の公開EOA addressを指定する。診断だけを行い、署名・送金・注文変更はしない。
+
+Windows PowerShell:
 
 ```powershell
 pnpm intercepta:scan --address "$env:INTERCEPTA_SCAN_ADDRESS" --json
 ```
 
-JSONと終了codeだけを機械処理したい場合は`node node_modules/tsx/dist/cli.mjs scripts/intercepta-scan.ts --address "$env:INTERCEPTA_SCAN_ADDRESS" --json`を使う。codeはallow=0、deny=2、hold=3、不正引数=1。現在の未確定policyではallowを返さない。`requestsAttempted`はそのclientの試行数で、キー全体の累積残枠ではない。共有の利用数ledgerとevent環境への配備は未実装。
+WSL bash / macOS zsh（未検証）:
+
+```sh
+pnpm intercepta:scan --address "$INTERCEPTA_SCAN_ADDRESS" --json
+```
+
+JSONと終了codeだけを機械処理したい場合は`node node_modules/tsx/dist/cli.mjs scripts/intercepta-scan.ts --address "$env:INTERCEPTA_SCAN_ADDRESS" --json`を使う。WSL bash / macOS zshではaddress引数を`"$INTERCEPTA_SCAN_ADDRESS"`に置き換える。OSごとの環境変数と起動準備は[開発環境](development.md)を参照する。codeはallow=0、deny=2、hold=3、不正引数=1。現在の未確定policyではallowを返さない。`requestsAttempted`はそのclientの試行数で、キー全体の累積残枠ではない。共有の利用数ledgerとevent環境への配備は未実装。
 
 ## 確認できたschemaと暫定policy
 

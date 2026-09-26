@@ -35,7 +35,7 @@ flowchart LR
 
 予定ディレクトリ: apps/web（公開HTMLとapp/adminの共通UI）、apps/api、apps/worker、packages/domain、packages/db、packages/integrations/{world,intercepta,x402,multibaas,ens}、packages/agent-cli、contracts、tests/{integration,e2e,live}。
 
-決済chainはBase Sepolia eip155:84532を第一候補。ENSv2とLeaseRegistryはEthereum Sepolia eip155:11155111に統一する。T-00でfacilitator/assetとMultiBaas Sepolia対応を確認。支払い確認からの記録は事業者backendによる証明で、cross-chain proof/bridgeではない。Worldの利用はWorld Chainへのdeployを前提にしない。
+決済chainはBase Sepolia eip155:84532に固定する。ENSv2とLeaseRegistryはEthereum Sepolia eip155:11155111に統一する。T-00でfacilitator/assetと各連携の実疎通を確認し、設定だけで実決済済みとは扱わない。支払い確認からの記録は事業者backendによる証明で、cross-chain proof/bridgeではない。追加の決済chainやmainnet稼働は対象外。Worldの利用はWorld Chainへのdeployを前提にしない。
 
 ## 2. 権限
 

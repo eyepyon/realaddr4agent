@@ -2,7 +2,7 @@
 
 決定日: 2026-09-25。ユーザー指定によりCloud Run / Cloud Firestore / Cloud Storage / GitHub Actionsを採用する。これは実装仕様であり、billing有効を読み取り確認したが、bootstrap初期5件とapp基盤の登録後、正式event imageの同一digestで非公開Cloud Run 2サービスを配備し、private構成を確認した。Cloud Run公開と公開後100件の確認は完了し、独自ドメインのTLS発行・HTTPS応答も確認済み。
 
-実装状況: `infra/bootstrap`の専用state bucket・Artifact Registry・WIFと限定IAM定義、`scripts/gcp-inventory.ps1`のmetadata読取を追加した。ローカル検証は[infra手順](../infra/README.md)と[実装状況](implementation-status.md)を参照。`infra/app`の基盤・条件付きサービス定義を追加し、基盤applyは完了したが、通常更新用deploy workflowを追加したが、実行は未検証。認証済みlive inventoryと実plan（5 create・0 update・0 destroy）は確認済み。bootstrap applyは成功し、GCS state移行は完了したが、runtime/clientのgateは残る。
+実装状況（2026-09-27）: bootstrapとapp基盤の登録、GCS state移行、専用WIFによるimage作成、初回Cloud Run配備と既存サービスの更新を確認した。業務DBは専用named `realaddr`へ移行し、runtime IAMの代表検査と対象外DBへの拒否を確認済み。実Firebase他利用者tokenによるclient Rules試験、Cloud Tasks/Schedulerの実OIDC配信、業務の縦断フローは残件。各段階の証跡と未検証範囲は[実装状況](implementation-status.md)、再実行手順は[infra手順](../infra/README.md)を参照する。過去の初回inventoryやplanを現在の全resource・実効権限の証明に流用しない。
 
 ## 採用理由と配置
 
@@ -81,7 +81,7 @@ flowchart LR
 
 ## Firestoreのデータ契約
 
-[design.md](../.kiro/specs/realaddr/design.md)の論理collection定義を使用する。`FIRESTORE_DATABASE_ID=realaddr`、基本の`FIRESTORE_COLLECTION_PREFIX=realaddr_event_`とし、repositoryの単一mapperだけが論理名を物理collection ID `realaddr_event_<logical>`へ変換する。admin、guard、outbox、session、rate limitなど例外を作らず、本アプリの全root collectionに適用する。衝突時に明示suffixを採用した場合も、そのmanifestのprefixを単一mapper・index設定・cleanupで共用する。直接のcollection名指定を他の実装箇所に散らさない。prefixは名前衝突対策でありIAM境界ではない。runtime IAMは専用databaseへ限定し、client Security Rulesはdatabase全体をdeny-allとする。documentにはschemaVersionを持たせる。時刻はFirestore Timestamp / APIではUTC ISO 8601。金額はcanonicalな10進整数文字列として保存し、演算・上限検証はbigintで行う。JS numberでtoken額を扱わない。slotはrepositoryの書込境界でも整数1..65535を検証する。[Firestore複数DB管理](https://firebase.google.com/docs/firestore/manage-databases)によるとclient libraryは通常`(default)`へ接続するため、実行時のdatabase IDも明示的に検査する。
+[design.md](../.kiro/specs/realaddr/design.md)の論理collection定義を使用する。`FIRESTORE_DATABASE_ID=realaddr`、`FIRESTORE_COLLECTION_PREFIX=realaddr_event_`に固定し、repositoryの単一mapperだけが論理名を物理collection ID `realaddr_event_<logical>`へ変換する。admin、guard、outbox、session、rate limitなど例外を作らず、本アプリの全root collectionに適用する。衝突や所有権不明の場合は停止して確認し、別のcollection prefixへ自動変更しない。単一mapper・index設定・cleanupで同じ固定prefixを使用し、直接のcollection名指定を他の実装箇所に散らさない。prefixは名前衝突対策でありIAM境界ではない。runtime IAMは専用databaseへ限定し、client Security Rulesはdatabase全体をdeny-allとする。documentにはschemaVersionを持たせる。時刻はFirestore Timestamp / APIではUTC ISO 8601。金額はcanonicalな10進整数文字列として保存し、演算・上限検証はbigintで行う。JS numberでtoken額を扱わない。slotはrepositoryの書込境界でも整数1..65535を検証する。[Firestore複数DB管理](https://firebase.google.com/docs/firestore/manage-databases)によるとclient libraryは通常`(default)`へ接続するため、実行時のdatabase IDも明示的に検査する。
 
 owner向けorder/lease一覧readの複合index契約は、物理collection group `realaddr_event_orders`で`tenantId ASC, agentId ASC, createdAt DESC, __name__ DESC`、`realaddr_event_leases`で`tenantId ASC, agentId ASC, updatedAt DESC, __name__ DESC`とする。cursor pagingはこの順序とlimitに固定し、署名cursorをowner/endpoint/sort/limitへ束縛する。これはアプリ側のindex定義契約であり、GCP上へのindex作成・適用は未実施。index変更は本アプリprefix付きcollection groupだけを対象とする。
 

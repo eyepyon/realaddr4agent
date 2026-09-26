@@ -71,16 +71,16 @@ Worldの人間認証と明示同意は、郵便事業の法的な取引時確認
 
 今回はその業務実装を対象外にする。将来は契約主体、本人確認、代理権、保存期間、受領/保管/転送/解約後郵便、操作ごとの転送同意を事業者の手順と専門家確認に沿って追加する。「住所だけなら法的手続き不要」「Worldを通せば法律上発送可能」とは断定しない。
 
-## 外部確認・運用の未実施事項
+## 外部確認・運用の残件
 
 | ID | 内容 | 仮定/担当 | 必要時点 |
 | --- | --- | --- | --- |
 | O-01 | 権限のある管理画面で提供拠点の住所・郵便番号・slug・表示名・公開エリア/文言を登録し、運営者が公開許可と表示内容を確認する。通常の拠点登録であり、事前に実住所をコード/seedへ固定する必要はない。 | 運営者。事業者名・公式URLは確定済み。1拠点65,535仮想区画 | 販売開始前 |
-| O-03 | World client/イベント認証手順 | 開発担当+portal | T-03 live |
-| O-04 | Intercepta key/schema/危険アドレス | 開発担当+スポンサー | T-04 live |
-| O-05 | facilitator/token/finality | Base Sepolia優先 | T-05 live |
-| O-06 | MultiBaas deployment/chain/署名方式 | 開発担当+Curvegrid | T-07 live |
-| O-07 | address.chain.tokyoのDNS/TLS接続とWorld callback登録 | ドメイン設定はユーザー担当。開発担当は接続先と必要設定を提示 | E2E前 |
+| O-03 | World設定済みclientでのfresh認証・token交換・paid lease承認 | 開発担当+portal | T-03/T-06完了前 |
+| O-04 | Interceptaの取得済みschemaに対する安全policy・coverage・実allow/deny | 開発担当+スポンサー | T-04完了前 |
+| O-05 | facilitator/token/finalityの実決済・照合 | Base Sepoliaに固定 | T-05 live |
+| O-06 | MultiBaas read確認後の実lease write・署名方式・indexed events | 開発担当+Curvegrid | T-07完了前 |
+| O-07 | 公開HTTPSとcallback登録後のWorld live認証・業務E2E | ドメイン設定はユーザー担当。開発担当は接続結果を確認 | E2E完了前 |
 | O-08 | 参加track/応募対象 | チーム | 提出前 |
 
 O-02（決定済み）: 任意取消・通常運用では返金しない。発行失敗が照合後に復旧不能と確定した場合だけ対象注文の全額をworkerが自動返金する。サービス終了時に残る前払い分の対象条件・方法・時期はその時に別途案内する。価格と処理条件は[料金仕様](pricing.md)・[状態設計](../.kiro/specs/realaddr/design.md)を正とし、返金鍵・asset・finalityの実疎通はO-05/T-00/T-05の外部設定作業に含める。管理UIに返金実行を設けない。
@@ -91,15 +91,15 @@ O-02（決定済み）: 任意取消・通常運用では返金しない。発�
 
 設定: ENS_CHAIN_ID=11155111、ENS_RPC_URL、ENS_PARENT_NAME、ENS_PARENT_REGISTRY、ENS_USER_REGISTRY、ENS_NAME_CONTROLLER、ENS_UNIVERSAL_RESOLVER、ENS_FACTORY、ENS_RESOLVER_IMPLEMENTATION、ENS_PUBLISHER_KEY_REF、ENS_FINALITY_POLICY。`ENS_PARENT_REGISTRY`は親名を管理する公式registry、`ENS_USER_REGISTRY`はその親名直下の上位UserRegistryを指す。拠点ごとのchild registryは運営登録・receipt検証した`ens_namespaces/{buildingId}.locationRegistry`から取得し、全拠点で単一child registryを使い回さない。親→拠点slug→ENS child nameの3階層とする。REGISTRY_CHAIN_IDも11155111とする。各addressは公式deploymentsとcode存在を確認して固定する。
 
-親名の取得/更新は事業者の設定作業。realaddr.ethは取得済みではない。親期限が最大子期限+運用余裕30日を下回る前に警告し、残存不足の場合は名前発行/更新を保留する。親名やpointerの監視、pending/error滞留、gas不足、record不一致、reorgをアラート対象へ追加する。
+親名の取得/更新は事業者の設定作業。保護設定で選んだ親名の取得、上位registry接続とNameController配備の最終確定は確認済み。拠点の署名操作の完了検証、公式解決とpaid leaseの名前発行は残件であり、販売を停止する。親期限が最大子期限+運用余裕30日を下回る前に警告し、残存不足の場合は名前発行/更新を保留する。親名やpointerの監視、pending/error滞留、gas不足、record不一致、reorgをアラート対象へ追加する。
 
 names/resolverは購入済み件数分だけ作る。デモは数件に限定し実gas/発行所要時間を測定。65,535件を同時発行できる性能があるとは主張しない。全capacityはbuildingの論理区画数であり（65,535 documentは事前生成しない）、オンチェーン発行済み件数とは別に表示する。
 
-追加未確定: O-09 親ENSv2名と管理鍵、O-10 公式deployment/ABI/SDK pin、O-11 MultiBaas Sepoliaとgas予算。T-00/T-12の疎通条件とする。ENSは住所planと分離した任意の初回購入で提供する。人間の転送先は引き続き非公開。
+残件: O-09 拠点接続と名前発行、O-10 pin変更時の再検証、O-11 実lease write・indexed eventsとgas実測。親名・上位接続・controller、公式deployment pinとMultiBaas readは確認済み。T-00/T-12の疎通条件とする。ENSは住所planと分離した任意の初回購入で提供する。人間の転送先は引き続き非公開。
 
 ## GCP運用追加
 
-[インフラ仕様](infrastructure.md)が構成・無料枠・復旧・CI/CDの正本。O-12: 共存先の既存GCP project/billing account、共有`(default)`の歴史的状態とnamed `realaddr` DBのlocation/rules/index、既存IAM/API/予算・無料枠消費、専用resource名の空き、GitHub repository/Environment/WIFをT-16前に確認する。[read-only inventory](gcp-inventory.md)と[Terraform bootstrap](../infra/README.md)を準備済みだが、認証済みlive inventoryとbootstrap初期登録は完了した。fresh inventory時点でnamed `realaddr` DBは未作成だった。Terraform applyの完了は未確認で、専用runtime IAM試験、Firestore client deny試験、データreconcile/migration、joint image/env rolloutとcutoverは残件。runtimeは未完了で、共有`(default)`へのfallbackを禁止する。CLIの配置と検証範囲は[実装状況](implementation-status.md)を参照する。価格・quotaはdeploy前に再確認する。API/workerが参照するsecret versionと復号鍵を記録し、rollback/snapshotが使う鍵を先に破棄しない。
+[インフラ仕様](infrastructure.md)が構成・無料枠・復旧・CI/CDの正本。O-12: 認証済みlive inventory、bootstrap/app基盤の登録、named `realaddr` DBへのcutoverと公開HTTPSを確認済み。専用runtime主体のDB操作・対象外DB拒否、live Rulesのdeny評価と未認証拒否は確認済み。Cloud Tasks/Schedulerの実OIDC配信と実Firebase他利用者clientによるRules試験は残件である。共有`(default)`へのfallbackを禁止する。履歴と検証範囲は[実装状況](implementation-status.md)を参照する。価格・quotaはdeploy前に再確認する。API/workerが参照するsecret versionと復号鍵を保護記録で管理し、rollback/snapshotが使う鍵を先に破棄しない。
 
 T-16では共有projectの読み取りinventoryでresource IDと所有者、IAM grantとその管理方法、project API、共有`(default)`の歴史的状態、named `realaddr` DBのlocation/rules/index/field exemption、既存予算と無料枠消費を確認する。named DB作成前にfresh ownership/region inventoryを行う。named DBの新規作成前に所有権・名前衝突・regionを再確認し、client Rulesをdatabase全体deny-allにする。Firebase clientなどRules適用経路でread/write拒否を確認する。server SDK/IAM RESTはRulesを迂回するため、この確認の代わりにしない。新規web/worker runtime service accountの権限は作成後、顧客データ投入・公開業務routeの有効化前に実identityでnamed `realaddr` DBの必要操作と対象外DBへの拒否を確認する。apply前は既存resource/IAM所有者・planとRules適用clientの拒否を調べる。運用者credentialでの成功はruntime主体の証拠にならず、documentのNOT_FOUNDはIAM拒否の証拠にならない。追加のdenyだけで既存allowを上書きできない。[Rules評価](https://firebase.google.com/docs/rules/rules-behavior)。本アプリのstateへ共有`(default)` DB/rules/index・既存API・既存予算をimportしない。共有`(default)` DB/rules/indexの変更、他サービスのindex削除、project IAM policy/binding、API disableを本アプリの手順から除外する。別stateが同roleのauthoritative IAM bindingを管理する場合も、本アプリのadditive memberと競合させない。必要APIの有効化やrules修正は共有project管理主体の別手順で行う。
 

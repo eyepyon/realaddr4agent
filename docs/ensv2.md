@@ -1,6 +1,8 @@
 # ENSv2と住所契約の紐づけ — 採用設計
 
-更新: 2026-09-27。ENSv2機能の実装・Sepolia接続とデモ検証は初回リリースの対象とするが、利用者への名前発行は希望者だけが初回追加料金を支払う任意オプション。住所契約だけで利用できる。名前予約・購入権のDB処理、照合adapter、NameController、API/CLI接続を実装中。公式Sepolia deployment、人間署名による親名取得と上位registry接続の最終確定を確認した。controller配備取引も独立検証でcanonical receiptと期待runtime・権限に一致し、最終確定を確認した。拠点接続の5操作を扱うplannerとローカル署名画面、永続buildingKeyの準備を追加し、liveの接続・code pin・未設定履歴と初回作成simulationを検査した。拠点の実取引・公式解決・実paid leaseでの名前発行は未実施で、`namespaceReady=false`を維持する。料金境界は[pricing.md](pricing.md)に従う。
+Node/pnpmの共通commandとWindows PowerShell・WSL bash・macOS zshの環境変数、hash、起動手順は[開発環境](development.md)を参照する。本文の設定名はOS共通の契約であり、WSL/macOSでの実行成功を示すものではない。
+
+更新: 2026-09-27。ENSv2機能の実装・Sepolia接続とデモ検証は初回リリースの対象とするが、利用者への名前発行は希望者だけが初回追加料金を支払う任意オプション。住所契約だけで利用できる。名前予約・購入権のDB処理、照合adapter、NameController、API/CLI接続を実装中。公式Sepolia deployment、人間署名による親名取得と上位registry接続の最終確定を確認した。controller配備取引も独立検証でcanonical receiptと期待runtime・権限に一致し、最終確定を確認した。拠点接続の5操作を扱うplannerとローカル署名画面、永続buildingKeyの準備を追加し、liveの接続・code pin・未設定履歴と初回作成simulationを検査した。拠点の署名操作は進行中だが、完了したreceipt・最終確定の検証証拠はまだない。公式解決・実paid leaseでの名前発行も未検証で、`namespaceReady=false`と販売停止を維持する。料金境界は[pricing.md](pricing.md)に従う。
 
 ## 1. 使い方
 

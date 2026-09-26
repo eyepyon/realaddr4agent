@@ -1,6 +1,6 @@
 # 外部連携契約
 
-2026-09-25確認。事実の出典は[sources.md](sources.md)。ここで示す内部interfaceは本アプリの設計であり、ベンダーSDKのmethod名ではない。鍵の発行、実認証、送金、MultiBaas接続はこの仕様作成では実施していない。
+契約更新: 2026-09-27。事実の出典は[sources.md](sources.md)、実接続と実行した検査の履歴は[実装状況](implementation-status.md)。ここで示す内部interfaceは本アプリの設計であり、ベンダーSDKのmethod名ではない。MultiBaas read、Intercepta Quick ScanのHTTP 200、ENS親名・上位接続・controllerの最終確定は確認済み。World sandboxはevent配備と未認証・Agent拒否まで確認し、live認証・paid lease承認は未検証。x402実決済、実lease write、ENS拠点接続・名前発行は未検証で、販売を停止する。
 
 ## 1. World ID for Agents
 

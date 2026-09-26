@@ -17,10 +17,18 @@
 | T-05/T-16 worker・outbox | 部分実装・ローカル検証済み | Firestore claim/generation/期限、保存済み支払いからの発行復旧、Cloud Tasks REST配信・結果照合とSchedulerの永続cursor。実送金・eventのchain照合・実Cloud Tasks/Scheduler接続は未検証 |
 | T-08/T-18/T-19 UI | 管理UI・認証・限定APIをevent配備、本人のログイン成功報告あり | Google OIDC/専用session、許可運営者の固定binding、拠点の登録・更新とbounded一覧を接続。停止状態での拠点登録に必要な固定testnet料金設定を追加。販売再開・読取再照合の実接続は残件 |
 | T-02/T-08/T-19 利用規約 | v1正式採用・event配信確認済み | realaddr-v1として15条を正式採用。単一Markdownから/termsへ初期HTML配信し、正式versionの同意欄・API/build/deploy設定を一致させる。提供開始準備と実利用者の同意確認は別途 |
-| T-00 外部連携 | 一部の疎通を確認・全体未完了 | MultiBaasのSepolia status、registry linkと初期権限のread、Intercepta認証付きscanを確認。World client設定は取得済み。Worldのlive縦断、実lease write/read・indexed events、x402、ENS、管理者OIDCは残件 |
+| T-00 外部連携 | 一部の疎通を確認・全体未完了 | MultiBaasのSepolia status、registry linkと初期権限のread、Intercepta認証付きscanを確認。World client設定は取得済み。Worldのlive縦断、実lease write・indexed events、x402、ENS拠点接続・名前発行は残件。管理者OIDCは本人のログイン成功報告と停止中拠点登録を確認済み |
 | T-16 GCP | 独自ドメインHTTPS確認済み・全体未完了 | WIFとeventイメージbuild/push、runtime IAM検査、初回Cloud Run配備、公開後100項目と後続plan差分0を確認。TLS発行・独自ドメイン8経路の表示と拒否を確認。Tasks/Schedulerの実配信、実Firebase利用者client試験、外部業務連携は残件 |
 
 ## 検証の記録
+
+### T-11 ドキュメント整理・英語ガイド・OS別コマンド
+
+2026-09-27。READMEを現況と残件中心に整理し、管理ログイン、named DB移行、WIF・Cloud Run更新、MultiBaas read、ENS controller最終確定の記録と各手順の古い現況を一致させた。Base Sepoliaの決済chainを「候補」とする記述と、固定collection prefixへのsuffix例外を既存の確定方針へ揃えた。ENS拠点署名は作業中であり、完了や販売有効化を追加認定していない。
+
+日本語の文書案内、英語READMEと構成・API・外部連携・運用・実装状況・開発ガイドを追加した。日本語の要件/設計と共通OpenAPIを正本とし、英語は主要内容の対応ガイドと明記した。採用済み規約本文・version・機械schemaは変更していない。Windows PowerShell、WSL bash、macOS zsh/bashのコマンドを併記し、環境変数、hash確認、依存関係、PowerShell運用scriptの前提を区別した。
+
+今回実施した検査は文書差分レビュー、変更Markdownの相対リンク先存在確認、UTF-8/BOMなし/LFの形式検査で、いずれも通過した。アプリコードの変更がないためbuild・業務テストは再実行していない。WSL/macOSでの手動起動、provider接続、Terraform操作は未実行であり、Linux CIや過去のWindows検証とは区別する。T-11の動画・実接続デモ・提出一式は残件。
 
 ### T-12 NameController配備と拠点namespaceの署名準備
 
@@ -28,7 +36,7 @@
 
 `ensureNamespaceBuildingKey`を追加し、期待slug/version、停止状態、全仮想区画未使用を照合する。初回保存ではleaseなしを検査してrandomな永続identityと監査記録を原子的に保存する。既存identityを置換せず、後のLeaseRegistry同期で再利用する。専用live DBの対象拠点へ保存し、読戻しを確認した。料金・販売状態は変更していない。DB registryのEmulator重点6件、location plan/flow/client/serverの重点20件、全workspace型検査とbuildが通過した。buildは`VITE_APP_ENV=event`・`VITE_TERMS_VERSION=realaddr-v1`を指定した。通常CIへlocation検査を追加し、テキスト形式検査も通過した。単体fixtureをlive接続の証拠として扱わない。
 
-NameControllerの人間による配備取引は、独立RPCでexact CREATE、完全runtime、7 immutable、getterと権限、canonical成功receiptを照合し、その後に最終確定を確認した。拠点接続準備では8 code pin、現在の階層と未設定のcontroller履歴、factoryによる作成の読み取り専用simulationとgas見積を照合した。5操作の未署名planを固定し、ローカルhelperのHTTP 200と初期stateのrevision 0・送信済み操作なし・unknown falseを確認した。拠点の実取引は未実施。公式解決・アプリnamespace設定・paid leaseへの名前発行・権限拒否の実接続は残件であり、T-12全体の完了チェックは付けない。
+NameControllerの人間による配備取引は、独立RPCでexact CREATE、完全runtime、7 immutable、getterと権限、canonical成功receiptを照合し、その後に最終確定を確認した。拠点接続準備では8 code pin、現在の階層と未設定のcontroller履歴、factoryによる作成の読み取り専用simulationとgas見積を照合した。5操作の未署名planを固定し、ローカルhelperのHTTP 200と初期stateのrevision 0・送信済み操作なし・unknown falseを確認した。拠点の署名操作は進行中で、完了したreceipt・最終確定の検証証拠はまだない。公式解決・アプリnamespace設定・paid leaseへの名前発行・権限拒否の実接続は残件であり、T-12全体の完了チェックは付けない。
 
 上位接続後のNameController配備用に、専用plan/flow/client/loopback serverを追加した。固定compilerのASTとartifactから7種類・21箇所のimmutableをconstructor値で埋め、完全なruntimeをCREATE simulationの戻り値と比較する。初期admin/publisherは既存ownerに固定し、8引数・直接CREATE・nonceから導出するcontract address・完全runtime・getter・2つのrole event・canonical receipt・latest/finalized状態を検査する。wrapperへの読み替えは許可せず、started/hashの永続化、unknown時の再送禁止、明示拒否だけの別操作による解除を維持する。
 

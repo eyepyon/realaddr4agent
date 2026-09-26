@@ -6,7 +6,7 @@
 
 Agent認証済みowner向けに、payment-intentとsubscriptionの一覧・詳細read、および`GET /v1/subscriptions/{subscriptionId}/ens`を提供する。これらは認証主体のtenantとagentに束縛し、一覧は`createdAt DESC, document ID DESC`（orders）または`updatedAt DESC, document ID DESC`（leases）で安定順に返す。cursorは署名済みopaque値で、owner、endpoint、sort、limitに束縛する。limitは1〜100、default 20。次ページ有無の判定にはlookaheadを1件だけ読む。DTOは明示的な公開field allowlistから組み立て、暗号文、転送先全文、World識別子、authorization nonceを含めない。
 
-このread実装は購入/更新/ENS購入またはpay mutationを有効化しない。`GET /v1/subscriptions/by-ens`は503で利用不可。ENS未購入または`pending_payment`は`not_purchased`、支払済みで外部検証未接続の状態は`pending`とし、外部登録・controller・leaseを実検証できない限り`ready`を返さない。返金済みは`disabled`。Worldは明示的な設定時だけ有効となる。owner proof・World認証・明示承認・人間専用宛先保存を実装し、owner readは支払い根拠と適用済み同意を検査してmail状態を返す。根拠のないenabledはfail closedとする。管理APIの実認証は未接続。Worldの実接続検証と配備状況は[実装状況](implementation-status.md)を参照する。T-05の一部として内部renew quote/prepare/confirmed-recovery/unpaid-release処理は追加中だが、公開POST intent/payは依然503である。ここで定義するwire shapeは実接続済みAPIを意味しない。
+このread実装は購入/更新/ENS購入またはpay mutationを有効化しない。`GET /v1/subscriptions/by-ens`は検証済みnamespace・code pinを明示設定した場合だけ利用でき、eventでは未有効で503となる。ENS未購入または`pending_payment`は`not_purchased`、支払済みで外部検証未接続の状態は`pending`とし、外部登録・controller・leaseを実検証できない限り`ready`を返さない。返金済みは`disabled`。Worldは明示的な設定時だけ有効となる。owner proof・World認証・明示承認・人間専用宛先保存を実装し、owner readは支払い根拠と適用済み同意を検査してmail状態を返す。根拠のないenabledはfail closedとする。管理APIは独立したGoogle OIDCとoperator sessionを実装・event配備済みで、本人のログイン成功報告と停止中拠点の登録を確認した。Worldの実接続検証と配備状況は[実装状況](implementation-status.md)を参照する。T-05の一部として内部renew quote/prepare/confirmed-recovery/unpaid-release処理を実装したが、公開POST intent/payは依然503である。ここで定義するwire shapeは実接続済みAPIを意味しない。
 
 ## 共通
 

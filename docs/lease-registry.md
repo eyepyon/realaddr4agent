@@ -6,7 +6,7 @@ T-07のcontract準備と手動登録手順。Ethereum Sepoliaへ人間承認のw
 
 `REGISTRY_READBACK_ENABLED`は既定でfalse。有効化には`REGISTRY_CHAIN_ID=11155111`、`MULTIBAAS_CHAIN_LABEL=ethereum`、`REGISTRY_FINALITY_POLICY=finalized`と、保護された`REGISTRY_ADDRESS`、`REGISTRY_CONTRACT_LABEL`、`REGISTRY_CONTRACT_VERSION`、`REGISTRY_RUNTIME_CODE_HASH`、`REGISTRY_RPC_URL`、`MULTIBAAS_URL`、`MULTIBAAS_API_KEY`が必要。runtime hashは検証済みdeployed bytecodeのKeccak-256で、export manifestのSHA-256とは異なる。MultiBaas URLはHTTPSの単一deployment host、redirect不可とする。
 
-購入・更新の確定transactionは、対象leaseへ最新の`registryPaymentOrderId`を保存する。workerはoutboxのclaimとversion、確定payment・注文・receipt guard・区画所有・支払いから導く期限を再検査する。初回prepareでランダムな`buildingKey`、`leaseKey`、`holderSalt`とholder commitmentを原子的に保存し、更新・再実行でも保持する。欠損した既存identityは再生成せず停止する。内部ID・住所・World情報は照合要求へ含めない。
+購入・更新の確定transactionは、対象leaseへ最新の`registryPaymentOrderId`を保存する。workerはoutboxのclaimとversion、確定payment・注文・receipt guard・区画所有・支払いから導く期限を再検査する。初回prepareでランダムな`leaseKey`、`holderSalt`とholder commitmentを原子的に保存し、更新・再実行でも保持する。`buildingKey`は既存値を再利用し、まだない場合だけ原子的に生成する。ENS拠点接続を先に準備する場合は、停止中の未使用拠点へ`ensureNamespaceBuildingKey`で保存した同じ値を使用する。初期化の条件は[ENSv2設計](ensv2.md)を参照。欠損した既存identityは再生成せず停止する。内部ID・住所・World情報は照合要求へ含めない。
 
 RPCの`finalized` blockを取得し、そのblockのruntime codeと`getLease`を検証する。同じblock番号をMultiBaasにも指定し、6つの戻り値とcanonical block hashが一致する場合だけ、claimと現在versionを再検査して`chainSyncStatus=synced`にする。古いversionのjobはsupersededとし、新しい状態を上書きしない。外部呼び出しはFirestore transactionの外で行い、照合全体の期限は20秒。失敗・不一致は既存の上限付きretry/manual reviewに残す。
 
@@ -16,6 +16,8 @@ MultiBaasのblock指定には[公式APIのhistorical blocks機能](https://githu
 
 Foundry 1.7.1、Solidity 0.8.30、OpenZeppelin Contracts 5.4.0を使用する。optimizerは200 runs、EVMはCancun。workspaceの依存をlockfileから導入した後、repository rootから実行する。
 
+Windows PowerShell（repository rootから）:
+
 ```powershell
 Push-Location contracts
 forge build
@@ -23,6 +25,14 @@ forge test
 Pop-Location
 node scripts/export-lease-registry.mjs
 ```
+
+WSL bash / macOS zsh（repository rootから。OS別の実行は未検証）:
+
+```sh
+(cd contracts && forge build && forge test) && node scripts/export-lease-registry.mjs
+```
+
+共通のNode/pnpmとOSごとの準備は[開発環境](development.md)を参照する。
 
 exportは`contracts/out/LeaseRegistry.sol/LeaseRegistry.json`を検査し、未追跡の`contracts/dist/`へ次を出力する。外部API呼出やdeployは行わない。
 
@@ -59,7 +69,21 @@ compiler/settings/contract/constructor不一致、空bytecode、未解決library
 
 MultiBaas UIで正しいconstructor値を指定しても「Missing the transaction to continue」となり、wallet署名画面が開かない事象が確認されている。これはUI側の原因が確定したことを意味しない。登録済みdefinitionのABI・bytecode一致だけではdeploy成功とみなさない。
 
-ローカル補助画面を用意した。`REGISTRY_DEPLOY_WALLET`には手動testで`admin`・`writer`に使うwallet addressをローカル環境変数として設定し、`node scripts/serve-registry-deploy.mjs --wallet "$env:REGISTRY_DEPLOY_WALLET" --port <port>`を起動する。helperはreview済みartifactのみを使い、`127.0.0.1`だけにbindし、chain ID 11155111以外では動作しない。serverが表示するloopback URLを、MetaMaskが有効な同じbrowserで開き、connect後にestimate結果とtransaction内容を確認して、人間がwallet上で承認する。serverやrepositoryへ鍵・seed phrase・MultiBaas API secretを設定しない。
+ローカル補助画面を用意した。`REGISTRY_DEPLOY_WALLET`には手動testで`admin`・`writer`に使うwallet addressをローカル環境変数として設定し、次のcommandを起動する。`REGISTRY_DEPLOY_PORT`は使用するloopback portを環境変数で指定する。
+
+Windows PowerShell:
+
+```powershell
+node scripts/serve-registry-deploy.mjs --wallet "$env:REGISTRY_DEPLOY_WALLET" --port "$env:REGISTRY_DEPLOY_PORT"
+```
+
+WSL bash / macOS zsh（未検証）:
+
+```sh
+node scripts/serve-registry-deploy.mjs --wallet "$REGISTRY_DEPLOY_WALLET" --port "$REGISTRY_DEPLOY_PORT"
+```
+
+helperはreview済みartifactのみを使い、`127.0.0.1`だけにbindし、chain ID 11155111以外では動作しない。serverが表示するloopback URLを、MetaMaskが有効な同じbrowserで開き、connect後にestimate結果とtransaction内容を確認して、人間がwallet上で承認する。serverやrepositoryへ鍵・seed phrase・MultiBaas API secretを設定しない。
 
 送信結果が不明なら再試行せず、先にchain上で結果を照合する。確定したtransactionのreceipt、runtime code、rolesをon-chainで確認してからMultiBaasでcontractをlinkする。helper/browserからのreceipt・code報告だけではdeploy成功の証拠とせず、毎回独立したRPCでreceipt、runtime code、rolesを検証する。今回のdeployではその独立確認を完了した。同一artifactとwalletについて同時起動を拒否する。異常終了で起動用lockが残った場合は、記録されたprocessが停止済みかを確認してから起動用lockだけを整理し、送信試行の状態は保持する。
 
