@@ -26,6 +26,8 @@ deploy scriptの限定mockテスト14件、構文検査が通過した。無効o
 
 main branchだけを許可するGitHub event Environmentと保護された配備設定を登録し、既存の本アプリ専用Secret Managerへランダムな起動用秘密値を1版登録した。値はTerraform、ログ、リポジトリへ保存しない。WIF apply、イメージbuild/push、Run作成と実配信の結果は後続の実行記録で確認する。
 
+image-only追加commitの通常CIは成功した。WIF有効化と専用repo writer memberのlive planは作成・レビュー済みだが、適用は個別承認待ちで未実施。イメージpushとRun作成も未実施。GitHub Environment/保護設定/起動用secret versionの登録と、デプロイ成功を区別する。初回サービス配備はまず非公開・dispatch無効・Scheduler停止で計画し、起動と権限の実検査後にweb公開を判断する。
+
 ### 利用規約バージョン1の正式採用
 
 2026-09-26に本文15条を `realaddr-v1` として正式採用した。原案用の前文と表示を正式版へ置換し、本versionの提示・同意から適用する。過去の開発用署名は正式同意に読み替えない。`/terms` はindex対象の初期HTMLとし、nav/footer、同意欄、sitemap、llms.txtから参照する。API・Web build・deployは共通の承認済version定数との一致を要求する。本文のversion行と定数の一致もbuild時に確認する。
