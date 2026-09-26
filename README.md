@@ -14,7 +14,7 @@ InterceptaのQuick Scan client、購入・更新の内部screening gate、`pnpm 
 
 World sandboxのOIDC adapter、人間sessionとowner wallet proof、Firestoreの明示同意・宛先version管理、人間専用フォームをeventへ配備しました。設定の既定は無効で、eventでは専用web設定を有効化し、公開後の未認証・Agent拒否を確認しました。live認証・token交換と実paid leaseでの承認は未検証です。eventの模擬proofを本番の本人確認や法的KYCとは扱いません。[World接続手順](docs/world.md)を参照してください。
 
-ENSv2の名前予約・一度だけの購入権、契約別Resolverを生成するNameController、finalized blockでの階層・契約照合、owner APIとCLIを実装しました。公式Sepolia deploymentと親名の取得可能性は読み取り確認済みですが、親名取得・namespace構築・実paid leaseでの名前発行は未完了です。販売は引き続き停止し、人間署名による親名取得を準備しています。[ENSv2設計と設定](docs/ensv2.md)を参照してください。
+ENSv2の名前予約・一度だけの購入権、契約別Resolverを生成するNameController、finalized blockでの階層・契約照合、owner APIとCLIを実装しました。公式Sepolia deploymentを照合し、人間署名による親名取得と登録receiptの最終確定を確認しました。namespace構築・実paid leaseでの名前発行は未完了で、販売は引き続き停止しています。[ENSv2設計と設定](docs/ensv2.md)を参照してください。
 
 ## 読む順序
 

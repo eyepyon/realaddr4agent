@@ -1,6 +1,6 @@
 # ENSv2と住所契約の紐づけ — 採用設計
 
-更新: 2026-09-27。ENSv2機能の実装・Sepolia接続とデモ検証は初回リリースの対象とするが、利用者への名前発行は希望者だけが初回追加料金を支払う任意オプション。住所契約だけで利用できる。名前予約・購入権のDB処理、照合adapter、NameController、API/CLI接続を実装中。親名の取得可能性と公式Sepolia deploymentを読み取り確認したが、親名取得・controller配備・実paid leaseでの名前発行は未実施。料金境界は[pricing.md](pricing.md)に従う。
+更新: 2026-09-27。ENSv2機能の実装・Sepolia接続とデモ検証は初回リリースの対象とするが、利用者への名前発行は希望者だけが初回追加料金を支払う任意オプション。住所契約だけで利用できる。名前予約・購入権のDB処理、照合adapter、NameController、API/CLI接続を実装中。公式Sepolia deploymentと、人間署名による親名取得・登録receiptの最終確定を確認した。上位/拠点registryの接続・controller配備・実paid leaseでの名前発行は未実施。料金境界は[pricing.md](pricing.md)に従う。
 
 ## 1. 使い方
 
@@ -40,6 +40,8 @@ ENSv2の階層registry、期限付きサブネーム、キー単位権限をプ�
 - backendが確認した支払いから契約を発行する構成で、チェーン間支払いproofやbridgeを実装するものではない。第三者に対しては「事業者が発行した利用権の証明」と説明する。
 - MultiBaasのSepolia利用権限をT-00で確認する。未確認ならblockerを記録し、ENSを独自テストchainへ置換して完成扱いしない。
 - 親名・拠点名の有効期限は発行する契約名より長く保つ。親または拠点名の残存期間が不足すると新規販売・発行・更新を保留し事業者更新を要求する。拠点の中間登録、registry deploy/接続、更新にもSepolia gasが必要であり、名前販売前に正しい階層を確認する。
+
+上位registryの初期接続用に`planUpperRegistry`を用意する。これは、検査済みの親状態・code pin・未使用の予測アドレスを入力として、専用proxy作成、逆向き親情報の設定、親名のsubregistry接続の3つの未署名callを生成するだけである。root権限はregister・setParent・renewに限定する。送信前の最新状態確認、receipt照合、拠点registryとcontrollerの接続は別途必要で、計画の生成だけで`namespaceReady`をtrueにしない。
 
 ## 4. 名前・識別子
 

@@ -12,7 +12,7 @@
 | T-05 住所更新 | 部分実装・ローカル検証済み | 同一leaseの更新排他、固定見積、確定支払いの一度だけの反映、結果不明保持、保存済みreceiptからのworker復旧。公開更新API・実決済・chain/ENS同期は未接続 |
 | T-00/T-04 Intercepta | 初期client・内部gate実装、live疎通確認済み | 認証付きQuick ScanでHTTP 200・schema一致を確認。危険traitのdeny・未知holdと購入/更新の検査を実装。安全基準・coverage未確認でallowは無効。公開pay・実署名器は未接続 |
 | T-07 LeaseRegistry | 配備済み・DB/worker読み取り照合を部分実装、全体未完了 | 初期権限とMultiBaas紐づけを確認済み。購入・更新のpaid provenance、永続identity、claim/version付き確定block照合を実装しローカル検証。照合は既定無効。実lease記録・取消、event有効化、indexed eventsと永続cursor/reorg回復は未完了 |
-| T-00/T-12/T-13/T-14 ENSv2 | 部分実装・ローカル検証、公式Sepolia読み取り確認済み | 名前予約・一回限りの購入権、controller、exact hierarchy照合、公開/owner API、CLIを実装。親名取得とnamespace構築、書込worker、paid leaseでのlive発行・権限拒否は残件。販売とevent ENS照合は既定無効 |
+| T-00/T-12/T-13/T-14 ENSv2 | 部分実装・ローカル検証、公式Sepolia読み取り確認済み | 名前予約・一回限りの購入権、controller、exact hierarchy照合、公開/owner API、CLIを実装。親名取得とreceipt最終確定は確認済み。namespace構築、書込worker、paid leaseでのlive発行・権限拒否は残件。販売とevent ENS照合は既定無効 |
 | T-02/T-08 所有者向け状態取得 | 部分実装・ローカル検証済み | 注文・契約の一覧と詳細、ENS購入状態をFirestoreから返す。所有権、応答の公開field制限、署名付きcursor、既存CLIの状態取得を確認 |
 | T-05/T-16 worker・outbox | 部分実装・ローカル検証済み | Firestore claim/generation/期限、保存済み支払いからの発行復旧、Cloud Tasks REST配信・結果照合とSchedulerの永続cursor。実送金・eventのchain照合・実Cloud Tasks/Scheduler接続は未検証 |
 | T-08/T-18/T-19 UI | 部分着手 | 公開HTML/AEO、標準SaaSの画面、実APIへの接続。業務統合・実管理者ログインは別途 |
@@ -22,11 +22,21 @@
 
 ## 検証の記録
 
+### T-12 上位registry接続の未署名計画
+
+`planUpperRegistry`を追加し、指定saltとownerから予測するproxy作成、逆向き親情報、親名subregistryの3操作に限定した未署名callを生成する。最終確定した親状態、期待owner、空pointer、接続権限、factoryのproxyLogic、予測アドレスの空codeを入力検査する。入力証跡をこの純粋関数自身が取得・検証したとは扱わず、送信前のlive検査が必要であることを明示する。
+
+検証: `node --test scripts/ens-upper-plan.test.mjs`の3件と構文検査が通過。callのdecode、最小root権限、salt/ownerによるアドレス分離、占有先・証跡欠落・不正親状態の拒否を確認した。同テストをCIへ追加し、既存親登録テストの重複実行を解消した。専用DBの拠点登録は0件と読み取り確認し、利用者が選択した拠点slugは保護された記録に保存した。拠点IDや住所データは作成していない。
+
+Sepoliaの同一finalized blockで4つのruntime pin、親名のowner/期限/空pointer/接続権限、factoryのproxyLogicを再確認した。予測アドレスの未使用を確認し、proxy作成の`eth_call`とgas見積が成功した。未署名計画とhashは保護された記録へ保存した。後続の親接続2操作はproxy実配置後の再検査が必要。
+
+未実施: 上位registryの送信・receipt検証、拠点registry/controllerの配備・正式拠点へのbinding、実paid leaseのENS名発行。親名取得の成功とnamespace完成は別に扱う。
+
 ### 親名登録補助のMetaMask取引照合
 
 親名registerではMetaMaskがENSのERC1155登録token受取確認を第三のcaveatとして追加し、旧policyの件数制限で停止した。register専用に、公式ERC1155残高検査のpin、増加1・期待owner/registry、receipt blockの実`getState(labelhash)`のowner/tokenId一致を検査するpolicy v2を追加した。他操作の許可範囲は増やさない。既存4 pinを変えないv1→v2の追加更新だけを認め、旧policyの実ファイルhashを保存状態と照合する。plan・取引履歴・revisionを消さず同じoriginへ反映した。
 
-関連14テストと、実registerの内側のcall・token受取条件・canonical receiptを修正コードで照合して通過した。親名の登録、期待owner、1年間の期限はliveで一致を確認した。初回確認時のfinalityは待機中であり、上位・拠点namespaceは未接続。補助画面は最終確定待ちを案内し、register再送を促さない。
+関連14テストと、実registerの内側のcall・token受取条件・canonical receiptを修正コードで照合して通過した。親名の登録、期待owner、1年間の期限はliveで一致を確認した。初回確認時のfinalityは待機中だったが、その後canonical receiptとfinalized blockを独立RPCで照合し、最終確定を確認した。補助画面の保存状態も登録確定済み。上位・拠点namespaceは未接続のため`namespaceReady: false`を維持し、register再送を促さない。
 
 MetaMaskが直接callをEIP-7702の`redeemDelegations`へ変換したため、送信済みtest token mintの確認が`transaction_mismatch`で停止した。既存transactionは成功しており、予定token・受取owner・数量のmint eventと内側のcall完全一致を実RPCで確認した。再送や送信履歴の初期化は行っていない。
 
@@ -40,13 +50,13 @@ MetaMaskが直接callをEIP-7702の`redeemDelegations`へ変換したため、�
 
 `RealAddrNameController`は実LeaseRegistryのholder commitment、slot、version、期限を検査し、公式factoryを呼ぶ初回bindで専用resolver生成・record設定・名前登録を一transactionへまとめる。owner registry roleは0、descriptionだけを委任し、通常更新で取消を復活させない。公式ABIと対応sourceを照合した。Resolver権限が名前とkeyの双方に束縛されること、proxy runtimeが契約saltごとに異なることを設計へ反映した。
 
-Sepolia RPCで公式deploymentのruntime、root階層、親候補の空き、registrar待機時間、test token価格とmintのeth_callを確認した。確認値は未追跡の保護記録へ保存した。managed resolver proxyのruntimeがartifactと一致しなかったため、それを信用せず、照合済みの直接Universal Resolverを採用した。人間署名用の親名planは未署名であり、取得済みとは扱わない。
+Sepolia RPCで公式deploymentのruntime、root階層、親候補の空き、registrar待機時間、test token価格とmintのeth_callを確認した。確認値は未追跡の保護記録へ保存した。managed resolver proxyのruntimeがartifactと一致しなかったため、それを信用せず、照合済みの直接Universal Resolverを採用した。この読み取り検証時点では親名planは未署名だった。後続の人間署名・登録確定は上の記録を参照。
 
 実施した検証: ENS DBのEmulator重点5件、CLI wire 1件、API設定・owner/ENS HTTP重点7件とdescription冪等性の追加確認、全workspace型検査が通過。reader 9件、人間署名補助flow 6件と実HTTP/CAS 1件も通過。固定版FoundryとSolidityで既存LeaseRegistry 12件・新controller 5件が通過し、両artifactをcompiler metadata/source一致検査付きで出力した。controllerのENS相手はlocal doubleであり、公式chainでの登録・権限拒否の証拠ではない。local設定でAPI/worker/Webのコンテナ用buildが通過した。
 
 新packageを含むコミット後の配備archive/guard検査26件も通過した。人間署名補助のflow/HTTP検査を通常CIへ追加した。親名登録画面はlocalhostだけで起動し、人間のwallet操作を待つ。鍵を取得せず、送信を自動承認しない。
 
-未実施: 親名取得、上位/拠点registry/controllerの実配置・接続、実paid leaseでの登録→解決→住所取得・description編集と禁止操作、送信器/worker/reorg回復・返金、3ツールのconnected smoke。これらのT-12/T-13/T-14完了チェックは付けない。未接続の購入APIは引き続き販売を拒否する。
+未実施: 上位/拠点registry/controllerの実配置・接続、実paid leaseでの登録→解決→住所取得・description編集と禁止操作、送信器/worker/reorg回復・返金、3ツールのconnected smoke。これらのT-12/T-13/T-14完了チェックは付けない。未接続の購入APIは引き続き販売を拒否する。
 
 ### T-03/T-06 World sandboxと人間専用の郵便設定
 
