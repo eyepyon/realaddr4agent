@@ -1,4 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type RefObject } from "react";
+
+import { useLocale, type Locale } from "../i18n";
+import { adminCopy } from "./admin-copy";
 
 type Session = { displayName: string; role: "operator"; expiresAt: string; csrfToken: string };
 type Section = "overview" | "locations" | "payments" | "subscriptions" | "operations" | "audit";
@@ -13,7 +16,7 @@ const sectionLabels: Record<Section, string> = {
 const statuses: Record<string, string> = {
   available: "販売中", paused: "停止中", pending: "処理待ち", settling: "決済確認中", reconciling: "照合中", unknown: "結果不明",
   pending_readback: "反映確認中", manual_review: "要確認", active: "有効", expired: "期限切れ", fulfilled: "完了", failed: "失敗",
-  not_purchased: "未購入", synced: "同期済み", requested: "受付済み", applied: "反映済み", rejected: "拒否", queued: "照合要求済み",
+  not_purchased: "未購入", synced: "同期済み", requested: "受付済み", applied: "反映済み", rejected: "拒否", queued: "照合要求済み", allow: "許可", deny: "拒否", hold: "保留",
 };
 const columns: Record<Exclude<Section, "overview">, Array<[keyof Row, string]>> = {
   locations: [["displayName", "拠点"], ["slug", "slug"], ["publicArea", "公開エリア"], ["postalCode", "郵便番号"], ["address", "提供住所"], ["status", "販売状態"], ["version", "version"], ["issuedSubscriptionCount", "発行済み契約"]],
@@ -23,19 +26,20 @@ const columns: Record<Exclude<Section, "overview">, Array<[keyof Row, string]>> 
   audit: [["occurredAt", "日時"], ["action", "操作"], ["targetType", "対象種別"], ["targetId", "対象ID"], ["result", "結果"], ["reason", "理由"], ["beforeVersion", "変更前"], ["afterVersion", "変更後"], ["traceId", "trace ID"]],
 };
 
-function labelValue(key: string, value: unknown): string {
+function labelValue(key: string, value: unknown, locale: Locale): string {
+  const tr = (text: string) => adminCopy(locale, text);
   if (value === null || value === undefined || value === "") return "—";
-  if (key === "floor") return `仮想区画 V${String(value).padStart(5, "0")}`;
-  if (key === "amountAtomic") return `${String(value)} USDC atomic（6桁）`;
-  if (key === "mailEnabled") return value ? "有効" : "無効";
-  if (key === "destinationConfigured") return value ? "登録済み" : "未登録";
-  if (key === "ensNameType") return value === "floor" ? "標準名" : value === "custom" ? "custom名" : "未購入";
-  if (key.toLowerCase().includes("at") || key === "expiresAt") {
+  if (key === "floor") return `${tr("仮想区画")} V${String(value).padStart(5, "0")}`;
+  if (key === "amountAtomic") return `${String(value)} USDC atomic (${locale === "ja" ? "6桁" : "6 decimals"})`;
+  if (key === "mailEnabled") return tr(value ? "有効" : "無効");
+  if (key === "destinationConfigured") return tr(value ? "登録済み" : "未登録");
+  if (key === "ensNameType") return tr(value === "floor" ? "標準名" : value === "custom" ? "custom名" : "未購入");
+  if (key.endsWith("At") || key === "asOf") {
     const date = new Date(String(value));
     if (Number.isNaN(date.valueOf())) return String(value);
-    return `${new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeStyle: "short" }).format(date)}（${date.toISOString()}）`;
+    return `${new Intl.DateTimeFormat(locale === "ja" ? "ja-JP" : "en-US", { dateStyle: "medium", timeStyle: "short" }).format(date)} (${date.toISOString()})`;
   }
-  return statuses[String(value)] ?? String(value);
+  return ["status", "riskVerdict", "ensStatus", "registryStatus", "result"].includes(key) ? tr(statuses[String(value)] ?? String(value)) : String(value);
 }
 
 function makeQuery(section: Exclude<Section, "overview">, filters: FilterState, cursor?: string): URLSearchParams {
@@ -91,6 +95,8 @@ function statusClass(value: unknown): string {
 }
 
 export function AdminApp() {
+  const { locale, href, t } = useLocale();
+  const tr = (text: string) => adminCopy(locale, text);
   const [session, setSession] = useState<Session | null>(null);
   const [authState, setAuthState] = useState<"loading" | "ready" | "login" | "unconfigured" | "error">("loading");
   const [authError, setAuthError] = useState("");
@@ -254,7 +260,7 @@ export function AdminApp() {
   const startLocationEdit = (row: Row) => { setEditingLocation(row); setFormErrors({}); };
   const closeLocationEdit = () => {
     const hasChanges = formRef.current ? Array.from(formRef.current.elements).some((element) => element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement ? element.name !== "reason" && element.value !== element.defaultValue || element.name === "reason" && element.value.trim() !== "" : false) : false;
-    if (hasChanges && !window.confirm("編集内容を破棄して閉じますか？")) return;
+    if (hasChanges && !window.confirm(tr("編集内容を破棄して閉じますか？"))) return;
     setEditingLocation(null); setLocationForm(false); setFormErrors({});
   };
 
@@ -305,70 +311,78 @@ export function AdminApp() {
     } });
   };
 
-  const pageLabel = useMemo(() => section === "overview" ? "概要" : sectionLabels[section], [section]);
+  const pageLabel = sectionLabels[section];
 
-  if (authState === "loading") return <main className="login-page"><div className="login-card"><h1>運用者認証を確認しています</h1><p role="status">管理APIへ接続しています。</p></div></main>;
-  if (authState !== "ready" || !session) return <main className="login-page"><div className="login-card"><a className="brand" href="/">RealAddr <span>for Agents</span></a><h1>{authState === "login" ? "運用者ログイン" : authState === "unconfigured" ? "管理画面は未設定です" : "管理画面へ接続できません"}</h1><p role="status">{authState === "login" ? "運用者データを表示するには、登録済みアカウントでログインしてください。" : authState === "unconfigured" ? "運用者認証が設定されていないため、管理データは表示できません。" : authError}</p>{authState === "login" && <a className="admin-button primary" href="/auth/admin/start">Googleでログイン</a>}{authState === "error" && <button className="admin-button" onClick={() => window.location.reload()}>再試行</button>}<p><a href="/">公開トップへ</a></p></div></main>;
+  if (authState === "loading") return <main className="login-page"><div className="login-card"><h1>{tr("運用者認証を確認しています")}</h1><p role="status">{tr("管理APIへ接続しています。")}</p></div></main>;
+  if (authState !== "ready" || !session) return <main className="login-page"><div className="login-card"><a className="brand" href={href("/")}>RealAddr <span>for Agents</span></a><h1>{tr(authState === "login" ? "運用者ログイン" : authState === "unconfigured" ? "管理画面は未設定です" : "管理画面へ接続できません")}</h1><p role="status">{tr(authState === "login" ? "運用者データを表示するには、登録済みアカウントでログインしてください。" : authState === "unconfigured" ? "運用者認証が設定されていないため、管理データは表示できません。" : authError)}</p>{authState === "login" && <a className="admin-button primary" href="/auth/admin/start">{tr("Googleでログイン")}</a>}{authState === "error" && <button className="admin-button" onClick={() => window.location.reload()}>{tr("再試行")}</button>}<p><a href={href("/")}>{tr("公開トップへ")}</a></p></div></main>;
 
   return <div className="admin-shell">
-    <aside className="admin-sidebar"><a className="brand" href="/">RealAddr <span>for Agents</span></a><nav aria-label="運用メニュー">{(Object.keys(sectionLabels) as Section[]).map((key) => <button key={key} aria-current={section === key ? "page" : undefined} onClick={() => changeSection(key)}>{sectionLabels[key]}</button>)}</nav><p className="environment-label">testnet / sandbox<br />決済 Base Sepolia · ENS Ethereum Sepolia</p></aside>
+    <aside className="admin-sidebar"><a className="brand" href={href("/")}>RealAddr <span>for Agents</span></a><nav aria-label={tr("運用メニュー")}>{(Object.keys(sectionLabels) as Section[]).map((key) => <button key={key} aria-current={section === key ? "page" : undefined} onClick={() => changeSection(key)}>{tr(sectionLabels[key])}</button>)}</nav><p className="environment-label">testnet / sandbox<br />{t("決済 Base Sepolia · ENS Ethereum Sepolia", "Payments Base Sepolia · ENS Ethereum Sepolia")}</p></aside>
     <main className="admin-main" id="main-content">
-      <div className="admin-topbar"><div className="admin-heading"><p className="eyebrow">運用コンソール</p><h1>{pageLabel}</h1><p>{session.displayName} · operator · session期限 {labelValue("expiresAt", session.expiresAt)}</p></div><div className="admin-actions"><button className="admin-button" disabled={busy || mutationBusy} onClick={refresh}>更新</button><button className="admin-button" onClick={() => void request("/v1/admin/session", { method: "DELETE", body: "{}", headers: { "X-CSRF-Token": session.csrfToken, "Idempotency-Key": crypto.randomUUID() } }).then(() => window.location.reload()).catch((e) => setNotice({ kind: "error", text: publicError(e) }))}>ログアウト</button></div></div>
-      {notice && <div className={`notice compact ${notice.kind}`} role="status" aria-live="polite">{notice.text}</div>}
-      {pendingMutation && <div className="notice warning" role="alert"><strong>結果不明の操作があります。</strong><p>{pendingMutation.label}を同じ内容で再試行できます。先に対象状態を再取得して確認してください。</p><button className="admin-button" disabled={mutationBusy} onClick={() => void mutate(pendingMutation)}>同じ操作を再試行</button></div>}
+      <div className="admin-topbar"><div className="admin-heading"><p className="eyebrow">{tr("運用コンソール")}</p><h1>{tr(pageLabel)}</h1><p>{session.displayName} · operator · {t("session期限", "session expires")} {labelValue("expiresAt", session.expiresAt, locale)}</p></div><div className="admin-actions"><button className="admin-button" disabled={busy || mutationBusy} onClick={refresh}>{tr("更新")}</button><button className="admin-button" onClick={() => void request("/v1/admin/session", { method: "DELETE", body: "{}", headers: { "X-CSRF-Token": session.csrfToken, "Idempotency-Key": crypto.randomUUID() } }).then(() => window.location.reload()).catch((e) => setNotice({ kind: "error", text: publicError(e) }))}>{tr("ログアウト")}</button></div></div>
+      {notice && <div className={`notice compact ${notice.kind}`} role="status" aria-live="polite">{tr(notice.text)}</div>}
+      {pendingMutation && <div className="notice warning" role="alert"><strong>{tr("結果不明の操作があります。")}</strong><p>{t(`${pendingMutation.label}を同じ内容で再試行できます。先に対象状態を再取得して確認してください。`, `${tr(pendingMutation.label)} can be retried with the same content. Reload and check the target state first.`)}</p><button className="admin-button" disabled={mutationBusy} onClick={() => void mutate(pendingMutation)}>{tr("同じ操作を再試行")}</button></div>}
       {section === "overview" ? <OverviewPanel value={overview} /> : <>
-        {section === "locations" && <div className="admin-toolbar"><button className="admin-button primary" onClick={() => { setLocationForm((v) => !v); setFormErrors({}); }}>拠点を登録</button></div>}
+        {section === "locations" && <div className="admin-toolbar"><button className="admin-button primary" onClick={() => { setLocationForm((v) => !v); setFormErrors({}); }}>{tr("拠点を登録")}</button></div>}
         {section !== "audit" && <FilterForm section={section} values={filters} busy={busy} onChange={setFilters} onSubmit={submitFilters} />}
         {section === "audit" && <FilterForm section={section} values={filters} busy={busy} onChange={setFilters} onSubmit={submitFilters} />}
         {locationForm && section === "locations" && <LocationCreateForm busy={mutationBusy || !!pendingMutation} errors={formErrors} onSubmit={createLocation} onCancel={() => setLocationForm(false)} />}
-        {busy ? <div className="empty-state" role="status">データを読み込んでいます。</div> : <DataTable section={section} rows={rows} onOpen={setDetail} onEdit={section === "locations" ? startLocationEdit : undefined} onToggle={section === "locations" ? requestLocationStatus : undefined} onReconcile={section === "operations" ? requestReconcile : undefined} />}
-        <div className="pagination"><span className="muted">このページの {rows.length} 件</span><button className="admin-button" disabled={cursorStack.length <= 1 || busy} onClick={() => changePage("previous")}>前へ</button><button className="admin-button" disabled={!nextCursor || busy || !!appliedFilters.id} onClick={() => changePage("next")}>次へ</button></div>
+        {busy ? <div className="empty-state" role="status">{tr("データを読み込んでいます。")}</div> : <DataTable section={section} rows={rows} onOpen={setDetail} onEdit={section === "locations" ? startLocationEdit : undefined} onToggle={section === "locations" ? requestLocationStatus : undefined} onReconcile={section === "operations" ? requestReconcile : undefined} />}
+        <div className="pagination"><span className="muted">{t(`このページの ${rows.length} 件`, `${rows.length} records on this page`)}</span><button className="admin-button" disabled={cursorStack.length <= 1 || busy} onClick={() => changePage("previous")}>{tr("前へ")}</button><button className="admin-button" disabled={!nextCursor || busy || !!appliedFilters.id} onClick={() => changePage("next")}>{tr("次へ")}</button></div>
       </>}
     </main>
     {detail && <DetailDrawer section={section} row={detail} onClose={() => setDetail(null)} />}
     {editingLocation && <LocationEditDrawer row={editingLocation} formRef={formRef} busy={mutationBusy || !!pendingMutation} errors={formErrors} onSubmit={saveLocation} onClose={closeLocationEdit} />}
-    {confirm && <div className="dialog-backdrop" role="presentation"><section className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title"><h2 id="confirm-title">{confirm.title}</h2><p>{confirm.description}</p><label className="field">操作理由<textarea value={reason} minLength={3} maxLength={500} onChange={(event) => { setReason(event.target.value); reasonRef.current = event.target.value; }} /></label><p className="muted">理由は監査記録に保存されます。3〜500文字で入力してください。</p><div className="confirm-actions"><button className="admin-button" onClick={() => setConfirm(null)}>キャンセル</button><button className="admin-button primary" disabled={mutationBusy || !!pendingMutation || reason.trim().length < 3} onClick={() => confirm.action()}>実行</button></div></section></div>}
+    {confirm && <div className="dialog-backdrop" role="presentation"><section className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title"><h2 id="confirm-title">{tr(confirm.title)}</h2><p>{tr(confirm.description)}</p><label className="field">{tr("操作理由")}<textarea value={reason} minLength={3} maxLength={500} onChange={(event) => { setReason(event.target.value); reasonRef.current = event.target.value; }} /></label><p className="muted">{tr("理由は監査記録に保存されます。3〜500文字で入力してください。")}</p><div className="confirm-actions"><button className="admin-button" onClick={() => setConfirm(null)}>{tr("キャンセル")}</button><button className="admin-button primary" disabled={mutationBusy || !!pendingMutation || reason.trim().length < 3} onClick={() => confirm.action()}>{tr("実行")}</button></div></section></div>}
   </div>;
 }
 
 function OverviewPanel({ value }: { value: Row | null }) {
-  if (!value) return <div className="empty-state">概要を取得できません。更新してください。</div>;
+  const { locale, t } = useLocale();
+  const tr = (text: string) => adminCopy(locale, text);
+  if (!value) return <div className="empty-state">{tr("概要を取得できません。更新してください。")}</div>;
   const metrics = [["locationCount", "拠点"], ["activeSubscriptionCount", "有効契約"], ["uncertainPaymentCount", "決済確認中"], ["syncPendingCount", "同期保留"], ["manualReviewCount", "要確認"]] as const;
-  return <><p className="muted">{value.available === true ? `集計時刻: ${labelValue("asOf", value.asOf)}` : "集計を取得できません。未取得を0件として表示していません。"}</p><div className="metric-grid">{metrics.map(([key, title]) => <dl className="metric" key={key}><dt>{title}</dt><dd>{value.available === true && typeof value[key] === "number" ? value[key] : "取得不可"}</dd></dl>)}</div><div className="panel"><h2>処理の確認</h2><p>件数は運用APIの bounded 集計です。決済は{labelValue("network", value.paymentNetwork)}, ENSは{labelValue("network", value.ensNetwork)}です。保留・結果不明は成功として扱いません。</p></div></>;
+  return <><p className="muted">{value.available === true ? `${t("集計時刻", "As of")}: ${labelValue("asOf", value.asOf, locale)}` : tr("集計を取得できません。未取得を0件として表示していません。")}</p><div className="metric-grid">{metrics.map(([key, title]) => <dl className="metric" key={key}><dt>{tr(title)}</dt><dd>{value.available === true && typeof value[key] === "number" ? value[key] : tr("取得不可")}</dd></dl>)}</div><div className="panel"><h2>{tr("処理の確認")}</h2><p>{t(`件数は運用APIの bounded 集計です。決済は${labelValue("network", value.paymentNetwork, locale)}, ENSは${labelValue("network", value.ensNetwork, locale)}です。保留・結果不明は成功として扱いません。`, `Counts are bounded aggregates from the operator API. Payments use ${labelValue("network", value.paymentNetwork, locale)} and ENS uses ${labelValue("network", value.ensNetwork, locale)}. Pending and unknown outcomes are not treated as successful.`)}</p></div></>;
 }
 
 function FilterForm({ section, values, busy, onChange, onSubmit }: { section: Exclude<Section, "overview">; values: FilterState; busy: boolean; onChange: (value: FilterState) => void; onSubmit: (event: FormEvent) => void }) {
+  const { locale } = useLocale();
+  const tr = (text: string) => adminCopy(locale, text);
   const idEnabled = section !== "audit";
   const set = (key: string, value: string) => onChange({ ...values, [key]: value });
   const lookup = !!values.id?.trim();
   const clear = () => onChange({});
   return <form className="admin-toolbar filter-form" onSubmit={onSubmit}>
-    {section === "locations" && <SelectFilter label="販売状態" value={values.status ?? ""} disabled={busy || lookup} options={[["", "すべて"], ["available", "販売中"], ["paused", "停止中"]]} onChange={(value) => set("status", value)} />}
+    {section === "locations" && <SelectFilter label={tr("販売状態")} value={values.status ?? ""} disabled={busy || lookup} options={[["", "すべて"], ["available", "販売中"], ["paused", "停止中"]]} onChange={(value) => set("status", value)} />}
     {(section === "payments" || section === "subscriptions") && <>
-      <SelectFilter label={section === "payments" ? "決済状態" : "契約状態"} value={values.status ?? ""} disabled={busy || lookup} options={[["", "すべて"], ["pending", "処理待ち"], ["settling", "決済確認中"], ["fulfilled", "完了"], ["failed", "失敗"], ["active", "有効"], ["expired", "期限切れ"]]} onChange={(value) => set("status", value)} />
-      <TextFilter label="拠点ID" value={values.locationId ?? ""} disabled={busy || lookup} onChange={(value) => set("locationId", value)} />
+      <SelectFilter label={tr(section === "payments" ? "決済状態" : "契約状態")} value={values.status ?? ""} disabled={busy || lookup} options={[["", "すべて"], ["pending", "処理待ち"], ["settling", "決済確認中"], ["fulfilled", "完了"], ["failed", "失敗"], ["active", "有効"], ["expired", "期限切れ"]]} onChange={(value) => set("status", value)} />
+      <TextFilter label={tr("拠点ID")} value={values.locationId ?? ""} disabled={busy || lookup} onChange={(value) => set("locationId", value)} />
     </>}
     {section === "operations" && <>
-      <SelectFilter label="処理種別" value={values.kind ?? ""} disabled={busy || lookup} options={[["", "すべて"], ["payment", "決済"], ["registry", "Registry"], ["ens", "ENS"]]} onChange={(value) => set("kind", value)} />
-      <SelectFilter label="状態" value={values.status ?? ""} disabled={busy || lookup} options={[["", "すべて"], ["reconciling", "照合中"], ["pending_readback", "反映確認中"], ["manual_review", "要確認"], ["unknown", "結果不明"]]} onChange={(value) => set("status", value)} />
+      <SelectFilter label={tr("処理種別")} value={values.kind ?? ""} disabled={busy || lookup} options={[["", "すべて"], ["payment", "決済"], ["registry", "Registry"], ["ens", "ENS"]]} onChange={(value) => set("kind", value)} />
+      <SelectFilter label={tr("状態")} value={values.status ?? ""} disabled={busy || lookup} options={[["", "すべて"], ["reconciling", "照合中"], ["pending_readback", "反映確認中"], ["manual_review", "要確認"], ["unknown", "結果不明"]]} onChange={(value) => set("status", value)} />
     </>}
-    {section === "audit" && <><TextFilter label="対象種別" value={values.targetType ?? ""} onChange={(value) => set("targetType", value)} /><TextFilter label="対象ID" value={values.targetId ?? ""} onChange={(value) => set("targetId", value)} /></>}
-    {idEnabled && <TextFilter label="IDで一件検索" value={values.id ?? ""} disabled={busy} onChange={(value) => set("id", value)} />}
-    <button className="admin-button primary" type="submit" disabled={busy}>検索</button><button className="admin-button" type="button" disabled={busy} onClick={clear}>条件クリア</button>
-    {lookup && <span className="muted">ID検索は他条件・ページ送りと併用しません。</span>}
+    {section === "audit" && <><TextFilter label={tr("対象種別")} value={values.targetType ?? ""} onChange={(value) => set("targetType", value)} /><TextFilter label={tr("対象ID")} value={values.targetId ?? ""} onChange={(value) => set("targetId", value)} /></>}
+    {idEnabled && <TextFilter label={tr("IDで一件検索")} value={values.id ?? ""} disabled={busy} onChange={(value) => set("id", value)} />}
+    <button className="admin-button primary" type="submit" disabled={busy}>{tr("検索")}</button><button className="admin-button" type="button" disabled={busy} onClick={clear}>{tr("条件クリア")}</button>
+    {lookup && <span className="muted">{tr("ID検索は他条件・ページ送りと併用しません。")}</span>}
   </form>;
 }
 
 function TextFilter({ label, value, disabled = false, onChange }: { label: string; value: string; disabled?: boolean; onChange: (value: string) => void }) { return <label className="field">{label}<input value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} /></label>; }
-function SelectFilter({ label, value, disabled, options, onChange }: { label: string; value: string; disabled: boolean; options: Array<[string, string]>; onChange: (value: string) => void }) { return <label className="field">{label}<select value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)}>{options.map(([key, name]) => <option key={key} value={key}>{name}</option>)}</select></label>; }
+function SelectFilter({ label, value, disabled, options, onChange }: { label: string; value: string; disabled: boolean; options: Array<[string, string]>; onChange: (value: string) => void }) { const { locale } = useLocale(); const tr = (text: string) => adminCopy(locale, text); return <label className="field">{label}<select value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)}>{options.map(([key, name]) => <option key={key} value={key}>{tr(name)}</option>)}</select></label>; }
 
 function DataTable({ section, rows, onOpen, onEdit, onToggle, onReconcile }: { section: Exclude<Section, "overview">; rows: Row[]; onOpen: (row: Row) => void; onEdit?: (row: Row) => void; onToggle?: (row: Row, status: "available" | "paused") => void; onReconcile?: (row: Row) => void }) {
-  if (!rows.length) return <div className="empty-state"><strong>表示するデータがありません</strong><p>絞り込み条件を確認するか、必要な運用操作を行ってください。</p></div>;
+  const { locale } = useLocale();
+  const tr = (text: string) => adminCopy(locale, text);
+  if (!rows.length) return <div className="empty-state"><strong>{tr("表示するデータがありません")}</strong><p>{tr("絞り込み条件を確認するか、必要な運用操作を行ってください。")}</p></div>;
   const visibleColumns = columns[section];
-  return <div className="table-wrap"><table><thead><tr>{visibleColumns.map(([key, title]) => <th key={String(key)} scope="col">{title}</th>)}<th scope="col">詳細 / 操作</th></tr></thead><tbody>{rows.map((row, index) => <tr key={String(row.id ?? row.eventId ?? `${section}-${index}`)}>{visibleColumns.map(([key]) => <td key={String(key)}>{key === "status" || key === "riskVerdict" || key === "ensStatus" || key === "registryStatus" || key === "result" ? <span className={`status-badge ${statusClass(row[key])}`}>{labelValue(String(key), row[key])}</span> : labelValue(String(key), row[key])}</td>)}<td className="row-actions"><button className="row-button" onClick={() => onOpen(row)}>詳細</button>{section === "locations" && onEdit && <><button className="row-button" onClick={() => onEdit(row)}>編集</button>{onToggle && <button className="row-button" onClick={() => onToggle(row, row.status === "available" ? "paused" : "available")}>{row.status === "available" ? "停止" : "再開"}</button>}</>}{section === "operations" && onReconcile && <button className="row-button" onClick={() => onReconcile(row)}>照合要求</button>}</td></tr>)}</tbody></table></div>;
+  return <div className="table-wrap"><table><thead><tr>{visibleColumns.map(([key, title]) => <th key={String(key)} scope="col">{tr(title)}</th>)}<th scope="col">{tr("詳細 / 操作")}</th></tr></thead><tbody>{rows.map((row, index) => <tr key={String(row.id ?? row.eventId ?? `${section}-${index}`)}>{visibleColumns.map(([key]) => <td key={String(key)}>{key === "status" || key === "riskVerdict" || key === "ensStatus" || key === "registryStatus" || key === "result" ? <span className={`status-badge ${statusClass(row[key])}`}>{labelValue(String(key), row[key], locale)}</span> : labelValue(String(key), row[key], locale)}</td>)}<td className="row-actions"><button className="row-button" onClick={() => onOpen(row)}>{tr("詳細")}</button>{section === "locations" && onEdit && <><button className="row-button" onClick={() => onEdit(row)}>{tr("編集")}</button>{onToggle && <button className="row-button" onClick={() => onToggle(row, row.status === "available" ? "paused" : "available")}>{tr(row.status === "available" ? "停止" : "再開")}</button>}</>}{section === "operations" && onReconcile && <button className="row-button" onClick={() => onReconcile(row)}>{tr("照合要求")}</button>}</td></tr>)}</tbody></table></div>;
 }
 
 function DetailDrawer({ section, row, onClose }: { section: Section; row: Row; onClose: () => void }) {
+  const { locale } = useLocale();
+  const tr = (text: string) => adminCopy(locale, text);
   const keys: string[] = section === "overview" ? [] : columns[section].map(([key]) => String(key));
   if (section === "locations") keys.push("id", "plan", "updatedAt");
   if (section === "payments") keys.push("updatedAt");
@@ -376,29 +390,33 @@ function DetailDrawer({ section, row, onClose }: { section: Section; row: Row; o
   if (section === "operations") keys.push("version", "updatedAt");
   if (section === "audit") keys.push("eventId", "actorId", "beforeVersion", "afterVersion", "idempotencyKeyHash", "traceId");
   const allowedKeys = [...new Set(keys)].filter((key) => key in row);
-  return <div className="drawer-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><aside className="detail-drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title"><div className="detail-header"><div><p className="eyebrow">{sectionLabels[section]}</p><h2 id="drawer-title">{String(row.id ?? row.eventId ?? "詳細")}</h2></div><button className="admin-button" onClick={onClose}>閉じる</button></div><dl className="detail-grid">{allowedKeys.map((key) => <div className="detail-row" key={key}><dt>{key}</dt><dd>{labelValue(key, row[key])}</dd></div>)}</dl></aside></div>;
+  return <div className="drawer-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><aside className="detail-drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title"><div className="detail-header"><div><p className="eyebrow">{tr(sectionLabels[section])}</p><h2 id="drawer-title">{String(row.id ?? row.eventId ?? tr("詳細"))}</h2></div><button className="admin-button" onClick={onClose}>{tr("閉じる")}</button></div><dl className="detail-grid">{allowedKeys.map((key) => <div className="detail-row" key={key}><dt>{tr(section === "overview" ? key : columns[section].find(([column]) => column === key)?.[1] ?? key)}</dt><dd>{labelValue(key, row[key], locale)}</dd></div>)}</dl></aside></div>;
 }
 
 function LocationCreateForm({ busy, errors, onSubmit, onCancel }: { busy: boolean; errors: Record<string, string>; onSubmit: (event: FormEvent<HTMLFormElement>) => void; onCancel: () => void }) {
-  return <form className="admin-card location-form" onSubmit={onSubmit}><h2 className="wide">拠点を登録</h2><div className="form-grid">
+  const { locale } = useLocale();
+  const tr = (text: string) => adminCopy(locale, text);
+  return <form className="admin-card location-form" onSubmit={onSubmit}><h2 className="wide">{tr("拠点を登録")}</h2><div className="form-grid">
     <label className="field">slug<input name="slug" required maxLength={63} pattern="[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?" autoComplete="off" /></label>
-    <label className="field">表示名<input name="displayName" required maxLength={100} /></label>
-    <label className="field">公開エリア<input name="publicArea" required maxLength={100} /></label>
-    <label className="field">郵便番号<input name="postalCode" required pattern="[0-9]{3}-?[0-9]{4}" placeholder="123-4567" /></label>
-    <label className="field wide">提供住所<textarea name="address" required minLength={1} maxLength={500} /></label>
-    <label className="field wide">変更理由<textarea name="reason" required minLength={3} maxLength={500} /></label>
-    <p className="wide muted">30日固定plan: testnet/dev 0.55 USDC。新規拠点は停止状態で登録され、販売再開は別操作です。</p>
-    {errors.reason && <p className="wide error-text">{errors.reason}</p>}
-  </div><div className="form-actions"><button className="admin-button primary" disabled={busy}>停止状態で登録</button><button className="admin-button" type="button" disabled={busy} onClick={onCancel}>キャンセル</button></div></form>;
+    <label className="field">{tr("表示名")}<input name="displayName" required maxLength={100} /></label>
+    <label className="field">{tr("公開エリア")}<input name="publicArea" required maxLength={100} /></label>
+    <label className="field">{tr("郵便番号")}<input name="postalCode" required pattern="[0-9]{3}-?[0-9]{4}" placeholder="123-4567" /></label>
+    <label className="field wide">{tr("提供住所")}<textarea name="address" required minLength={1} maxLength={500} /></label>
+    <label className="field wide">{tr("変更理由")}<textarea name="reason" required minLength={3} maxLength={500} /></label>
+    <p className="wide muted">{tr("30日固定plan: testnet/dev 0.55 USDC。新規拠点は停止状態で登録され、販売再開は別操作です。")}</p>
+    {errors.reason && <p className="wide error-text">{tr(errors.reason)}</p>}
+  </div><div className="form-actions"><button className="admin-button primary" disabled={busy}>{tr("停止状態で登録")}</button><button className="admin-button" type="button" disabled={busy} onClick={onCancel}>{tr("キャンセル")}</button></div></form>;
 }
 
 function LocationEditDrawer({ row, formRef, busy, errors, onSubmit, onClose }: { row: Row; formRef: RefObject<HTMLFormElement | null>; busy: boolean; errors: Record<string, string>; onSubmit: (event: FormEvent<HTMLFormElement>) => void; onClose: () => void }) {
-  return <div className="drawer-backdrop" role="presentation"><aside className="detail-drawer" role="dialog" aria-modal="true" aria-labelledby="edit-location-title"><div className="detail-header"><div><p className="eyebrow">拠点を編集</p><h2 id="edit-location-title">{String(row.displayName)}</h2></div><button className="admin-button" onClick={onClose}>閉じる</button></div><p className="muted">version {String(row.version)}。保存時に期待versionを照合します。競合時は最新値を確認してください。</p><form ref={formRef} className="location-form" onSubmit={onSubmit}><div className="form-grid">
-    <label className="field">表示名<input name="displayName" required maxLength={100} defaultValue={String(row.displayName ?? "")} /></label>
-    <label className="field">公開エリア<input name="publicArea" required maxLength={100} defaultValue={String(row.publicArea ?? "")} /></label>
-    <label className="field">郵便番号<input name="postalCode" required pattern="[0-9]{3}-?[0-9]{4}" defaultValue={String(row.postalCode ?? "")} /></label>
-    <label className="field wide">提供住所<textarea name="address" required minLength={1} maxLength={500} defaultValue={String(row.address ?? "")} /></label>
-    <label className="field wide">変更理由<textarea name="reason" required minLength={3} maxLength={500} /></label>
-    {errors.reason && <p className="wide error-text">{errors.reason}</p>}
-  </div><div className="form-actions"><button className="admin-button primary" disabled={busy}>変更を保存</button><button className="admin-button" type="button" onClick={onClose}>キャンセル</button></div></form></aside></div>;
+  const { locale, t } = useLocale();
+  const tr = (text: string) => adminCopy(locale, text);
+  return <div className="drawer-backdrop" role="presentation"><aside className="detail-drawer" role="dialog" aria-modal="true" aria-labelledby="edit-location-title"><div className="detail-header"><div><p className="eyebrow">{tr("拠点を編集")}</p><h2 id="edit-location-title">{String(row.displayName)}</h2></div><button className="admin-button" onClick={onClose}>{tr("閉じる")}</button></div><p className="muted">{t(`version ${String(row.version)}。保存時に期待versionを照合します。競合時は最新値を確認してください。`, `Version ${String(row.version)}. Saving checks the expected version. Check the latest values if a conflict occurs.`)}</p><form ref={formRef} className="location-form" onSubmit={onSubmit}><div className="form-grid">
+    <label className="field">{tr("表示名")}<input name="displayName" required maxLength={100} defaultValue={String(row.displayName ?? "")} /></label>
+    <label className="field">{tr("公開エリア")}<input name="publicArea" required maxLength={100} defaultValue={String(row.publicArea ?? "")} /></label>
+    <label className="field">{tr("郵便番号")}<input name="postalCode" required pattern="[0-9]{3}-?[0-9]{4}" defaultValue={String(row.postalCode ?? "")} /></label>
+    <label className="field wide">{tr("提供住所")}<textarea name="address" required minLength={1} maxLength={500} defaultValue={String(row.address ?? "")} /></label>
+    <label className="field wide">{tr("変更理由")}<textarea name="reason" required minLength={3} maxLength={500} /></label>
+    {errors.reason && <p className="wide error-text">{tr(errors.reason)}</p>}
+  </div><div className="form-actions"><button className="admin-button primary" disabled={busy}>{tr("変更を保存")}</button><button className="admin-button" type="button" onClick={onClose}>{tr("キャンセル")}</button></div></form></aside></div>;
 }

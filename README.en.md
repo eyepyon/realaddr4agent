@@ -15,6 +15,8 @@ Address purchases, renewals and ENS add-ons are currently closed. Implementation
 
 Japanese requirements and design remain authoritative. This English guide is a reader-facing companion, not a second specification. Public and operator HTTP shapes are defined by [public OpenAPI](docs/openapi.json) and [admin OpenAPI](docs/admin-openapi.json). Detailed specifications not yet translated are linked with a Japanese label.
 
+Screens default to English and offer an “English / 日本語” switch. An explicit `?lang=en` or `?lang=ja` takes priority; otherwise the browser restores the saved preference after hydration. Switching language in place preserves form input and authentication state. The adopted terms remain in their Japanese original, clearly identified on English screens. See the [frontend contract (Japanese)](docs/frontend.md).
+
 ## Product flow and boundaries
 
 The intended flow is screening and reservation checks → confirmed x402 payment → persistent address lease → Sepolia lease attestation. ENS is an optional, separately paid, one-time add-on: address purchase alone must not register a name. Its hierarchy is an actual parent registry → location registry → purchased name, with a dedicated resolver per add-on. A text record alone is not proof of entitlement.

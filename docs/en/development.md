@@ -38,6 +38,10 @@ pnpm build
 
 Keep `.env` untracked; `.env.example` defines non-secret local settings. Local demo terms acceptance does not establish acceptance of adopted `realaddr-v1`. Event configuration separately requires formal terms, HTTPS origin, the dedicated named database, and protected inputs. Never inject secrets into `VITE_` variables.
 
+## Frontend language
+
+Screens default to English and use a shared “English / 日本語” switch. A single valid `?lang=en` or `?lang=ja` overrides the browser preference; invalid or repeated values fall back to English. Without an explicit selection, hydration restores the saved `realaddr.locale` preference. Switching in place preserves form input, sessions, and pending challenges without repeating approval or other actions. Public pages include readable English or Japanese HTML before JavaScript runs. The adopted terms remain the Japanese original, and English guidance and consent text identify it as such. The [frontend contract (Japanese)](../frontend.md) and [public discovery contract (Japanese)](../aeo.md) define the details.
+
 ## Firestore Emulator and startup
 
 Obtain the official emulator JAR separately and set `FIRESTORE_EMULATOR_JAR` to an OS-local reference. The verified 1.22.0 SHA-256 is `9b6498b7f62714d67f48f59b3818883cd682dbcd46b9f59511de81c97bb5166c`. Check it before starting the emulator in another terminal.

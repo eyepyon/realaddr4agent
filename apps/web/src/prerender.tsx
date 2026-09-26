@@ -1,7 +1,8 @@
-import { renderToStaticMarkup } from "react-dom/server";
+import { renderToString } from "react-dom/server";
 import { PublicPage } from "./PublicPages";
-import type { PublicPageKey } from "./public-content";
+import { getPublicContent, type PublicPageKey } from "./public-content";
+import { LanguageSwitcher, LocaleProvider, type Locale } from "./i18n";
 
-export function renderPublicPage(page: PublicPageKey): string {
-  return renderToStaticMarkup(<PublicPage page={page} />);
+export function renderPublicPage(page: PublicPageKey, locale: Locale = "en"): string {
+  return renderToString(<LocaleProvider initialLocale={locale} restorePreference={false}><LanguageSwitcher path={getPublicContent(locale).pages[page].path} /><PublicPage page={page} /></LocaleProvider>);
 }

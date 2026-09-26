@@ -23,6 +23,10 @@
 
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; background: var(--page); }
+.language-bar { background: #fff; border-bottom: 1px solid var(--line); }
+.language-switcher { width: min(1200px, calc(100% - 32px)); min-height: 44px; margin: auto; display: flex; justify-content: flex-end; align-items: center; gap: 4px; }
+.language-switcher a { display: inline-flex; min-height: 36px; align-items: center; padding: 4px 12px; border-radius: 6px; color: var(--muted); text-decoration: none; font-size: 14px; }
+.language-switcher a[aria-current="true"] { color: var(--blue); background: #edf3ff; font-weight: 700; }
 a { color: var(--blue); text-underline-offset: .16em; }
 a:hover { color: var(--blue-dark); }
 button, input, select, textarea { font: inherit; }

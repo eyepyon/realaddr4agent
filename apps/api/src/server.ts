@@ -207,6 +207,12 @@ export function createApp(config: ApiConfig, repository: RealAddrRepository | nu
 
   const staticRoute = async (request: FastifyRequest, reply: FastifyReply, file: string, privacy: boolean) => {
     try {
+      if ((file.endsWith('.html') || file === 'llms.txt') && !privacy) {
+        const query = new URL(request.url, 'http://localhost').searchParams.getAll('lang');
+        const locale = query.length === 1 && query[0] === 'ja' ? 'ja' : 'en';
+        if (locale === 'ja') file = `ja/${file}`;
+        reply.header('Content-Language', locale);
+      }
       const data = await readFile(resolve(webDist, file));
       if (privacy) { reply.header('Cache-Control', 'no-store'); reply.header('X-Robots-Tag', 'noindex, nofollow'); }
       else {

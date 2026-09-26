@@ -1,12 +1,12 @@
 # 公開ページ・Agent向け発見情報の実装契約
 
-状態: 実装予定。`https://address.chain.tokyo` はユーザー指定の公開ドメインだが、DNS設定、HTTPS到達性、公開、検索エンジンによる取得はいずれも未検証。ドメインのDNS設定はユーザーが行う。この文書は検索順位やAIサービスへの採用を保証しない。
+本書は公開HTMLと発見用ファイルの実装契約である。公開originは `https://address.chain.tokyo` とし、ドメインのDNS設定はユーザーが行う。提供状態・接続結果は[実装状況](implementation-status.md)を参照する。この文書は検索順位やAIサービスへの採用を保証しない。
 
 ## 目的と範囲
 
-公開ページを人間とAgentが読める入口にする。正確なサービス範囲、認証方法、支払いと承認の順序、API契約へのリンクを初回HTMLに載せる。公開情報は実装済み・実接続済みの範囲を超えて主張しない。現在は仕様のみであり、ページや発見用ファイルが既に配信されているとは扱わない。
+公開ページを人間とAgentが読める入口にする。正確なサービス範囲、認証方法、支払いと承認の順序、API契約へのリンクを初回HTMLに載せる。公開情報は実装済み・実接続済みの範囲を超えて主張しない。提供状態は公開ガイドと実装状況に一致させる。
 
-実装はT-01のReact/ViteとFastifyの単一Cloud Run公開サービスに同梱する。`/`、`/developers`、`/faq` はビルド時に静的HTMLを生成するか、Fastifyから同内容のHTMLを返す。常時起動するSSRサービスや追加の公開インフラは設けない。CSSは白・グレー・青を基調にした標準的なSaaS画面とし、色だけに依存せず見出し・本文・リンクをHTMLで読めるようにする。JavaScript無効・未実行の初回GETでも主要本文と内部リンクが存在することを要件にする。Viteの空のapp shellとブラウザ内fetchだけで公開説明を完成させない。[GoogleのJavaScript SEOガイド](https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics)は静的生成や事前レンダリングを推奨し、JavaScriptを実行できないbotがあることも説明している。
+実装はT-01のReact/ViteとFastifyの単一Cloud Run公開サービスに同梱する。`/`、`/developers`、`/faq`、`/terms` は英語・日本語それぞれの静的HTMLをビルド時に生成し、Fastifyがリクエストの言語指定に対応するHTMLを返す。常時起動するSSRサービスや追加の公開インフラは設けない。CSSは白・グレー・青を基調にした標準的なSaaS画面とし、色だけに依存せず見出し・本文・リンクをHTMLで読めるようにする。JavaScript無効・未実行の初回GETでも主要本文と内部リンクが存在することを要件にする。Viteの空のapp shellとブラウザ内fetchだけで公開説明を完成させない。[GoogleのJavaScript SEOガイド](https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics)は静的生成や事前レンダリングを推奨し、JavaScriptを実行できないbotがあることも説明している。
 
 `/approve/{approvalId}` など既知の人間用画面にはSPA fallbackを適用できる。匿名の承認画面shellやログイン画面は200で配信してよいが、認証前に対象契約や個人情報をHTMLへ埋め込まない。保護APIは未認証・無権限を401/403で拒否する。未知のURLは公開トップの200へfallbackさせず404を返す。
 
@@ -28,15 +28,23 @@
 
 `/` はサービスの範囲と利用手順、`/developers` は認証・x402・ENS照合の概説と `/openapi.json` へのリンク、`/faq` は仮想区画、World承認、郵便機能、testnetの明確な回答を載せる。ページ間は通常の `<a href>` で結ぶ。`/v1/locations` はAgent Bearerが必要なAPIとして説明し、匿名で拠点一覧を取得できると記さない。
 
+## 公開HTMLの言語契約
+
+公開説明の既定言語は英語とし、単一の有効な `?lang=ja` で日本語、`?lang=en` で英語を明示選択する。無効値・重複指定は英語に戻す。英語・日本語とも、JavaScriptを実行せずに主要本文、ナビゲーション、言語切替リンクを読めるHTMLを返す。`<html lang>`、title、description、Open Graphは返す本文の言語に一致させる。ブラウザ内の保存済み選好はhydration後の表示復元にだけ使い、crawler向け初回レスポンスの言語判定には使わない。
+
+英語canonicalはqueryなしの各公開path、日本語canonicalは同じpathに `?lang=ja` を付ける。`?lang=en` は英語canonicalへ正規化し、表示言語以外のqueryをcanonicalへ含めない。両言語の初回HTMLに `hreflang="en"`、`hreflang="ja"`、英語を指す `hreflang="x-default"` を置く。sitemapにも同じcanonicalと相互alternateを掲載する。`llms.txt` は既定の英語と `?lang=ja` の日本語で公開範囲・制約・ガイドリンクを揃える。非公開app/admin/approval画面は言語を問わずsitemapや発見情報に含めない。
+
+`/terms` は周辺案内とメタ情報を両言語で提供するが、採用済みの規約全文は[日本語原本](terms.md)をそのまま初期HTMLに載せ、本文領域に `lang="ja"` を付ける。英語案内では日本語の採用済み規約であることを明示する。翻訳版の法的本文や別のterms versionを新設しない。
+
 ## メタ情報と発見用ファイル
 
-利用規約バージョン1（`realaddr-v1`）は[単一本文](terms.md)から `/terms` の初期HTMLを生成する。全文をJavaScriptなしで読めるようにし、他の公開ページと同じ `index,follow` でsitemapとllms.txtに掲載する。公開ナビゲーション・footerと利用者画面の同意欄からリンクする。`/terms/` も同じ本文を返し、canonicalは `/terms` とする。単なる閲覧・過去の署名・local demo認証を正式規約への同意とみなさない。[採用記録と提供準備](terms-review.md)を参照する。
+利用規約バージョン1（`realaddr-v1`）は[単一本文](terms.md)から `/terms` の初期HTMLを生成する。全文をJavaScriptなしで読めるようにし、他の公開ページと同じ `index,follow` でsitemapとllms.txtに掲載する。公開ナビゲーション・footerと利用者画面の同意欄からリンクする。`/terms/` も同じ本文を返し、canonicalは英語 `/terms`、日本語 `/terms?lang=ja` とする。単なる閲覧・過去の署名・local demo認証を正式規約への同意とみなさない。[採用記録と提供準備](terms-review.md)を参照する。
 
-各公開HTMLの初回レスポンスに固有の日本語 `<title>`、内容に一致する `meta description`、`<link rel="canonical" href="https://address.chain.tokyo/…">`、Open Graphの `og:title` / `og:description` / `og:url` / `og:type` を置く。Open Graph画像は実際の公開画像がある場合のみ指定する。トップに `WebSite` と `Service` のJSON-LDを置けるが、説明やOfferは画面に見える事実と一致させる。FAQPageを使う場合も表示本文と同じ回答だけにし、rich resultは保証しない。[Googleの構造化データ指針](https://developers.google.com/search/docs/appearance/structured-data/sd-policies)は表示内容との一致と正確性を求める。
+各公開HTMLの初回レスポンスに選択言語の固有の `<title>`、内容に一致する `meta description`、`<link rel="canonical" href="https://address.chain.tokyo/…">`、Open Graphの `og:title` / `og:description` / `og:url` / `og:type` を置く。Open Graph画像は実際の公開画像がある場合のみ指定する。トップに `WebSite` と `Service` のJSON-LDを置けるが、説明やOfferは画面に見える事実と一致させる。FAQPageを使う場合も表示本文と同じ回答だけにし、rich resultは保証しない。[Googleの構造化データ指針](https://developers.google.com/search/docs/appearance/structured-data/sd-policies)は表示内容との一致と正確性を求める。
 
-`/robots.txt` は公開ページを許可し、`Sitemap: https://address.chain.tokyo/sitemap.xml` を示す。`/sitemap.xml` には実際に200を返す公開canonical HTML (`/`、`/developers`、`/faq`) だけを載せる。`lastmod` は更新日時を正確に出せる場合のみ入れる。`/llms.txt` はこのプロジェクトの実装対象とし、短いサービス概要、現在の環境と制約、公開ガイド、`/openapi.json` の絶対リンクを載せる。llms.txtは検索エンジンの正式な優遇条件ではなく、crawlerによる読み取りや採用を前提にしない。`/openapi.json` は公開のOpenAPI 3.1契約を既存API仕様と同じ `application/json` で返す。公開HTMLにはOpenAPIへの可視リンクを置き、HTTP `Link: </openapi.json>; rel="service-desc"; type="application/json"` を付ける。RFC 9727の `/.well-known/api-catalog` は必要なら後で追加できるが、ハッカソンの必須範囲にはしない。[RFC 9727](https://www.rfc-editor.org/rfc/rfc9727.html)を採用するときはlinksetの形式とmedia typeを満たす。
+`/robots.txt` は公開ページを許可し、`Sitemap: https://address.chain.tokyo/sitemap.xml` を示す。`/sitemap.xml` には実際に200を返す公開canonical HTML (`/`、`/developers`、`/faq`、`/terms`) の英語版と日本語版だけを載せ、各URLに両言語と `x-default` のalternateを付ける。`lastmod` は更新日時を正確に出せる場合のみ入れる。`/llms.txt` はこのプロジェクトの実装対象とし、短いサービス概要、現在の環境と制約、公開ガイド、`/openapi.json` の絶対リンクを載せる。llms.txtは検索エンジンの正式な優遇条件ではなく、crawlerによる読み取りや採用を前提にしない。`/openapi.json` は公開のOpenAPI 3.1契約を既存API仕様と同じ `application/json` で返す。公開HTMLにはOpenAPIへの可視リンクを置き、HTTP `Link: </openapi.json>; rel="service-desc"; type="application/json"` を付ける。RFC 9727の `/.well-known/api-catalog` は必要なら後で追加できるが、ハッカソンの必須範囲にはしない。[RFC 9727](https://www.rfc-editor.org/rfc/rfc9727.html)を採用するときはlinksetの形式とmedia typeを満たす。
 
-`/llms.txt` の実装時の内容例（事実確認後に更新する）:
+`/llms.txt?lang=ja` の日本語内容例（提供状態に合わせて更新する）:
 
 ```text
 # RealAddr for Agents
@@ -56,8 +64,8 @@ AIエージェントによる日本の住所利用契約のためのサービス
 
 | Route | 状態・Content-Type | Cache-Control | インデックス方針 |
 | --- | --- | --- | --- |
-| `/`, `/developers`, `/faq` | 200 `text/html; charset=utf-8`。初回HTMLに本文とリンク | `public, max-age=300` を開始値とし更新時に再確認 | canonicalを持つ公開ページ |
-| `/terms`, `/terms/` | 200 `text/html; charset=utf-8`。正式versionと規約全文 | `public, max-age=300` | `index,follow`。canonical `/terms` をsitemap/llms.txtに掲載 |
+| `/`, `/developers`, `/faq`（各言語） | 200 `text/html; charset=utf-8`。初回HTMLに本文とリンク | `public, max-age=300` を開始値とし更新時に再確認 | canonicalを持つ公開ページ |
+| `/terms`, `/terms/`（各言語、本文は日本語） | 200 `text/html; charset=utf-8`。正式versionと規約全文 | `public, max-age=300` | `index,follow`。両言語canonicalをsitemap/llms.txtに掲載 |
 | `/assets/*` | 存在するassetは200で正しいCSS/JS/画像型。未知assetは404 | hash付き名は `public, max-age=31536000, immutable` | HTMLに必要なassetをbotから遮断しない |
 | `/robots.txt`, `/llms.txt` | 200 `text/plain; charset=utf-8` | `public, max-age=300` | 公開説明のみ |
 | `/sitemap.xml` | 200 `application/xml; charset=utf-8` | `public, max-age=300` | 公開canonical HTMLだけを列挙 |

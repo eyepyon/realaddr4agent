@@ -2,7 +2,7 @@ import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "vite";
-import { PUBLIC_ORIGIN, PUBLIC_PAGES, canonicalUrl, llmsTxt, robotsTxt, sitemapXml } from "../src/public-content.ts";
+import { PUBLIC_ORIGIN, PUBLIC_PAGES, getPublicContent, canonicalUrl, llmsTxt, robotsTxt, sitemapXml } from "../src/public-content.ts";
 import { CURRENT_TERMS_VERSION } from "../../../packages/domain/src/terms.ts";
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -27,12 +27,16 @@ const ssrFile = join(prerenderDir, "prerender.mjs");
 const { renderPublicPage } = await import(`${pathToFileURL(ssrFile).href}?v=${Date.now()}`);
 const baseHtml = await readFile(join(dist, "index.html"), "utf8");
 
-function setPublicMetadata(html, page) {
-  const config = PUBLIC_PAGES[page];
-  let result = html.replace(/<title>[^<]*<\/title>/, `<title>${config.title}</title>`);
-  result = result.replace(/<meta name="description" content="[^"]*"\s*\/>/, `<meta name="description" content="${config.description}" />`);
-  result = result.replace("<meta name=\"theme-color\" content=\"#f5f7fa\" />", `<meta name="theme-color" content="#f5f7fa" />\n    <meta name="robots" content="index,follow" />\n    <meta property="og:type" content="website" />\n    <meta property="og:title" content="${config.title}" />\n    <meta property="og:description" content="${config.description}" />\n    <meta property="og:url" content="${canonicalUrl(page)}" />\n    <link rel="canonical" href="${canonicalUrl(page)}" />`);
-  const markup = renderPublicPage(page);
+function escapeHtml(value) { return value.replace(/[&<>"']/g, character => ({"&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"})[character]); }
+
+function setPublicMetadata(html, page, locale) {
+  const config = getPublicContent(locale).pages[page];
+  html = html.replace(/<html lang="[^"]*">/, `<html lang="${locale}">`);
+  let result = html.replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(config.title)}</title>`);
+  result = result.replace(/<meta name="description" content="[^"]*"\s*\/>/, `<meta name="description" content="${escapeHtml(config.description)}" />`);
+  result = result.replace("<meta name=\"theme-color\" content=\"#f5f7fa\" />", `<meta name="theme-color" content="#f5f7fa" />\n    <meta name="robots" content="index,follow" />\n    <meta property="og:type" content="website" />\n    <meta property="og:title" content="${escapeHtml(config.title)}" />\n    <meta property="og:description" content="${escapeHtml(config.description)}" />\n    <meta property="og:url" content="${escapeHtml(canonicalUrl(page, locale))}" />\n    <link rel="canonical" href="${escapeHtml(canonicalUrl(page, locale))}" />
+    ${["en", "ja", "x-default"].map(lang => `<link rel="alternate" hreflang="${lang}" href="${escapeHtml(canonicalUrl(page, lang === "ja" ? "ja" : "en"))}" />`).join("\n    ")}`);
+  const markup = renderPublicPage(page, locale);
   result = result.replace(/<div id="root">[\s\S]*?<\/div>/, `<div id="root" data-prerender="public">${markup}</div>`);
   return result;
 }
@@ -44,16 +48,19 @@ function setPrivateShell(html, title, message) {
   return result;
 }
 
-for (const page of ["home", "developers", "faq", "terms"]) {
-  const output = page === "home" ? join(dist, "index.html") : join(dist, page, "index.html");
-  if (page !== "home") await mkdir(dirname(output), { recursive: true });
-  await writeFile(output, setPublicMetadata(baseHtml, page), "utf8");
+for (const locale of ["en", "ja"]) {
+ for (const page of ["home", "developers", "faq", "terms"]) {
+  const root = locale === "ja" ? join(dist, "ja") : dist;
+  const output = page === "home" ? join(root, "index.html") : join(root, page, "index.html");
+  await mkdir(dirname(output), { recursive: true });
+  await writeFile(output, setPublicMetadata(baseHtml, page, locale), "utf8");
+ }
 }
 
 const privatePages = [
-  ["app", "利用者画面 | RealAddr for Agents", "認証後にご自身の契約状態を表示します。"],
-  ["admin", "運用者画面 | RealAddr for Agents", "運用者認証後に管理データを表示します。"],
-  ["approve", "人間による確認 | RealAddr for Agents", "対象情報は確認前には表示されません。"],
+  ["app", "Account | RealAddr for Agents", "Authenticate to view your leases."],
+  ["admin", "Operator | RealAddr for Agents", "Operator authentication is required."],
+  ["approve", "Human approval | RealAddr for Agents", "Authenticate to review this request."],
 ];
 for (const [directory, title, message] of privatePages) {
   const output = join(dist, directory, "index.html");
@@ -65,6 +72,7 @@ for (const [directory, title, message] of privatePages) {
 await writeFile(join(dist, "robots.txt"), robotsTxt(), "utf8");
 await writeFile(join(dist, "sitemap.xml"), sitemapXml(), "utf8");
 await writeFile(join(dist, "llms.txt"), `${llmsTxt()}\n`, "utf8");
+await writeFile(join(dist, "ja", "llms.txt"), `${llmsTxt("ja")}\n`, "utf8");
 await cp(join(projectRoot, "docs", "openapi.json"), join(dist, "openapi.json"));
 await rm(join(appRoot, ".tmp"), { recursive: true, force: true });
 console.log(`Built known route HTML under ${dist} for ${PUBLIC_ORIGIN}`);

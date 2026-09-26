@@ -21,6 +21,8 @@ Snapshot: **2026-09-27**. Implementation and deployment have begun, but the conn
 
 ## Latest focused evidence
 
+The frontend now supports English (default) and Japanese across public, account, human-approval, and operator screens. Public pages have bilingual initial HTML and discovery metadata; adopted terms remain the Japanese original. Workspace typecheck, the event build, and 11 focused locale/HTML/cache checks passed. Browser checks covered switching, remembered language on another page, account/operator sign-in copy, and preserving an expanded FAQ. A hydration mismatch found during review was fixed with hydratable server markup. Authenticated form flows and new live World/payment/ENS operations were outside this change's checks; existing feature gates and task completion remain unchanged.
+
 The documentation update added English companion guides and Windows/WSL/macOS command variants. Changed Markdown links, text encoding/line endings, and the diff were checked. No application code changed, so builds and business tests were not rerun for this update. Manual WSL/macOS startup, provider connections, and Terraform operations remain unexecuted; Linux CI evidence is a separate scope. This does not complete T-11 submission artifacts or the live demo.
 
 Recent ENS location preparation records 20 focused location planner/flow/client/server checks, 6 Firestore Emulator registry checks, workspace typecheck and an event build with the formal terms version passing. It also records persistent building identity preparation, read-only creation simulation and initial signing-helper state with no sent operations. These prove preparation and local behavior; they do not prove the five location transactions, official resolution or paid issuance succeeded.

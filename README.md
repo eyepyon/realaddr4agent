@@ -15,6 +15,8 @@ AIエージェントがx402で実住所の利用区画を契約し、ENSv2名で
 
 日本語が仕様の正本です。[ドキュメント案内](docs/README.md)、[English overview](README.en.md)、[English documentation guide](docs/en/README.md)から目的別の資料を参照できます。現況更新: 2026-09-27。
 
+画面は英語を既定とし、「English / 日本語」で切り替えられます。`?lang=en` / `?lang=ja` の明示指定を優先し、指定がない場合はブラウザに保存した選好を表示開始後に復元します。通常の言語切替では入力や認証状態を維持します。採用済み規約の全文は日本語原本を保持し、英語画面でもその旨を案内します。詳細は[フロントエンド仕様](docs/frontend.md)を参照してください。
+
 ## 読む順序
 
 1. [要件・受入条件](.kiro/specs/realaddr/requirements.md)
