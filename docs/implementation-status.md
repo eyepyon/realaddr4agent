@@ -15,7 +15,7 @@
 | T-00/T-12/T-13/T-14 ENSv2 | 部分実装・ローカル検証、公式Sepolia読み取り確認済み | 名前予約・一回限りの購入権、controller、exact hierarchy照合、公開/owner API、CLIを実装。親名取得とreceipt最終確定は確認済み。namespace構築、書込worker、paid leaseでのlive発行・権限拒否は残件。販売とevent ENS照合は既定無効 |
 | T-02/T-08 所有者向け状態取得 | 部分実装・ローカル検証済み | 注文・契約の一覧と詳細、ENS購入状態をFirestoreから返す。所有権、応答の公開field制限、署名付きcursor、既存CLIの状態取得を確認 |
 | T-05/T-16 worker・outbox | 部分実装・ローカル検証済み | Firestore claim/generation/期限、保存済み支払いからの発行復旧、Cloud Tasks REST配信・結果照合とSchedulerの永続cursor。実送金・eventのchain照合・実Cloud Tasks/Scheduler接続は未検証 |
-| T-08/T-18/T-19 UI | 管理UI・認証・限定APIを実装、liveログイン未確認 | Google OIDC/専用session、許可運営者の固定binding、拠点の登録・更新とbounded一覧を接続。価格未設定時は拠点登録不可。販売再開・読取再照合の実接続は残件 |
+| T-08/T-18/T-19 UI | 管理UI・認証・限定APIをevent配備、liveログイン未確認 | Google OIDC/専用session、許可運営者の固定binding、拠点の登録・更新とbounded一覧を接続。価格未設定時は拠点登録不可。販売再開・読取再照合の実接続は残件 |
 | T-02/T-08/T-19 利用規約 | v1正式採用・event配信確認済み | realaddr-v1として15条を正式採用。単一Markdownから/termsへ初期HTML配信し、正式versionの同意欄・API/build/deploy設定を一致させる。提供開始準備と実利用者の同意確認は別途 |
 | T-00 外部連携 | 一部の疎通を確認・全体未完了 | MultiBaasのSepolia status、registry linkと初期権限のread、Intercepta認証付きscanを確認。World client設定は取得済み。Worldのlive縦断、実lease write/read・indexed events、x402、ENS、管理者OIDCは残件 |
 | T-16 GCP | 独自ドメインHTTPS確認済み・全体未完了 | WIFとeventイメージbuild/push、runtime IAM検査、初回Cloud Run配備、公開後100項目と後続plan差分0を確認。TLS発行・独自ドメイン8経路の表示と拒否を確認。Tasks/Schedulerの実配信、実Firebase利用者client試験、外部業務連携は残件 |
@@ -28,7 +28,7 @@
 
 拠点はserver側でpausedへ固定して作成し、更新はversion・提供住所の不変条件・監査・冪等性をtransactionで検査する。限定一覧はfilter/運営者に束縛したcursorを使い、転送先全文・OIDC値・raw receiptを返さない。集計なしを0件にせず取得不可とする。testnet価格未設定なら拠点作成を拒否し、支払い依存未接続の販売再開と読取再照合の実行も拒否する。
 
-検証: Firestore Emulator重点9件、API/OIDC/configを含む24件（Emulator依存2件も実行）、配備guard27件、全workspace型検査・buildが通過した。追加の重点5件で管理APIのversion競合応答とlogoutの失効・cookie削除も確認した。管理UIのlogoutは空JSON送信に合わせた。Terraformにweb専用管理設定・3secret参照・callback通常ログ除外・専用DBの管理検索index11件を追加し、fmt/validateを通した。クラウド設定と実Googleログインは別途検証する。
+検証: Firestore Emulator重点9件、API/OIDC/configを含む24件（Emulator依存2件も実行）、配備guard27件、全workspace型検査・buildが通過した。追加の重点5件で管理APIのversion競合応答とlogoutの失効・cookie削除も確認した。管理UIのlogoutは空JSON送信に合わせた。Terraformにweb専用管理設定・3secret参照・callback通常ログ除外・専用DBの管理検索index11件を追加し、fmt/validateを通した。利用者承認後、専用Secret3件とwebだけの参照権限、運営者allowlistの未結合entry、専用DBの検索index11件、callback通常ログ除外を適用した。workerへの管理secret注入が0件であることを確認した。CIを通過した同一immutable imageを既存配備workflowでweb/workerへ更新し、公開管理HTMLの200、保護API7経路の未認証401/no-store、Agent拒否、Googleへの302とPKCE・callback・保護cookieを確認した。実Google token交換と運営者本人のログイン、実提供拠点の登録・更新は未実施。価格設定未投入のため、現eventで拠点登録・販売再開は保留する。
 
 トップページの指定見出し・説明文とページtitleを変更し、CI・既存event配備を通した。公開HTTPSの初期HTMLで指定2文の一致とHTTP200を確認した。
 

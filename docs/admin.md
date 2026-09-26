@@ -1,6 +1,6 @@
 # 運営管理画面・API契約
 
-本書はハッカソン用の最小運営機能を定義する。管理UIに加え、Google OIDC、専用session、拠点登録・更新と限定された一覧APIを実装中。Googleクライアント・許可する運営者・Secret Manager参照・専用indexの設定と実ログイン確認が必要で、有効化前は管理機能を拒否する。読取再照合の実行は未接続で503を返す。公開Agent APIの正本は `docs/openapi.json`、運営APIのHTTP shapeは `docs/admin-openapi.json` とする。運営者画面は同じ公開origin `https://address.chain.tokyo/admin` のReact/Vite UIとして配信する。ドメイン/DNS設定はサービス運営者が行い、新しいCloud Run、ロードバランサ、IAPは追加しない。
+本書はハッカソン用の最小運営機能を定義する。管理UIに加え、Google OIDC、専用session、拠点登録・更新と限定された一覧APIを実装し、eventへ配備した。Googleクライアント・許可する運営者・Secret Manager参照・専用indexを設定し、Googleへの遷移と未認証拒否を確認した。本人による実ログインは未確認。未設定環境では管理機能を拒否する。読取再照合の実行は未接続で503を返す。公開Agent APIの正本は `docs/openapi.json`、運営APIのHTTP shapeは `docs/admin-openapi.json` とする。運営者画面は同じ公開origin `https://address.chain.tokyo/admin` のReact/Vite UIとして配信する。ドメイン/DNS設定はサービス運営者が行い、新しいCloud Run、ロードバランサ、IAPは追加しない。
 
 ## 画面と情報境界
 

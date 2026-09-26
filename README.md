@@ -16,7 +16,7 @@ World sandboxのOIDC adapter、人間sessionとowner wallet proof、Firestoreの
 
 ENSv2の名前予約・一度だけの購入権、契約別Resolverを生成するNameController、finalized blockでの階層・契約照合、owner APIとCLIを実装しました。公式Sepolia deploymentを照合し、人間署名による親名取得と登録receiptの最終確定を確認しました。namespace構築・実paid leaseでの名前発行は未完了で、販売は引き続き停止しています。[ENSv2設計と設定](docs/ensv2.md)を参照してください。
 
-運営管理画面は`/admin`です。Google OIDCと専用session、拠点の停止状態での登録・更新、決済・契約・処理・監査の限定一覧を実装しました。Googleクライアント、DBの運営者allowlist、専用secret・indexの設定後に有効化します。拠点登録にはtestnet価格設定も必要です。外部決済が未接続の間は販売再開を拒否し、読取再照合の実行は未接続です。[管理画面の設定](docs/admin.md)を参照してください。
+運営管理画面は`/admin`です。Google OIDCと専用session、拠点の停止状態での登録・更新、決済・契約・処理・監査の限定一覧を実装しました。eventではGoogleクライアント、DBの運営者allowlist、専用secret・indexを設定し、Googleへの遷移と未認証拒否を確認しました。本人による実ログインは未確認です。拠点登録にはtestnet価格設定も必要です。外部決済が未接続の間は販売再開を拒否し、読取再照合の実行は未接続です。[管理画面の設定](docs/admin.md)を参照してください。
 
 ## 読む順序
 
