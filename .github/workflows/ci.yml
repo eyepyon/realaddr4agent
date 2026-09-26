@@ -25,6 +25,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: node scripts/check-text-format.mjs
       - run: node --test scripts/deploy-event.test.mjs
+      - run: node --test scripts/registry-deploy-client.test.mjs
       - run: pnpm typecheck
       - run: pnpm build
         env:
