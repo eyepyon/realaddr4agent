@@ -83,6 +83,8 @@ facilitatorからsuccessだけを受け取って無条件にfulfilledにしな�
 
 レスポンスの正確なfield/enum、対応chainId列挙、APIのrisk閾値は認証付きサンプル/OpenAPIを取得して固定する。独自の`score > 80`などをベンダー仕様として捏造しない。
 
+初期clientと購入・更新の内部screening gateを実装した。公開OpenAPIから応答構造・trait enumを確認したが、認証付き応答・安全基準・endpointのchain範囲は未確認。現在のpolicyは既知の直接危険traitをdeny、その他をholdとし、allowを出さない。具体的な設定・診断コマンド・残件は[Intercepta接続準備](intercepta.md)に記録する。
+
 内部正規化型:
 
 ```typescript

@@ -32,6 +32,9 @@ importers:
       '@realaddr/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@realaddr/intercepta':
+        specifier: workspace:*
+        version: link:../../packages/intercepta
       fastify:
         specifier: 5.12.5
         version: 5.12.5
@@ -111,6 +114,8 @@ importers:
       '@adraffy/ens-normalize':
         specifier: 1.11.1
         version: 1.11.1
+
+  packages/intercepta: {}
 
 packages:
 

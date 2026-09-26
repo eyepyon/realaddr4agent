@@ -37,6 +37,7 @@ T-01で秘密のない.env.exampleを作る。secretは環境/secret managerに�
 | X402_FACILITATOR_URL, X402_FACILITATOR_CREDENTIAL | 接続先、必要な場合の認証 |
 | PAYMENT_FINALITY_POLICY | receipt/finality基準 |
 | MULTIBAAS_URL, MULTIBAAS_API_KEY, MULTIBAAS_CHAIN_LABEL | deployment |
+| INTERCEPTA_API_KEY | server-onlyのaddress screening key。固定provider endpointへだけ使用。暫定policyはallowを返さず、欠落時は外部呼出なしでhold |
 | REGISTRY_ADDRESS, REGISTRY_CHAIN_ID, REGISTRY_CONTRACT_LABEL | 記録先 |
 | REGISTRY_READBACK_ENABLED | workerの読み取り照合を有効化。既定false。署名・送信の許可ではない |
 | REGISTRY_CONTRACT_VERSION, REGISTRY_RUNTIME_CODE_HASH | 固定library versionと検証済みruntime bytecodeのKeccak-256 |

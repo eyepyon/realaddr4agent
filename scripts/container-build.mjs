@@ -15,7 +15,7 @@ function run(script, args, cwd = root) {
   if (result.error) throw result.error;
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
-for (const workspace of ['packages/domain', 'packages/db', 'apps/api', 'apps/worker', 'apps/web']) {
+for (const workspace of ['packages/domain', 'packages/db', 'packages/intercepta', 'apps/api', 'apps/worker', 'apps/web']) {
   run('node_modules/typescript/bin/tsc', ['--project', `${workspace}/tsconfig.json`]);
 }
 for (const [workspace, external] of [

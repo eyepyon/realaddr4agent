@@ -9,6 +9,7 @@
 | T-01 実行基盤 | 実装中 | pnpm workspace、strict TypeScript、Fastify、web/worker、共通CLI、CI workflowとローカル`.env.example`を作成。全経路の起動確認は未完了 |
 | T-02 認証・Firestore・区画 | 部分実装 | wallet challenge、Bearer hash、collection prefix、64 shard予約に加え、住所購入の決済受付・不明状態保持・確定後の契約発行・未払い確定後のhold解放をrepositoryへ実装。外部の検証済み結果を受け取る内部DB境界であり、実決済・外部照合・返金は未実装。更新の内部DB処理はT-05として追加 |
 | T-05 住所更新 | 部分実装・ローカル検証済み | 同一leaseの更新排他、固定見積、確定支払いの一度だけの反映、結果不明保持、保存済みreceiptからのworker復旧。公開更新API・実決済・chain/ENS同期は未接続 |
+| T-00/T-04 Intercepta | 初期client・内部gate実装、live待ち | 公開schemaを確認し、危険traitのdeny・未知holdと購入/更新の検査を実装。APIキー未取得、安全基準・coverage未確認でallowは無効。公開pay・実署名器は未接続 |
 | T-07 LeaseRegistry | 配備済み・DB/worker読み取り照合を部分実装、全体未完了 | 初期権限とMultiBaas紐づけを確認済み。購入・更新のpaid provenance、永続identity、claim/version付き確定block照合を実装しローカル検証。照合は既定無効。実lease記録・取消、event有効化、indexed eventsと永続cursor/reorg回復は未完了 |
 | T-02/T-08 所有者向け状態取得 | 部分実装・ローカル検証済み | 注文・契約の一覧と詳細、ENS購入状態をFirestoreから返す。所有権、応答の公開field制限、署名付きcursor、既存CLIの状態取得を確認 |
 | T-05/T-16 worker・outbox | 部分実装・ローカル検証済み | Firestore claim/generation/期限、保存済み支払いからの発行復旧、Cloud Tasks REST配信・結果照合とSchedulerの永続cursor。実送金・eventのchain照合・実Cloud Tasks/Scheduler接続は未検証 |
@@ -18,6 +19,14 @@
 | T-16 GCP | 独自ドメインHTTPS確認済み・全体未完了 | WIFとeventイメージbuild/push、runtime IAM検査、初回Cloud Run配備、公開後100項目と後続plan差分0を確認。TLS発行・独自ドメイン8経路の表示と拒否を確認。Tasks/Schedulerの実配信、実Firebase利用者client試験、外部業務連携は残件 |
 
 ## 検証の記録
+
+### T-00/T-04 Interceptaの初期clientと決済準備gate
+
+公開OpenAPIからQuick/Deep Scanの必須fieldと15個のtrait enumを確認し、`packages/intercepta`へQuick Scan clientを実装した。固定HTTPS endpoint、X-API-KEY、redirect拒否、64 KiB制限、8秒の総期限、429の短いRetry-Afterだけ最大1回retry、試行数計測、応答hashと固定reason codesを使う。キー・description・生の応答は表示しない。独自の数値閾値を安全判定にせず、現在のpolicyでは明示的な危険traitをdeny、その他をholdとする。評価対象chainが応答にないためriskNetworkはunknownで保持する。
+
+`apps/api/src/payment-screening.ts`は認可済みownerの固定見積と検証済み支払い認可を照合し、payTo/payerの新しい評価が一致した場合だけ既存の購入・更新settlement準備へ渡す内部境界。判定不明・拒否・古い評価では準備0回、既に処理中/確定した支払いは新しいscanをせず既存照合へ戻す。外部呼出はDB transaction外にある。公開payや署名器には接続せず、deny/holdの永続audit・settle直前の再検査は残件。
+
+検証: `pnpm typecheck`、local設定の`pnpm build`、clientとAPI gateの重点13件が通過（失敗0・skip 0）。gateのallow経路だけは明示した合成fixtureであり、providerによる安全確認の証拠ではない。診断コマンドはキー欠落でhold/exit 3・API試行0回、不正引数でexit 1を確認。実キーは未取得で認証付きliveは未実施。安全基準・endpoint coverageをproviderと確認し、実allowと危険challengeの拒否を検証するまでT-00/T-04を完了にしない。
 
 ### T-07 DB/outboxと読み取り照合worker
 

@@ -12,6 +12,7 @@
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test",
     "agent": "tsx packages/agent-cli/src/index.ts",
+    "intercepta:scan": "tsx scripts/intercepta-scan.ts",
     "check:text": "node scripts/check-text-format.mjs"
   },
   "devDependencies": {
