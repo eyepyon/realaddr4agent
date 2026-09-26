@@ -58,7 +58,7 @@ test('unknown send or persistence failure permanently blocks resend in current s
 test('canonical receipt and exact calldata are required, pending finality remains explicit',async()=>{
   const options={},wallet=provider(options),flow=createUpperFlow({manifest,provider:wallet,save:async()=>{}});await flow.execute('deploy_upper');
   options.wrongData=true;await assert.rejects(flow.verify(),/transaction_mismatch/);options.wrongData=false;options.reorg=true;await assert.rejects(flow.verify(),/noncanonical/);options.reorg=false;options.unfinalized=true;
-  assert.deepEqual(await flow.verify(),{upperConnected:false,namespaceReady:false,pendingAction:'deploy_upper',receiptFinalized:false});assert.equal(wallet.sends,1);
+  const pending=await flow.verify();assert.equal(pending.upperConnected,false);assert.equal(pending.namespaceReady,false);assert.equal(pending.pendingAction,'deploy_upper');assert.equal(pending.receiptFinalized,false);assert.equal(pending.receiptConfirmed,true);assert.equal(pending.receiptBlockNumber,'11');assert.equal(pending.receiptBlockTime,'1970-01-01T00:01:40.000Z');assert.equal(pending.finalizedBlockNumber,'10');assert.equal(pending.latestBlockNumber,'20');assert.equal(pending.latestFinalizedLagBlocks,'10');assert.equal(pending.receiptFinalizedGapBlocks,'1');assert.ok(Number.isFinite(Date.parse(pending.checkedAt)));assert.equal(wallet.sends,1);
 });
 test('only explicit definite rejection without a hash permits a persisted human reset',async()=>{
   const options={rejected:true},wallet=provider(options),saves=[],flow=createUpperFlow({manifest,provider:wallet,save:async state=>saves.push(state)});
@@ -73,4 +73,11 @@ test('final connected state rejects extra root roles and changed implementation 
   const options={},wallet=provider(options),flow=createUpperFlow({manifest,provider:wallet,save:async()=>{}});
   for(const call of manifest.calls)await flow.execute(call.action);assert.equal((await flow.verify()).upperConnected,true);
   options.extraRole=true;await assert.rejects(flow.verify(),/roles_mismatch/);options.extraRole=false;options.wrongImplementation=true;await assert.rejects(flow.verify(),/roles_mismatch/);
+});
+
+test('pending diagnostic evidence never promotes a saved receipt missing from the fresh RPC response',async()=>{
+ const options={unfinalized:true},wallet=provider(options),flow=createUpperFlow({manifest,provider:wallet,save:async()=>{}});await flow.execute('deploy_upper');
+ assert.equal((await flow.verify()).receiptConfirmed,true);assert.equal(flow.state.steps.deploy_upper.confirmed,true);assert.ok(flow.state.steps.deploy_upper.receipt);
+ options.pending=true;const pending=await flow.verify();assert.equal(pending.receiptConfirmed,false);assert.equal(pending.receiptFinalized,false);assert.equal(pending.receiptBlockNumber,undefined);assert.equal(pending.receiptBlockTime,undefined);assert.equal(pending.receiptFinalizedGapBlocks,undefined);assert.equal(pending.finalizedBlockNumber,'10');assert.equal(pending.latestBlockNumber,'20');assert.equal(wallet.sends,1);
+ await assert.rejects(flow.execute('set_upper_parent'),/prior_transaction_not_finalized/);assert.equal(wallet.sends,1);
 });

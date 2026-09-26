@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { installUpperClient, createUpperStateSaver, upperErrorMessage, upperResultMessage } from './ens-upper-client.mjs';
+import { installUpperClient, createUpperStateSaver, upperErrorMessage, upperResultMessage, upperJstTime } from './ens-upper-client.mjs';
 function storageFixture(){const values=new Map();return {values,getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value)};}
 function documentFixture(){const controls={nodes:[],append(node){this.nodes.push(node);},querySelectorAll(){return this.nodes;}},status={},details={};return {controls,status,details,querySelector:selector=>({'#controls':controls,'#status':status,'#details':details})[selector],createElement:()=>({disabled:false,addEventListener(type,callback){this.click=callback;}})};}
 const metadata={manifestHash:'plan-hash',wrapperPolicyHash:'policy-hash',token:'csrf',wrapperPolicy:{},manifest:{parentName:'example.eth',owner:'owner',upper:{address:'upper'},calls:[{action:'deploy_upper'},{action:'set_upper_parent'},{action:'attach_upper'}]}};
@@ -38,4 +38,10 @@ test('upper results explain pending and confirmed phases without inventing final
  assert.match(upperResultMessage({upperConnected:false,completedSteps:1,receiptFinalized:false,namespaceReady:false}),/次は3/);assert.match(upperResultMessage({upperConnected:false,completedSteps:2,receiptFinalized:false,namespaceReady:false}),/次は4/);
  const completed=upperResultMessage({upperConnected:true,completedSteps:3,receiptFinalized:true,namespaceReady:false});assert.match(completed,/上位接続は完了/);assert.match(completed,/拠点namespaceの構築は別作業/);
  assert.doesNotMatch(upperResultMessage({upperConnected:true,completedSteps:3,receiptFinalized:false}),/完了です/);assert.doesNotMatch(upperResultMessage({upperConnected:false,namespaceReady:false}),/完了です/);
+});
+
+test('pending status separates fresh successful receipt from absent receipt and shows JST observations',()=>{
+ const diagnostic={upperConnected:false,namespaceReady:false,pendingAction:'set_upper_parent',receiptFinalized:false,receiptConfirmed:true,receiptBlockNumber:'101',receiptBlockTime:'2026-01-01T00:01:00.000Z',finalizedBlockNumber:'100',finalizedBlockTime:'2026-01-01T00:00:00.000Z',latestBlockNumber:'180',latestBlockTime:'2026-01-01T00:02:00.000Z',latestFinalizedLagBlocks:'80',receiptFinalizedGapBlocks:'1',checkedAt:'2026-01-01T00:03:00.000Z'};
+ const mined=upperResultMessage(diagnostic);assert.match(mined,/成功した取引がブロックに取り込まれた/);assert.match(mined,/最終確定を待っています/);assert.match(mined,/09:01:00 JST/);assert.match(mined,/差: 80ブロック/);assert.match(mined,/今回の確認時刻/);assert.doesNotMatch(mined,/完了です/);
+ const missing=upperResultMessage({...diagnostic,receiptConfirmed:false,receiptBlockNumber:undefined,receiptBlockTime:undefined,receiptFinalizedGapBlocks:undefined});assert.match(missing,/採掘結果は今回の照会ではまだ確認できません/);assert.doesNotMatch(missing,/成功した取引|取引のブロック:/);assert.match(missing,/再送せず/);assert.equal(upperJstTime('invalid'),'取得できません');
 });

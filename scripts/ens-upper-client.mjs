@@ -1,9 +1,28 @@
 import { createUpperFlow } from './ens-upper-flow.mjs';
 
 const upperStepNumbers = { deploy_upper: 2, set_upper_parent: 3, attach_upper: 4 };
+export function upperJstTime(value) {
+  const date = new Date(value);
+  if (typeof value !== 'string' || !Number.isFinite(date.getTime())) return '取得できません';
+  return new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(date) + ' JST';
+}
+function upperPendingDetails(result) {
+  const lines = [];
+  if (result.receiptConfirmed === true) lines.push(`取引のブロック: ${result.receiptBlockNumber}（${upperJstTime(result.receiptBlockTime)}）`);
+  if (result.finalizedBlockNumber) lines.push(`最終確定済みブロック: ${result.finalizedBlockNumber}（${upperJstTime(result.finalizedBlockTime)}）`);
+  if (result.latestBlockNumber) lines.push(`最新ブロック: ${result.latestBlockNumber}（${upperJstTime(result.latestBlockTime)}）`);
+  if (/^[0-9]+$/.test(result.latestFinalizedLagBlocks ?? '')) lines.push(`最新と最終確定の差: ${result.latestFinalizedLagBlocks}ブロック（完了予定時間ではありません）`);
+  if (/^[0-9]+$/.test(result.receiptFinalizedGapBlocks ?? '')) lines.push(`取引のブロックと最終確定の差: ${result.receiptFinalizedGapBlocks}ブロック`);
+  if (result.checkedAt) lines.push(`今回の確認時刻: ${upperJstTime(result.checkedAt)}`);
+  if (/^0x[0-9a-fA-F]{64}$/.test(result.transactionHash ?? '')) lines.push(`取引hash: ${result.transactionHash}`);
+  return lines.length ? '\n\n' + lines.join('\n') : '';
+}
 export function upperResultMessage(result) {
   const step = upperStepNumbers[result?.pendingAction ?? result?.action];
-  if (result?.pendingAction && step && result.receiptFinalized === false) return `操作${step}の取引は送信済みです。チェーンの最終確定を待っています。${step}は再送せず、しばらくして5で確認してください。`;
+  if (result?.pendingAction && step && result.receiptFinalized === false) {
+    const progress = result.receiptConfirmed === true ? '成功した取引がブロックに取り込まれたことを今回の照会で確認しました。チェーンの最終確定を待っています。' : result.receiptConfirmed === false ? '送信済みですが、取引の採掘結果は今回の照会ではまだ確認できません。' : '取引は送信済みです。チェーンの最終確定を待っています。';
+    return `操作${step}: ${progress}${step}は再送せず、しばらくして5で確認してください。` + upperPendingDetails(result);
+  }
   if (result?.action && step && typeof result.hash === 'string' && /^0x[0-9a-fA-F]{64}$/.test(result.hash)) return `操作${step}の取引を送信しました。${step}は再送せず、最終確定を待って5で確認してください。`;
   if (result?.connected === true) return 'MetaMaskの接続先がEthereum Sepoliaで、ownerが計画と一致することを確認しました。送信履歴がある場合は5で確認してください。未送信の場合だけ2へ進んでください。';
   const resetStep = upperStepNumbers[result?.rejectedStepReset];

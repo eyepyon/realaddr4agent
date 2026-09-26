@@ -61,8 +61,8 @@ export function createUpperFlow({manifest,provider,save,state={steps:{},unknown:
   }
   async function conditions(snapshot,phase){await pinsAt(snapshot.number);await Promise.all([parentAt(snapshot,phase>=3),upperAt(snapshot,phase)]);await canonical(snapshot);}
   async function latestAndFinalized(phase){const snapshots=await Promise.all([block('latest'),block('finalized')]);await Promise.all(snapshots.map(snapshot=>conditions(snapshot,phase)));return snapshots[1];}
-  async function receipt(action,finalized){
-    const step=state.steps[action];demand(step?.hash&&hash(step.hash),'missing_transaction');const result=await rpc('eth_getTransactionReceipt',[step.hash]);if(!result)return false;
+  async function receipt(action,finalized,diagnostics){
+    const step=state.steps[action];demand(step?.hash&&hash(step.hash),'missing_transaction');const result=await rpc('eth_getTransactionReceipt',[step.hash]);if(!result){if(diagnostics)diagnostics[action]={receiptConfirmed:false,receiptFinalized:false};return false;}
     demand(quantity(result.blockNumber)&&hash(result.blockHash)&&same(result.transactionHash,step.hash),'receipt_mismatch');
     const transaction=await rpc('eth_getTransactionByHash',[step.hash]),expected=manifest.calls[actions.indexOf(action)];
     demand(transaction&&same(transaction.hash,step.hash)&&same(transaction.from,manifest.owner)&&BigInt(transaction.value)===0n&&BigInt(transaction.chainId)===11155111n&&same(transaction.blockHash,result.blockHash)&&transaction.blockNumber===result.blockNumber,'transaction_mismatch');
@@ -74,9 +74,12 @@ export function createUpperFlow({manifest,provider,save,state={steps:{},unknown:
     if(step.receipt)demand(step.receipt.blockNumber===result.blockNumber&&same(step.receipt.blockHash,result.blockHash),'receipt_changed');
     step.receipt={blockNumber:result.blockNumber,blockHash:result.blockHash,status:result.status};step.confirmed=true;
     const isFinalized=BigInt(finalized.number)>=BigInt(result.blockNumber);
-    demand(!step.finalized||isFinalized,'finality_regressed');step.finalized=isFinalized;await persist();return step.finalized;
+    demand(!step.finalized||isFinalized,'finality_regressed');step.finalized=isFinalized;await persist();
+    if(diagnostics)diagnostics[action]={receiptConfirmed:true,receiptFinalized:isFinalized,receiptBlockNumber:BigInt(snapshot.number).toString(),receiptBlockTime:blockTime(snapshot)};
+    return step.finalized;
   }
-  async function verifiedPhase(finalized){let phase=0;for(const action of actions){if(!state.steps[action]?.hash)break;if(!await receipt(action,finalized))break;phase++;}return phase;}
+  function blockTime(snapshot){const milliseconds=Number(BigInt(snapshot.timestamp))*1000;demand(Number.isSafeInteger(milliseconds)&&Math.abs(milliseconds)<=8640000000000000,'invalid_block_timestamp');return new Date(milliseconds).toISOString();}
+  async function verifiedPhase(finalized,diagnostics){let phase=0;for(const action of actions){if(!state.steps[action]?.hash)break;if(!await receipt(action,finalized,diagnostics))break;phase++;}return phase;}
   return {
     state,
     async connect(){demand(!busy,'flow_busy');await rpc('eth_requestAccounts');if(BigInt(await rpc('eth_chainId'))!==11155111n)await rpc('wallet_switchEthereumChain',[{chainId:'0xaa36a7'}]);await account();return{connected:true,namespaceReady:false};},
@@ -101,9 +104,10 @@ export function createUpperFlow({manifest,provider,save,state={steps:{},unknown:
     },
     async verify(){
       demand(!busy,'flow_busy');busy=true;
-      try{await account();const finalized=await block('finalized'),phase=await verifiedPhase(finalized);
-        const pending=actions.find(action=>state.steps[action]?.hash&&!state.steps[action].finalized);
-        if(pending)return{upperConnected:false,namespaceReady:false,pendingAction:pending,receiptFinalized:false};
+      try{await account();const [finalized,latest]=await Promise.all([block('finalized'),block('latest')]);await Promise.all([canonical(finalized),canonical(latest)]);demand(BigInt(latest.number)>=BigInt(finalized.number),'finalized_ahead_of_latest');
+        const diagnostics={},phase=await verifiedPhase(finalized,diagnostics);
+        const pending=actions.find(action=>diagnostics[action]&&!diagnostics[action].receiptFinalized);
+        if(pending){const evidence=diagnostics[pending];return{upperConnected:false,namespaceReady:false,pendingAction:pending,transactionHash:state.steps[pending].hash,...evidence,finalizedBlockNumber:BigInt(finalized.number).toString(),finalizedBlockTime:blockTime(finalized),latestBlockNumber:BigInt(latest.number).toString(),latestBlockTime:blockTime(latest),latestFinalizedLagBlocks:(BigInt(latest.number)-BigInt(finalized.number)).toString(),...(evidence.receiptConfirmed?{receiptFinalizedGapBlocks:(BigInt(evidence.receiptBlockNumber)-BigInt(finalized.number)).toString()}:{}),checkedAt:new Date().toISOString()};}
         await latestAndFinalized(phase);
         const upperConnected=phase===3;
         if(upperConnected){demand(!state.unknown,'unknown_outcome_requires_reconciliation');state.finalized=true;await persist();}
