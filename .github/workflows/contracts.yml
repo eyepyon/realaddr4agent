@@ -59,6 +59,12 @@ jobs:
         working-directory: contracts
       - run: forge test --offline
         working-directory: contracts
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: lease-registry-build-evidence
+          path: contracts/out/LeaseRegistry.sol/LeaseRegistry.json
+          if-no-files-found: error
+          retention-days: 7
       - run: node scripts/export-lease-registry.mjs
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
