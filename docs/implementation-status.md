@@ -24,6 +24,8 @@
 
 ### T-18/T-12 拠点登録確認と上位接続の署名画面
 
+上位deploy送信後の`receiptFinalized=false`が失敗に見えるため、署名画面の結果を日本語の送信済み・最終確定待ち・次操作案内へ変更した。公開RPCで対象取引の成功とcanonical receiptを確認した時点ではfinalized blockがまだ到達しておらず、再送や状態の書き換えは行っていない。client重点5件・構文・文字形式検査が通過。確定待ちの表示だけから採掘成功や最終確定を断定しない。
+
 管理者による実拠点登録後、専用DBを必要なfieldだけで照会し、一意な拠点、停止状態、住所利用無効、65,535の仮想区画と未使用枠、30日550000 atomicの料金を確認した。実住所や運営者識別子は証跡へ出さず、拠点IDは保護記録へ保存した。
 
 上位registry用の専用flow/client/loopback serverを追加した。親名取得の履歴を保持し、固定planとwrapper policyのhashへ別の保存状態を結ぶ。3操作の再導出、最新・finalizedのpin/owner/expiry/権限/pointer検査、送信前の状態保存、canonical receiptと内側callの照合、前操作の最終確定、CASとatomic file更新、不明時の再送禁止を実装した。明示的なwallet拒否かつhashがない場合だけ、人間の別操作で再試行可能にする。実装・root権限・親接続の検査後も`namespaceReady=false`を維持する。

@@ -1,5 +1,20 @@
 import { createUpperFlow } from './ens-upper-flow.mjs';
 
+const upperStepNumbers = { deploy_upper: 2, set_upper_parent: 3, attach_upper: 4 };
+export function upperResultMessage(result) {
+  const step = upperStepNumbers[result?.pendingAction ?? result?.action];
+  if (result?.pendingAction && step && result.receiptFinalized === false) return `操作${step}の取引は送信済みです。チェーンの最終確定を待っています。${step}は再送せず、しばらくして5で確認してください。`;
+  if (result?.action && step && typeof result.hash === 'string' && /^0x[0-9a-fA-F]{64}$/.test(result.hash)) return `操作${step}の取引を送信しました。${step}は再送せず、最終確定を待って5で確認してください。`;
+  if (result?.connected === true) return 'MetaMaskの接続先がEthereum Sepoliaで、ownerが計画と一致することを確認しました。送信履歴がある場合は5で確認してください。未送信の場合だけ2へ進んでください。';
+  const resetStep = upperStepNumbers[result?.rejectedStepReset];
+  if (resetStep) return `walletで拒否した操作${resetStep}を再試行可能にしました。内容を確認してから${resetStep}を押してください。取引はまだ送信していません。`;
+  if (result?.upperConnected === true && result.receiptFinalized === true && result.completedSteps === 3) return '操作2〜4の取引の最終確定と、親名・登録先の接続を確認しました。上位接続は完了です。拠点namespaceの構築は別作業で、ENS販売はまだ有効になりません。';
+  if (result?.upperConnected === false && result.completedSteps === 1) return '操作2の最終確定と登録先の作成を確認しました。次は3で登録先に親名を設定してください。2は再送しないでください。';
+  if (result?.upperConnected === false && result.completedSteps === 2) return '操作2・3の最終確定と親名の設定を確認しました。次は4で親名と登録先を接続してください。2・3は再送しないでください。';
+  if (result?.upperConnected === false && result.completedSteps === 0) return '照合できた取引はまだありません。送信操作を始めていなければ2へ進んでください。不明な場合は再送しないでください。';
+  return '状態を取得しました。最終確定の完了はまだ確認できません。送信済み操作は再送せず、5で確認してください。';
+}
+
 export function upperErrorMessage(error) {
   const code = error?.message ?? '';
   if (/unknown|do_not_resend|persistence_failed|state_persistence|revision|state_conflict/.test(code)) return '送信結果または保存状態が不明です。再送せず、保存済み取引の照合を依頼してください。';
@@ -41,7 +56,7 @@ export async function installUpperClient({ document, storage, provider, fetcher,
     node.addEventListener('click', async () => {
       if (busy || !available()) return; busy = true;
       for (const b of controls.querySelectorAll('button')) b.disabled = true;
-      try { const result = await action(); status.textContent = JSON.stringify(result, null, 2); }
+      try { const result = await action(); status.textContent = upperResultMessage(result); }
       catch (error) { status.textContent = upperErrorMessage(error); }
       finally { busy = false; refreshButtons(); }
     }); controls.append(node);
