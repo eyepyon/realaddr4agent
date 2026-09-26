@@ -4,7 +4,7 @@
 
 ## 実行環境
 
-このinventory手順の実検証はWindows PowerShellとWindows側のgcloudで行った。scriptは`gcloud.cmd`・`gcloud.exe`・`gcloud`を受け付ける。WSL/macOSではPowerShell 7 (`pwsh`)と各OS向けのgcloudを用意し、認証・保存先の権限を別途確認する。以下のWSL/macOS呼出例は手順としての記載であり、そのOSでの実行成功や保存先保護の検証を意味しない。Windowsの実path・credentialをWSL/macOSで流用しない。一般のOS別コマンドは[開発環境](development.md)を参照する。
+このinventory手順の実検証はWindows PowerShellとWindows側のgcloudで行った。scriptは`gcloud.cmd`・`gcloud.exe`・`gcloud`を受け付ける。WSL/macOSではPowerShell 7 (`pwsh`)と各OS向けのgcloudを用意し、認証・保存先の権限を別途確認する。実行前にnative gcloudの認証と保存先のアクセス権限を確認する。Windowsの実path・credentialをWSL/macOSで流用しない。一般のOS別コマンドは[開発環境](development.md)を参照する。
 
 repository rootで実行する。入力変数には保護された設定から対象project、deploy account、確認済みregion、native gcloudの絶対path、新規のリポジトリ外保護ディレクトリを設定しておく。これらの実値をcommand例や履歴へ転記せず、親ディレクトリの権限は実行前に確認する。script自身は権限を設定しない。
 
@@ -14,7 +14,7 @@ Windows PowerShell:
 & ./scripts/gcp-inventory.ps1 -ProjectId $env:GCP_PROJECT_ID -DeployServiceAccount $env:DEPLOY_SERVICE_ACCOUNT -Region $env:GCP_REGION -GcloudPath $env:GCLOUD_PATH -OutputDirectory $env:INVENTORY_OUTPUT_DIRECTORY
 ```
 
-WSL bash / macOS zsh・bash（PowerShell 7とnative gcloudが必要、手動実行未検証）:
+WSL bash / macOS zsh・bash（PowerShell 7とnative gcloudが必要）:
 
 ```sh
 pwsh -NoProfile -File ./scripts/gcp-inventory.ps1 -ProjectId "$GCP_PROJECT_ID" -DeployServiceAccount "$DEPLOY_SERVICE_ACCOUNT" -Region "$GCP_REGION" -GcloudPath "$GCLOUD_PATH" -OutputDirectory "$INVENTORY_OUTPUT_DIRECTORY"

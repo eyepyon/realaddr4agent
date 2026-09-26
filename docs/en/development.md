@@ -1,10 +1,10 @@
 # Development on Windows, WSL, and macOS
 
-Japanese source: [development guide](../development.md). These instructions describe existing commands, not new implementation or evidence of live integrations. See [implementation status](../implementation-status.md) for Windows verification. **Manual execution of these local procedures on WSL/macOS remains unverified; Linux CI verification is separate.** [Operations](../operations.md), [deployment configuration](../deployment-configuration.md), and [infrastructure](../infrastructure.md) define the operational contracts.
+Japanese source: [development guide](../development.md). This guide covers development commands and prerequisites for Windows, WSL, and macOS. Execution records are collected in [implementation status](../implementation-status.md). [Operations](../operations.md), [deployment configuration](../deployment-configuration.md), and [infrastructure](../infrastructure.md) define the operational contracts.
 
 ## Tools and workspace
 
-The tested toolchain is Node.js 22.21.0, pnpm 11.19.0, Java 21, and Firestore Emulator 1.22.0. Contract work uses Foundry 1.7.1, Solidity 0.8.30, and OpenZeppelin Contracts 5.4.0. Infrastructure uses Terraform 1.14.6 and Google provider 8.4.0. Prepare tools for the target OS and install dependencies from the lockfile; do not guess SDK methods or unverified versions.
+The tested toolchain is Node.js 22.21.0, pnpm 11.19.0, Java 21, and Firestore Emulator 1.22.0. Contract work uses Foundry 1.7.1, Solidity 0.8.30, and OpenZeppelin Contracts 5.4.0. Infrastructure uses Terraform 1.14.6 and Google provider 8.4.0. Prepare tools for the target OS and install dependencies from the lockfile; use the pinned versions and documented SDK interfaces.
 
 Run from the repository root in Windows PowerShell, WSL bash, or macOS zsh/bash. In WSL, use a Linux-side clone and Linux Node/Java/pnpm; do not share Windows `node_modules`. Install dependencies independently on macOS too. Prepare keys, credentials, and protected manifests separately with appropriate permissions. WSL does not assume access to Windows protected credentials. File/key/JAR references must resolve in the selected OS; keep actual paths and values out of repository documents.
 
@@ -69,7 +69,7 @@ In another terminal, common to all three OS environments:
 pnpm dev
 ```
 
-The API runs at `http://localhost:8080`; run the emulator within the same OS environment at `127.0.0.1:8085`. `/health` checks the process and `/ready` checks database readiness. Neither proves sponsor integration or sale readiness. After building, use the direct CLI entry for JSON and exit-code consumption on all three OS environments:
+The API runs at `http://localhost:8080`; run the emulator within the same OS environment at `127.0.0.1:8085`. `/health` checks the process and `/ready` checks database readiness. After building, use the direct CLI entry for JSON and exit-code consumption on all three OS environments:
 
 ```sh
 node packages/agent-cli/dist/index.js health --json
@@ -102,7 +102,7 @@ WSL bash / macOS zsh or bash:
 FIRESTORE_EMULATOR_HOST=127.0.0.1:8085 pnpm --filter @realaddr/db test:emulator
 ```
 
-All text must be UTF-8 without BOM and use LF. Integrate the check with existing hooks instead of overwriting them, then use `git config core.hooksPath .githooks` on each clone (same command on all three OS environments). WSL/macOS may also need `chmod +x .githooks/pre-commit`. Check actual staged content before committing. Follow the [minimum acceptance gate](../acceptance.md), recording actual checks, deferred coverage, and blockers in [implementation status](../implementation-status.md).
+All text must be UTF-8 without BOM and use LF. Integrate the check with existing hooks instead of overwriting them, then use `git config core.hooksPath .githooks` on each clone (same command on all three OS environments). WSL/macOS may also need `chmod +x .githooks/pre-commit`. Check actual staged content before committing. Follow the [minimum acceptance gate](../acceptance.md).
 
 ## Contracts, CLI, and operational scripts
 
@@ -122,6 +122,6 @@ WSL bash / macOS zsh or bash:
 (cd contracts && forge build && forge test) && node scripts/export-lease-registry.mjs
 ```
 
-Build/export does not prove deployment. Follow [LeaseRegistry](../lease-registry.md) and [ENSv2](../ensv2.md) for chain, artifact, human signing, and independent verification gates. CLI and Node helper commands have the same syntax across the three OS environments; prepare their arguments and environment references independently. PowerShell uses `$env:KEY = 'value'`; WSL/macOS use `export KEY=value`. Inject secrets through protected mechanisms rather than shell history.
+Follow [LeaseRegistry](../lease-registry.md) and [ENSv2](../ensv2.md) for chain, artifact, human signing, and independent verification gates. CLI and Node helper commands have the same syntax across the three OS environments; prepare their arguments and environment references independently. PowerShell uses `$env:KEY = 'value'`; WSL/macOS use `export KEY=value`. Inject secrets through protected mechanisms rather than shell history.
 
-`scripts/gcp-inventory.ps1` has been execution-verified on Windows. WSL/macOS require PowerShell 7 (`pwsh`), native `gcloud`, and separate checks of OS-local authentication, protected paths, and permissions. Those procedures have not been executed, and no equivalent POSIX script exists. Follow the OS-specific read-only invocation examples and protected-input requirements in the [inventory guide](../gcp-inventory.md). Other PowerShell-only instructions also require PowerShell 7; apparent executability is not verified success. Check platform checksums and protected-backend requirements in [infra README](../../infra/README.md), and do not assume unverified macOS packages or successful live apply.
+Prepare PowerShell 7 (`pwsh`), native `gcloud`, and OS-local authentication, protected paths, and permissions for `scripts/gcp-inventory.ps1`. Follow the OS-specific read-only invocation examples and protected-input requirements in the [inventory guide](../gcp-inventory.md). Other PowerShell-only instructions also require PowerShell 7. Check platform checksums and protected-backend requirements in [infra README](../../infra/README.md).

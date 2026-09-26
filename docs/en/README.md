@@ -2,7 +2,7 @@
 
 Updated: 2026-09-27. [Project overview](../../README.en.md) / [日本語ドキュメント](../README.md)
 
-RealAddr for Agents is under development. The event deployment and several integrations have been checked, but the paid end-to-end flow is not complete. Start with the current implementation status rather than treating a design requirement or a historical test result as evidence that a feature is live.
+Explore RealAddr for Agents through its features, architecture, API, and development guides. Start with the project overview, choose the setup commands for your OS, and follow the integration guides for the demo components. Development progress and execution records are collected in [implementation status](implementation-status.md).
 
 ## Reading guide
 
@@ -36,6 +36,6 @@ These English documents are companion guides covering the main project documenta
 | Sources and submission feedback | [Sources (Japanese)](../sources.md), [Feedback (Japanese)](../feedback.md) |
 | Adopted terms | [Terms v1 (Japanese)](../terms.md), [Adoption record (Japanese)](../terms-review.md) |
 
-The OpenAPI files are shared by both languages; an endpoint appearing in the schema does not establish that its external integrations are enabled. There is no separately adopted English version of the terms. These guides do not change `realaddr-v1`, create consent, or replace its adopted text.
+The OpenAPI files are shared by both languages; see the [API guide](api.md) for current access conditions. The adopted terms are the Japanese `realaddr-v1` text linked above. These technical guides describe the project and its setup.
 
 When behavior or verification status changes, update the Japanese source, the corresponding English guide, and the implementation record together. Keep requirement, task, and scenario IDs unchanged. Keep real account identifiers, wallet and contract addresses, secrets, personal addresses, and protected configuration values out of repository documentation.

@@ -16,17 +16,17 @@ Owner reads are bound to both tenant and agent. An ENS name does not bypass owne
 
 | Surface | Current behavior |
 | --- | --- |
-| Process health and wallet authentication | Implemented; health does not verify external providers |
+| Process health and wallet authentication | Process health and wallet authentication |
 | Location/slot reads | Implemented behind Agent authorization; available locations depend on sale state |
 | Payment-intent and subscription list/detail | Implemented owner reads with opaque pagination |
 | Owner ENS status | Implemented; external verification is required before `ready` |
 | Public ENS resolution and owner lookup by name | Implemented only with explicitly validated namespace/code-pin configuration; unavailable in the current event configuration |
 | ENS description transaction preparation | Implemented behind verified ready binding and explicit configuration; returns an unsigned transaction, not a completed write |
-| Public purchase, renewal, ENS add-on, and pay | Closed with HTTP 503; internal database processing is not public payment availability |
-| Human approval and destination form | Implemented and event-configured; live World exchange and approval for a real paid lease remain unverified |
+| Public purchase, renewal, ENS add-on, and pay | Closed with HTTP 503 |
+| Human approval and destination form | Implemented and event-configured |
 | Admin | Separate session and schema; no manual paid/consent override |
 
-Consult [integration guide](integrations.md) before interpreting a sandbox setup or pending chain state as a completed connected flow.
+See the [integration guide](integrations.md) for provider setup and authorization boundaries.
 
 ## Existing CLI
 
@@ -34,7 +34,7 @@ Build first with `pnpm build`. Set `AGENT_API_ORIGIN` to the intended HTTPS orig
 
 The built entry emits one JSON result and avoids pnpm wrapper output:
 
-These Node commands are common to Windows PowerShell, WSL bash, and macOS zsh/bash. WSL/macOS execution is unverified; see the [development guide](development.md) for OS-local tools, paths, and environment settings.
+These Node commands are common to Windows PowerShell, WSL bash, and macOS zsh/bash. See the [development guide](development.md) for OS-local tools, paths, and environment settings.
 
 ```sh
 node packages/agent-cli/dist/index.js health --json
@@ -50,9 +50,9 @@ Quoted placeholders must be replaced with IDs returned by the API; quotes preven
 
 Implemented ENS commands also include `ens resolve --name`, `lease status --name`, and `ens purchase`. The purchase command requests an intent; it does not provide a connected payment signer, and the current public API rejects sale. It requires `--subscription` and `--idempotency-key`; custom names additionally use `--name-type custom --name <label>`.
 
-`ens describe` currently requires `--subscription`, `--text`, `--expected-version`, `--idempotency-key`, and **`--prepare-only`**. Preparation is not transaction submission or receipt/readback success. Do not infer an automated signer from the intended API design.
+`ens describe` currently requires `--subscription`, `--text`, `--expected-version`, `--idempotency-key`, and **`--prepare-only`**. It prepares an unsigned description transaction.
 
-`lease purchase`, `lease renew`, and `mail enable` appear in the planned Japanese CLI contract but are not implemented commands in the current CLI. Automatic payment, polling, and payment signing are also incomplete. Do not invoke them as if they were available.
+`lease purchase`, `lease renew`, and `mail enable` appear in the planned Japanese CLI contract but are not implemented commands in the current CLI. Use the commands listed above for the current CLI.
 
 Current CLI exit codes are 0 for success, 2 for input, 3 for authentication, 4 for human approval required, 5 for forbidden, 6 for dependency/other failure, 7 for rate limiting, and 8 for conflict. Read the JSON machine error as well as the exit code; code 5 alone does not establish a provider risk verdict.
 

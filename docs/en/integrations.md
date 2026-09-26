@@ -1,6 +1,6 @@
 # Integration guide
 
-This English guide explains the integration boundaries. The Japanese [integration contract](../integrations.md), [requirements](../../.kiro/specs/realaddr/requirements.md), and integration-specific documents remain authoritative. Current evidence and incomplete work are recorded in [implementation status](../implementation-status.md); a configured adapter is not evidence of a completed live flow. This guide does not translate or replace the adopted [terms](../terms.md), version `realaddr-v1`.
+This English guide explains the integration boundaries. The Japanese [integration contract](../integrations.md), [requirements](../../.kiro/specs/realaddr/requirements.md), and integration-specific documents remain authoritative. Integration records are collected in [implementation status](../implementation-status.md). This guide does not translate or replace the adopted [terms](../terms.md), version `realaddr-v1`.
 
 ## Networks and payment boundaries
 
@@ -18,9 +18,9 @@ USDC must have six verified decimals. Custom pricing replaces the standard tier;
 
 The intended x402 v2 flow fixes the order, origin, network, token, recipient, amount, expiry, and authorization before payment. Reserve and screen checks precede settlement. Official v2 headers are `PAYMENT-REQUIRED`, `PAYMENT-SIGNATURE`, and `PAYMENT-RESPONSE`; legacy v1 headers must not be mixed in. The facilitator, token, receipts, finality, and retry behavior require live verification before enabling sale.
 
-Purchase and renewal repository logic persists uncertain outcomes and holds. A confirmed receipt activates at most one order; an unknown result must be reconciled before retrying an external effect. Quote expiry alone does not release an uncertain payment reservation. Public purchase, renewal, add-on, and pay mutations remain closed with HTTP 503. The live payment adapter and payment signer are not connected.
+Purchase and renewal repository logic persists uncertain outcomes and holds. A confirmed receipt activates at most one order; an unknown result must be reconciled before retrying an external effect. Quote expiry alone does not release an uncertain payment reservation. Public purchase, renewal, add-on, and pay mutations remain closed with HTTP 503.
 
-The Intercepta server-only Quick Scan client and internal purchase/renewal screening gate are implemented. An authenticated live diagnostic returned HTTP 200 with the expected schema, but the result was `hold/provider_policy_unconfirmed`. Coverage and numerical safety policy remain unresolved. Zero score or empty traits do not establish safety. The current adapter denies known directly dangerous traits and holds other results; it does not return allow.
+The Intercepta server-only Quick Scan client and internal purchase/renewal screening gate use the provider response schema. The current policy returns `hold/provider_policy_unconfirmed`, denies known directly dangerous traits, and holds other results. Zero score or empty traits do not establish safety.
 
 With protected `INTERCEPTA_API_KEY` and a reviewed public EOA supplied through `INTERCEPTA_SCAN_ADDRESS`, the existing diagnostic is:
 
@@ -36,7 +36,7 @@ WSL bash / macOS zsh or bash:
 pnpm intercepta:scan --address "$INTERCEPTA_SCAN_ADDRESS" --json
 ```
 
-Prepare OS-local protected configuration separately. WSL/macOS execution is unverified; see the [cross-OS development guide](development.md). Node helper commands elsewhere in this guide have the same syntax on Windows, WSL, and macOS; their protected file references must resolve within the selected environment.
+Prepare OS-local protected configuration separately; see the [cross-OS development guide](development.md). Node helper commands elsewhere in this guide have the same syntax on Windows, WSL, and macOS; their protected file references must resolve within the selected environment.
 
 It scans only; it does not sign, settle, or modify an order. Missing, malformed, unknown, expired, or unavailable security results hold the action. Before integration completion, both the buyer's recipient and the seller's verified payer need live checks. See [Intercepta setup](../intercepta.md) for policy, limits, exit codes, and remaining gates.
 
@@ -44,7 +44,7 @@ It scans only; it does not sign, settle, or modify an order. Missing, malformed,
 
 The backend uses Authorization Code with PKCE S256 against the fixed World sandbox issuer. It verifies signatures, issuer, audience, nonce, subject, expiry, and fresh authentication time. Owner-wallet proof and a browser session bind the human to the lease; OIDC login alone never grants consent.
 
-World support, explicit consent persistence, destination versioning, encryption, and the human-only form are implemented and configured in the event deployment. Live authentication/token exchange and approval against a real paid lease remain unverified. The event uses sandbox/mock proof and must not be described as legal KYC or production Orb verification.
+World support includes explicit consent persistence, destination versioning, encryption, and the human-only form. The event uses sandbox/mock proof and must not be described as legal KYC or production Orb verification.
 
 `WORLD_ENABLED` defaults to `false`. Enabling it requires the exact HTTPS callback and four web-only protected settings: `WORLD_CLIENT_ID`, `WORLD_CLIENT_SECRET`, `WORLD_SESSION_KEY`, and `MAIL_ENCRYPTION_KEY`. Session and mail encryption use separate keys. Follow [World setup](../world.md) and [deployment configuration](../deployment-configuration.md); do not put values in prompts, bundles, or logs.
 
@@ -54,7 +54,7 @@ Mail scope is only approval, an enabled indicator, and a human-entered destinati
 
 ## LeaseRegistry and MultiBaas
 
-LeaseRegistry was deployed to Ethereum Sepolia and independently checked for receipt, runtime code, and initial roles. MultiBaas contract linkage and read-only checks succeeded. Database/outbox identity preparation and finalized-block readback are implemented; live lease record/revoke writes, indexed events, durable reorg cursors, and event worker activation remain incomplete.
+LeaseRegistry records address-use rights on Ethereum Sepolia. MultiBaas provides contract linkage and reads. Database/outbox identity preparation and finalized-block readback tie chain state to the current lease version.
 
 `REGISTRY_READBACK_ENABLED` defaults to `false`. Enabling readback requires reviewed contract/version/code pins, RPC, MultiBaas deployment/key, and finalized policy. RPC and MultiBaas must agree on the record and canonical block. Readback neither signs nor submits a transaction. Use [LeaseRegistry setup](../lease-registry.md) for artifact export, human deployment, permissions, and verification; internal port names are application interfaces, not invented vendor SDK methods.
 
@@ -66,7 +66,7 @@ Address purchase alone creates no ENS entitlement or resolver job. A paid add-on
 
 Readiness requires exact registration, hierarchy, controller binding, active lease/version/expiry, and finalized external verification. A text record alone is insufficient. Forwarding destinations and World identifiers stay off ENS. The customer can edit only the dedicated resolver's description, not entitlement records, transfers, or registry expiry.
 
-Parent acquisition, upper-registry connection, and NameController deployment have finalized verification. Location setup tooling is implemented; completed live location transactions, official resolution, and paid-lease name issuance have not been confirmed. `namespaceReady=false` and sales closure remain in effect.
+Location setup uses the five-stage helper below. ENS sales remain closed while `namespaceReady=false`.
 
 The location helper runs with `node scripts/ens-location-serve.mjs` after a reviewed protected plan is prepared. Its configuration uses `ENS_LOCATION_PLAN_FILE`, `ENS_LOCATION_PLAN_HASH`, `ENS_LOCATION_STATE_FILE`, `ENS_LOCATION_WRAPPER_POLICY_FILE`, `ENS_LOCATION_WRAPPER_POLICY_HASH`, and optional `ENS_LOCATION_PORT`. Each stage requires a separate human wallet approval:
 

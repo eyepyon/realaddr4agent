@@ -4,13 +4,13 @@
 
 `bootstrap/`はTerraformの初期基盤rootで、専用state bucket、Docker repository、専用GitHub WIF pool/provider、既存deploy service accountへの限定的なimpersonation member、専用repositoryへのwriter memberを定義する。最初の5資源の登録とGCS state移行は完了し、その後writer memberを追加した。2026-09-27時点で`app/`基盤、Cloud Run初回配備と更新、named `realaddr` DB作成・保守移行・cutoverを確認済み。専用runtime IAMと対象外DB拒否、deny-all client Rulesの評価と未認証拒否を確認した。実Firebase他利用者client試験とTasks/Schedulerの実OIDC配信は残件。`(default)`へfallbackしない。以後の変更でもfresh ownership/region inventory、delete protection・Terraform `prevent_destroy`、RulesとIAMの別々の検証、変更対象と事後状態の確認を行う。実施範囲は[実装状況](../docs/implementation-status.md)を参照する。
 
-Terraform 1.14.6、Google provider 8.4.0を固定し、Windows上でfmt、validate、mock test 2件を確認した。lockfileには公式署名を検証したWindows/Linux amd64 packageのchecksumを含む。WSL/LinuxおよびmacOSでの実行は未検証。macOS用provider checksumはこの確認範囲に含まれず、lockfile変更が必要なら公式署名・対象platformを検証してレビューする。作成後のlive metadata確認は下記に記録する。
+Terraform 1.14.6、Google provider 8.4.0を固定し、Windows上でfmt、validate、mock test 2件を確認した。lockfileには公式署名を検証したWindows/Linux amd64 packageのchecksumを含む。WSL/LinuxとmacOSには各OS向けTerraformを用意する。macOS用provider checksumを追加する場合は公式署名・対象platformを検証してレビューする。作成後のlive metadata確認は下記に記録する。
 
 project、region、bucket名、既存deploy service account、repository名とimmutable repository/owner IDは保護manifestから入力する。実値をリポジトリへ保存しない。認証は管理主体の短期credentialを別途使用し、service account keyやsecret payloadをTerraformへ渡さない。WIFはpool/providerとも既定でdisabled。`wif_enabled=true`には`deploy_workflow_reviewed=true`も必要だが、この確認flagはworkflowと保護されたevent Environmentの実レビューを代替しない。
 
 WIFはimmutable repository/owner ID、repository名、main branch、event Environmentを含むID付きsubject（`repo:OWNER@OWNER-ID/REPO@REPO-ID:environment:event`）、固定deploy workflow ref、workflow_dispatchに限定する。指定deploy accountを作成・import・削除せず、当該account上では本アプリのworkloadIdentityUser memberだけを管理し、他のbindingを保持する。専用Artifact Registryに限定したwriter memberを別途付与する。bootstrapからstate accessやruntime権限を追加せず、既存の実効権限全体が狭いことは保証しない。[GitHubのsubject仕様](https://docs.github.com/en/actions/reference/security/oidc)に従い、名前だけの旧形式を同時に許可しない。
 
-ローカル構文・mock検証（Windows PowerShell / WSL bash / macOS zshでcommand構文は共通。WSL/macOSの実行は未検証）:
+ローカル構文・mock検証（Windows PowerShell / WSL bash / macOS zsh共通）:
 
 ```text
 terraform -chdir=infra/bootstrap init -backend=false
@@ -53,7 +53,7 @@ backend configは専用state bucketと`prefix = "realaddr/event/bootstrap"`を�
 
 `deploy_services`、`runtime_ready`、`web_public`、`scheduler_enabled`、`dispatch_enabled`、`firestore_access_reviewed`、`domain_mapping_reviewed`は既定でfalse。`secret_purposes`も空が既定。基盤のapp applyは17 add・0 update・0 deleteで完了した。service配備には正式なterms、実secret version、同一image digest、worker origin、runtime IAM gateが必要で、公開/dispatch/Schedulerは別の明示的な有効化が必要になる。
 
-Node/pnpm、環境変数とhashのOS別構文は[開発環境](../docs/development.md)を参照する。以下のTerraform/Docker commandはshell固有の変数展開を含まない共通構文で、OS別の実行済み範囲は各検証記録による。
+Node/pnpm、環境変数とhashのOS別構文は[開発環境](../docs/development.md)を参照する。以下のTerraform/Docker commandはshell固有の変数展開を含まない共通構文。各OSのnative toolとDocker engineを用意する。
 
 ## コンテナ準備
 

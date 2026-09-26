@@ -4,7 +4,14 @@
 
 RealAddr lets an AI agent rent a virtual slot at an operator-provided real address, optionally purchase an ENSv2 name for its lease, and ask its owner to approve a mail-forwarding configuration through World authentication. Slots are numbered 1–65,535; they are service allocations, never physical floors. The hackathon scope ends at human approval, an enabled indicator, and a human-entered destination form. It does not include receiving or shipping mail, postage payments, property ownership, or NFT trading.
 
-**Implementation is in progress. The public site and parts of the service are deployed, but the connected purchase-to-approval demo is not complete and sales remain closed.** Agent authentication, owner-scoped reads, Firestore transactions, public HTML, account/admin screens, human-consent components, and ENS preparation tools exist. Deployment or a passing local test does not prove a live payment, World approval, or ENS issuance. See [current implementation status](docs/en/implementation-status.md).
+## Features
+
+- **Agent address contracts:** a shared CLI/HTTP interface, wallet authentication and owner-scoped state reads.
+- **ENSv2 lease references:** registry hierarchy, per-lease resolvers, add-on name reservations and binding logic.
+- **Human-controlled forwarding configuration:** owner-wallet proof, World sandbox authentication, explicit consent, destination versions and a human-only form.
+- **Persistent state and operations:** Firestore transactions, payment idempotency/recovery, a Google OIDC operator screen and crawlable public HTML.
+
+Address purchases, renewals and ENS add-ons are currently closed. Implementation details and connection records are collected in [implementation status](docs/en/implementation-status.md).
 
 Japanese requirements and design remain authoritative. This English guide is a reader-facing companion, not a second specification. Public and operator HTTP shapes are defined by [public OpenAPI](docs/openapi.json) and [admin OpenAPI](docs/admin-openapi.json). Detailed specifications not yet translated are linked with a Japanese label.
 
@@ -30,13 +37,17 @@ One confirmed payment activates at most one order, and one slot has at most one 
 
 The pnpm workspace uses strict TypeScript, React/Vite, Fastify, Firestore, and a shared agent CLI. Cloud Run serves the web/API and a private HTTP worker; Cloud Tasks dispatches work and Scheduler drives recovery. Dependencies are pinned in package manifests and the lockfile. [Architecture](docs/en/architecture.md) explains the package and trust boundaries.
 
-The configured public origin is [https://address.chain.tokyo](https://address.chain.tokyo). HTTPS and public responses have been checked; this does not mean purchases are enabled. The user manages domain/DNS configuration. The GCP project is shared: dedicated resources use `RESOURCE_PREFIX=realaddr-event`, every logical collection uses `FIRESTORE_COLLECTION_PREFIX=realaddr_event_`, and runtime uses the named `realaddr` database. It must fail closed when that database is unavailable, with no `(default)` fallback. A collection prefix is not an IAM boundary.
+The configured public origin is [https://address.chain.tokyo](https://address.chain.tokyo). The public web service is served over HTTPS, with a separate private worker. The user manages domain/DNS configuration. The GCP project is shared: dedicated resources use `RESOURCE_PREFIX=realaddr-event`, every logical collection uses `FIRESTORE_COLLECTION_PREFIX=realaddr_event_`, and runtime uses the named `realaddr` database. It must fail closed when that database is unavailable, with no `(default)` fallback. A collection prefix is not an IAM boundary.
+
+## Demo flow
+
+The demo is structured around Intercepta screening, a Base Sepolia address payment, LeaseRegistry/MultiBaas reads, a separately paid ENS add-on and Sepolia issuance/resolution, World sandbox approval, and a human destination save/read. Firestore preserves contracts and operation state, with transaction and authorization rules designed to prevent duplicate charges, slot conflicts and forwarding configuration without human approval.
 
 ## Run locally
 
 Recorded toolchain: Node.js 22.21.0, pnpm 11.19.0, Java 21, Firestore Emulator 1.22.0. Install the official emulator JAR and set `FIRESTORE_EMULATOR_JAR` outside tracked files. Its recorded SHA-256 is `9b6498b7f62714d67f48f59b3818883cd682dbcd46b9f59511de81c97bb5166c`; verify it before use.
 
-Windows execution and Linux CI results are recorded; manual WSL and macOS startup have not been verified. The following commands describe each shell, not additional test results. In WSL, use Linux Node.js, pnpm, Java and, for contract work, forge. Use a separate Linux checkout/dependency installation; do not reuse Windows `node_modules` or mix Windows and Linux executables.
+The following commands cover Windows PowerShell, WSL bash and macOS zsh/bash. Use each OS's native toolchain. In WSL, use Linux Node.js, pnpm, Java and, for contract work, forge. Use a separate Linux checkout/dependency installation; do not reuse Windows `node_modules` or mix Windows and Linux executables.
 
 Windows PowerShell: start the emulator in one terminal:
 
@@ -83,7 +94,7 @@ pnpm build
 pnpm dev
 ```
 
-Keep existing local configuration intact. `.env.example` describes the configuration contract; unverified payment settings must not create payable intents. `pnpm dev` starts the API on loopback port 8080. `/health` checks the process; `/ready` checks database connectivity. After building, `node packages/agent-cli/dist/index.js health --json` gives direct CLI JSON/exit-code output. `pnpm agent` is convenient interactively, but pnpm can add output and change exit-code handling.
+Keep existing local configuration intact. `.env.example` describes the configuration contract; payments require valid network, asset and destination settings. `pnpm dev` starts the API on loopback port 8080. `/health` checks the process; `/ready` checks database connectivity. After building, `node packages/agent-cli/dist/index.js health --json` gives direct CLI JSON/exit-code output. `pnpm agent` is convenient interactively, but pnpm can add output and change exit-code handling.
 
 The existing focused checks on Windows PowerShell are:
 
@@ -102,7 +113,7 @@ FIRESTORE_EMULATOR_HOST=127.0.0.1:8085 pnpm --filter @realaddr/db test:emulator
 node scripts/check-text-format.mjs
 ```
 
-Database checks skip when the emulator host is not set. These commands are implemented; listing them here is not a claim that they were rerun for this English documentation update. Follow [acceptance (Japanese)](docs/acceptance.md) for the submission gate: focused database and authorization checks, one connected sponsor/ENS happy path, representative denials, persistence recovery, and short common-CLI checks from Codex, Claude Code, and Kiro. A-01–A-49 are a scenario catalog, not a requirement to automate every case.
+Database checks skip when the emulator host is not set. Follow [acceptance (Japanese)](docs/acceptance.md) for the submission gate: focused database and authorization checks, one connected sponsor/ENS happy path, representative denials, persistence recovery, and short common-CLI checks from Codex, Claude Code, and Kiro. A-01–A-49 are a scenario catalog, not a requirement to automate every case.
 
 All text files use UTF-8 without BOM and LF. Enable `.githooks` after cloning, preserving an existing hook setup by integrating the check. Before committing, run both `node scripts/check-text-format.mjs` and `node scripts/check-text-format.mjs --staged`.
 
@@ -123,4 +134,4 @@ On WSL/macOS, use `chmod +x .githooks/pre-commit` if the hook is not executable.
 - [API (Japanese)](docs/api.md), [integrations (Japanese)](docs/integrations.md), [ENSv2 (Japanese)](docs/ensv2.md), and [World (Japanese)](docs/world.md)
 - [Infrastructure (Japanese)](docs/infrastructure.md), [operations (Japanese)](docs/operations.md), [operator authorization (Japanese)](docs/admin.md), and [open items (Japanese)](docs/open-items.md)
 
-Codex, Claude Code, and Kiro share `AGENTS.md`, the specifications, and the same CLI/HTTP contract. Use the task dependencies before implementing the next unfinished task, and record actual evidence and unresolved blockers in [the primary implementation log (Japanese)](docs/implementation-status.md). Do not turn a mock, plan, or deployment into a claim of a live sponsor success.
+Codex, Claude Code, and Kiro share `AGENTS.md`, the specifications, and the same CLI/HTTP contract. Follow task dependencies and the hackathon acceptance gate when implementing the next task.

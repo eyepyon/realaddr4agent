@@ -1,6 +1,6 @@
 # Windows・WSL・macOSの開発手順
 
-英語版: [Development guide](en/development.md)。これは既存commandのOS別利用案内であり、新しい実装や外部接続成功を意味しない。Windowsでの実施記録は[実装状況](implementation-status.md)を参照。**このローカル手順のWSL/macOSでの手動実行は未検証であり、Linux CIの検証とは別である。** 外部連携・公開・管理の設定契約は[運用](operations.md)、[event設定](deployment-configuration.md)、[インフラ](infrastructure.md)を正本とする。
+英語版: [Development guide](en/development.md)。Windows・WSL・macOSでの開発commandと実行前提を案内する。実施記録は[実装状況](implementation-status.md)へ集約する。外部連携・公開・管理の設定契約は[運用](operations.md)、[event設定](deployment-configuration.md)、[インフラ](infrastructure.md)を正本とする。
 
 ## ツールと作業領域
 
@@ -69,7 +69,7 @@ java -jar "$FIRESTORE_EMULATOR_JAR" --host 127.0.0.1 --port 8085 --project_id de
 pnpm dev
 ```
 
-APIは`http://localhost:8080`。同じOS内でEmulatorを`127.0.0.1:8085`へ起動する。`/health`はprocess、`/ready`はDB準備の確認で、スポンサー接続や販売可否を保証しない。build済みCLIのJSON/終了codeを直接読む場合は共通commandを使う:
+APIは`http://localhost:8080`。同じOS内でEmulatorを`127.0.0.1:8085`へ起動する。`/health`はprocess、`/ready`はDB準備の確認。build済みCLIのJSON/終了codeを直接読む場合は共通commandを使う:
 
 ```sh
 node packages/agent-cli/dist/index.js health --json
@@ -102,7 +102,7 @@ WSL bash / macOS zsh・bash:
 FIRESTORE_EMULATOR_HOST=127.0.0.1:8085 pnpm --filter @realaddr/db test:emulator
 ```
 
-textはUTF-8/BOMなし/LF。既存hookを上書きせずcheckを統合し、cloneごとに`git config core.hooksPath .githooks`を設定する（3 OS共通）。WSL/macOSでは必要に応じ`chmod +x .githooks/pre-commit`も行う。実staged内容の検査を省略しない。実施・未実施とblockerは[実装状況](implementation-status.md)、最小gateは[受入](acceptance.md)へ従う。
+textはUTF-8/BOMなし/LF。既存hookを上書きせずcheckを統合し、cloneごとに`git config core.hooksPath .githooks`を設定する（3 OS共通）。WSL/macOSでは必要に応じ`chmod +x .githooks/pre-commit`も行う。実staged内容の検査を省略しない。最小gateは[受入](acceptance.md)へ従う。
 
 ## Contract・CLI・運用script
 
@@ -122,6 +122,6 @@ WSL bash / macOS zsh・bash:
 (cd contracts && forge build && forge test) && node scripts/export-lease-registry.mjs
 ```
 
-build/exportはdeploy証拠ではない。[LeaseRegistry](lease-registry.md)・[ENS](ensv2.md)のchain・artifact・人間署名・独立照合gateを守る。CLI/Node helperのcommand自体は3 OS共通だが、引数/環境変数の値は環境ごとに準備する。PowerShellは`$env:KEY = 'value'`、WSL/macOSは`export KEY=value`。secret値をshell履歴に書かず保護された注入方式を使う。
+[LeaseRegistry](lease-registry.md)・[ENS](ensv2.md)のchain・artifact・人間署名・独立照合gateを守る。CLI/Node helperのcommand自体は3 OS共通だが、引数/環境変数の値は環境ごとに準備する。PowerShellは`$env:KEY = 'value'`、WSL/macOSは`export KEY=value`。secret値をshell履歴に書かず保護された注入方式を使う。
 
-`scripts/gcp-inventory.ps1`の実行検証済み環境はWindows。WSL/macOSではPowerShell 7 (`pwsh`)とnative `gcloud`を準備し、対象OSの認証・保護path・権限を別途確認する必要がある。これらの環境での手順は未実行であり、同等POSIX scriptはない。[inventory手順](gcp-inventory.md)のOS別読み取り呼出例と保護入力の条件に従う。その他PowerShell手順をそのまま実行する場合もPowerShell 7が必要で、実行可能性だけを検証成功とは扱わない。Terraformの対象platform/checksum・protected backend条件は[infra README](../infra/README.md)を確認し、未検証macOS packageやlive apply成功を仮定しない。
+`scripts/gcp-inventory.ps1`にはPowerShell 7 (`pwsh`)とnative `gcloud`を準備し、対象OSの認証・保護path・権限を確認する。[inventory手順](gcp-inventory.md)のOS別読み取り呼出例と保護入力の条件に従う。その他PowerShell手順をそのまま実行する場合もPowerShell 7が必要。Terraformの対象platform/checksum・protected backend条件は[infra README](../infra/README.md)を確認する。

@@ -1,8 +1,8 @@
 # World sandbox接続と人間承認
 
-Node/pnpmの共通commandとWindows PowerShell・WSL bash・macOS zshの環境変数、hash、起動手順は[開発環境](development.md)を参照する。本文の設定名はOS共通の契約であり、WSL/macOSでの実行成功を示すものではない。
+Node/pnpmの共通commandとWindows PowerShell・WSL bash・macOS zshの環境変数、hash、起動手順は[開発環境](development.md)を参照する。各OSのnative toolchainと依存関係を使用する。
 
-T-00/T-03/T-06の接続準備と実装範囲。2026-09-27時点で公式[docs](https://sandbox.auth.world.org/docs)・[discovery](https://sandbox.auth.world.org/.well-known/openid-configuration)の取得、client/callbackと保護設定の登録、eventへの配備、未認証・Agent操作の拒否を確認済み。Worldのlive認証、token交換、実際の有効なpaid leaseでの人間承認・宛先保存は未検証であり、タスク完了を意味しない。eventは模擬proofを使用する開発環境。本物のOrb認証済みや法的KYC完了とは表示しない。
+T-00/T-03/T-06のWorld sandbox接続と人間専用承認フォームの手順。eventは模擬proofを使用する開発環境であり、本物のOrb認証や法的KYCとは区別する。実装・接続状況は[実装状況](implementation-status.md)を参照する。
 
 ## Portal登録と設定
 

@@ -2,7 +2,7 @@
 
 [English index](README.md) · [Project overview](../../README.en.md) · [Current status](implementation-status.md)
 
-This is a reader-facing English guide. [Requirements (Japanese)](../../.kiro/specs/realaddr/requirements.md) define behavior, [design (Japanese)](../../.kiro/specs/realaddr/design.md) defines implementation, and [public OpenAPI](../openapi.json) defines HTTP shapes. The connected architecture below is the target; deployed components do not imply the entire flow is operational.
+This is a reader-facing English guide. [Requirements (Japanese)](../../.kiro/specs/realaddr/requirements.md) define behavior, [design (Japanese)](../../.kiro/specs/realaddr/design.md) defines implementation, and [public OpenAPI](../openapi.json) defines HTTP shapes. The architecture below describes the connected product flow.
 
 ## Components
 
@@ -39,7 +39,7 @@ flowchart LR
 
 Public pages return readable initial HTML and public discovery assets. Private account/admin content must never enter public HTML or AEO assets. White/light-gray surfaces and restrained blue accents share status components that explicitly distinguish pending, successful and failed operations. See [frontend (Japanese)](../frontend.md) and [AEO (Japanese)](../aeo.md).
 
-[Local setup](../../README.en.md#run-locally) covers Windows PowerShell, WSL bash and macOS zsh/bash. The pnpm command contract is shared, but WSL must use its own Linux toolchain and dependencies rather than Windows `node_modules`. Recorded Windows execution and Linux CI are distinct from unverified manual WSL/macOS startup.
+[Local setup](../../README.en.md#run-locally) covers Windows PowerShell, WSL bash and macOS zsh/bash. The pnpm command contract is shared, but WSL must use its own Linux toolchain and dependencies rather than Windows `node_modules`.
 
 ## Durable state and effects
 
@@ -71,4 +71,4 @@ The actual hierarchy is parent → location registry → purchased lease name, w
 
 ## Completion gate
 
-Submission needs one real screening → address payment → lease/MultiBaas read → separate ENS quote/payment → issuance/official resolution → World approval → human destination save/read flow. Representative denials, persistence/recovery and short common-CLI checks across all three tools accompany it. Fixtures, unsigned plans and infrastructure deployment prove only their own scope. See [acceptance (Japanese)](../acceptance.md) and [status](implementation-status.md).
+Submission needs one real screening → address payment → lease/MultiBaas read → separate ENS quote/payment → issuance/official resolution → World approval → human destination save/read flow. Representative denials, persistence/recovery and short common-CLI checks across all three tools accompany it. See [acceptance (Japanese)](../acceptance.md).

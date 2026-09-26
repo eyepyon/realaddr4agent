@@ -1,8 +1,8 @@
 # event環境の設定値と投入先
 
-Node/pnpmの共通commandとWindows PowerShell・WSL bash・macOS zshの環境変数、hash、起動手順は[開発環境](development.md)を参照する。本文の設定名はOS共通の契約であり、WSL/macOSでの実行成功を示すものではない。
+Node/pnpmの共通commandとWindows PowerShell・WSL bash・macOS zshの環境変数、hash、起動手順は[開発環境](development.md)を参照する。各OSのnative toolchainと依存関係を使用する。
 
-この資料はT-00/T-01/T-16の設定契約と投入手順である。2026-09-27時点で、bootstrap/app基盤、GCS state移行、専用WIF、event imageの作成、Cloud Run初回配備と更新、専用named `realaddr` DBへの移行を確認済み。World/admin等の設定済みsecret参照と、未接続の決済・外部効果runnerを区別する。Scheduler等のresource登録は実OIDC配信の完了を意味しない。実施・未実施は[実装状況](implementation-status.md)へ記録する。ここに書いた外部設定例は払い出し済みの値を意味しない。設定の正本は[運用仕様](operations.md)、[インフラ仕様](infrastructure.md)、[管理仕様](admin.md)、[料金仕様](pricing.md)とする。実際の外部account識別子、secret、鍵、個人住所をリポジトリ文書・source comment・例・commit messageへ載せない。Terraformの保護されたstate/planにはresource metadataが必要だが、secret payload、署名鍵、個人住所を入れない。Actions logにも実値やcredentialを出力しない。
+この資料はT-00/T-01/T-16の設定契約と投入手順である。2026-09-27時点で、bootstrap/app基盤、GCS state移行、専用WIF、event imageの作成、Cloud Run初回配備と更新、専用named `realaddr` DBへの移行を確認済み。World/admin等の設定済みsecret参照と、未接続の決済・外部効果runnerを区別する。接続履歴は[実装状況](implementation-status.md)へ記録する。外部設定例には保護設定で選んだ値を使用する。設定の正本は[運用仕様](operations.md)、[インフラ仕様](infrastructure.md)、[管理仕様](admin.md)、[料金仕様](pricing.md)とする。実際の外部account識別子、secret、鍵、個人住所をリポジトリ文書・source comment・例・commit messageへ載せない。Terraformの保護されたstate/planにはresource metadataが必要だが、secret payload、署名鍵、個人住所を入れない。Actions logにも実値やcredentialを出力しない。
 
 ## 投入先と順序
 
@@ -51,7 +51,7 @@ workflowは`${{ secrets.DEPLOY_CONFIG }}`を読み、認証actionへ渡す識別
 | ENSv2 | `ENS_CHAIN_ID=11155111`、`ENS_RPC_URL=<verified-sepolia-rpc>`、`ENS_PARENT_NAME=<controlled-parent-name>`、`ENS_PARENT_REGISTRY=<verified-address>`、`ENS_USER_REGISTRY=<verified-address>`、`ENS_NAME_CONTROLLER=<verified-address>`、`ENS_UNIVERSAL_RESOLVER=<verified-address>`、`ENS_FACTORY=<verified-address>`、`ENS_RESOLVER_IMPLEMENTATION=<verified-address>`、`ENS_FINALITY_POLICY=<tested-policy>`。親名の制御・公式deployment/ABI・gas確認までは販売を無効にする |
 | 管理者OIDC | `ADMIN_GOOGLE_CLIENT_ID=<app-client-id>`、`ADMIN_OIDC_REDIRECT_URI=https://address.chain.tokyo/auth/admin/callback`。本アプリ専用clientの実値・callback登録を確認し、server側の保護設定から注入。World session/consentとは独立 |
 
-Cloud Tasks dispatchはlocal/defaultで無効とし、event設定のCloud Tasks/worker接続が検証されるまで有効化しない。`WORKER_URL`は完全なHTTPS originとして検査し、末尾path等を補完・推測せず、設定した専用worker URLと完全一致させる。Tasks HTTP targetのaudienceと宛先originは同じworker originに固定する。dispatchが有効な構成でも、queueにtaskが存在することはoutbox jobの業務完了やpayment successを意味しない。Cloud Tasks/Scheduler/GCPへの実接続やIAM/Rules gateの確認は未実施・未検証である。
+Cloud Tasks dispatchはlocal/defaultで無効とし、event設定のCloud Tasks/worker接続が検証されるまで有効化しない。`WORKER_URL`は完全なHTTPS originとして検査し、末尾path等を補完・推測せず、設定した専用worker URLと完全一致させる。Tasks HTTP targetのaudienceと宛先originは同じworker originに固定する。dispatchが有効な構成でも、queueにtaskが存在することはoutbox jobの業務完了やpayment successを意味しない。配信・IAM・Rules gateの記録は[実装状況](implementation-status.md)を参照する。
 
 Web buildは`VITE_APP_ENV=local|event`と`VITE_TERMS_VERSION`をbuild時に固定する。eventは正式採用済みの `realaddr-v1` を必須とし、本文のversionとの一致も確認する。正式version未確定の待ち条件は解消しており、実配備には公開設定・runtime等の残りの確認を要する。ブラウザへsecretを含む`VITE_`変数を渡さない。
 
@@ -75,7 +75,7 @@ Web buildは`VITE_APP_ENV=local|event`と`VITE_TERMS_VERSION`をbuild時に固�
 
 ## ローカル設定
 
-秘密のない`.env.example`を作成済みで、local/CIの非秘密キーとplaceholderを載せている。既存`.env`を上書きせず未追跡`.env`へ複製する。現在のEmulator設定は`APP_ENV=local`、`FIRESTORE_EMULATOR_HOST=127.0.0.1:8085`、`FIRESTORE_COLLECTION_PREFIX=realaddr_event_`、`GCP_PROJECT_ID=demo-realaddr-local`。MultiBaas status APIはHTTP 200で応答schema検証を通過し、再検査でEthereum Sepolia (chain ID 11155111)との一致を確認した。registry設定、contract権限、read/write/event操作は未確認。`PAYMENT_ASSET`、`PAYMENT_PAY_TO`、`PAYMENT_DECIMALS`、`PRICING_VERSION`が未確認なら認証・healthは動作しても決済見積は無効になる。Webのlocal buildには`VITE_APP_ENV=local`と`VITE_TERMS_VERSION`を明示する。開発者の実secret・署名鍵はリポジトリ外の環境/secret storeへ置く。test doubleはlocalと表示し、event用の実鍵をlocalから流用しない。顧客CLIの例: `AGENT_API_ORIGIN=https://address.chain.tokyo`、`AGENT_CREDENTIAL_FILE=<local-untracked-file>`または`AGENT_API_TOKEN=<protected-token>`、`AGENT_SIGNER_KEY_REF=<local-key-reference>`、`AGENT_MAX_PAYMENT_ATOMIC=<reviewed-limit>`、`AGENT_DAILY_LIMIT_ATOMIC=<reviewed-limit>`、`AGENT_INTERCEPTA_KEY=<local-secret-reference>`。上限値は利用者の資金・運用方針に合わせて確定し、署名鍵・API keyをAgentへのprompt、client bundle、ログへ渡さない。
+秘密のない`.env.example`を作成済みで、local/CIの非秘密キーとplaceholderを載せている。既存`.env`を上書きせず未追跡`.env`へ複製する。現在のEmulator設定は`APP_ENV=local`、`FIRESTORE_EMULATOR_HOST=127.0.0.1:8085`、`FIRESTORE_COLLECTION_PREFIX=realaddr_event_`、`GCP_PROJECT_ID=demo-realaddr-local`。MultiBaas status APIはHTTP 200で応答schema検証を通過し、再検査でEthereum Sepolia (chain ID 11155111)との一致を確認した。LeaseRegistry配備・初期権限・MultiBaas read-only照合を確認済み。write/event接続の状態は[実装状況](implementation-status.md)を参照する。`PAYMENT_ASSET`、`PAYMENT_PAY_TO`、`PAYMENT_DECIMALS`、`PRICING_VERSION`が未確認なら認証・healthは動作しても決済見積は無効になる。Webのlocal buildには`VITE_APP_ENV=local`と`VITE_TERMS_VERSION`を明示する。開発者の実secret・署名鍵はリポジトリ外の環境/secret storeへ置く。test doubleはlocalと表示し、event用の実鍵をlocalから流用しない。顧客CLIの例: `AGENT_API_ORIGIN=https://address.chain.tokyo`、`AGENT_CREDENTIAL_FILE=<local-untracked-file>`または`AGENT_API_TOKEN=<protected-token>`、`AGENT_SIGNER_KEY_REF=<local-key-reference>`、`AGENT_MAX_PAYMENT_ATOMIC=<reviewed-limit>`、`AGENT_DAILY_LIMIT_ATOMIC=<reviewed-limit>`、`AGENT_INTERCEPTA_KEY=<local-secret-reference>`。上限値は利用者の資金・運用方針に合わせて確定し、署名鍵・API keyをAgentへのprompt、client bundle、ログへ渡さない。
 
 ## 未確定と記録
 

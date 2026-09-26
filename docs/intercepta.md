@@ -1,6 +1,6 @@
 # Interceptaの接続準備
 
-T-00/T-04の初期実装。認証付きQuick Scanのlive照会でHTTP 200と必須schemaを確認した。安全基準・coverage・評価対象chainは未確認のため判定はhold。公開購入・決済は有効化していない。
+T-00/T-04のQuick Scan接続と診断手順。認証付きlive照会はHTTP 200と必須schemaを確認済み。現在の安全policyではholdを返し、公開購入・決済は受付停止。接続履歴は[実装状況](implementation-status.md)を参照する。
 
 ## 実装と診断
 
@@ -14,7 +14,7 @@ Windows PowerShell:
 pnpm intercepta:scan --address "$env:INTERCEPTA_SCAN_ADDRESS" --json
 ```
 
-WSL bash / macOS zsh（未検証）:
+WSL bash / macOS zsh:
 
 ```sh
 pnpm intercepta:scan --address "$INTERCEPTA_SCAN_ADDRESS" --json

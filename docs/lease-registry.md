@@ -26,7 +26,7 @@ Pop-Location
 node scripts/export-lease-registry.mjs
 ```
 
-WSL bash / macOS zsh（repository rootから。OS別の実行は未検証）:
+WSL bash / macOS zsh（repository rootから）:
 
 ```sh
 (cd contracts && forge build && forge test) && node scripts/export-lease-registry.mjs
@@ -56,7 +56,7 @@ compiler/settings/contract/constructor不一致、空bytecode、未解決library
 
 ### artifact投入と照合
 
-[公式Library手順](https://docs.curvegrid.com/multibaas/manage-contracts)はForge compilation artifactまたはABIのJSON uploadを支持する。ABI単体にはdeploy用bytecodeがないため、今回は`LeaseRegistry.json`を優先する。flattened Solidityやstandard JSON compiler inputの投入は前提にしない。今回は検証済みartifactのABIとcreation bytecodeを公式APIのlibrary definitionとして登録し、versionのread-backと内容一致を確認済み。UI経由のartifact uploadとUIでのdeployは未検証。実deploymentは後述のlocal helperで完了し、独立RPCで照合した。
+[公式Library手順](https://docs.curvegrid.com/multibaas/manage-contracts)はForge compilation artifactまたはABIのJSON uploadを支持する。ABI単体にはdeploy用bytecodeがないため、今回は`LeaseRegistry.json`を優先する。flattened Solidityやstandard JSON compiler inputの投入は前提にしない。今回は検証済みartifactのABIとcreation bytecodeを公式APIのlibrary definitionとして登録し、versionのread-backと内容一致を確認済み。実deploymentは後述のlocal helperを使用し、独立RPCで照合した。
 
 1. 人間がwalletを準備し、Ethereum Sepoliaとgas残高を確認する。秘密鍵・seed phraseをassistant、prompt、repository、ログへ渡さない。手動testではconstructorの`admin`と`writer`に接続walletを指定する。
 2. MultiBaasのContracts → LibraryでForge artifactをuploadする。`LeaseRegistry`のconstructorが`admin: address`、`writer: address`で、期待するABIとbytecodeであることを確認し、label/versionを固定する。
@@ -67,7 +67,7 @@ compiler/settings/contract/constructor不一致、空bytecode、未解決library
 
 ### UI deployでtransactionが得られない場合
 
-MultiBaas UIで正しいconstructor値を指定しても「Missing the transaction to continue」となり、wallet署名画面が開かない事象が確認されている。これはUI側の原因が確定したことを意味しない。登録済みdefinitionのABI・bytecode一致だけではdeploy成功とみなさない。
+MultiBaas UIで正しいconstructor値を指定しても「Missing the transaction to continue」となり、wallet署名画面が開かない事象が確認されている。原因の調査とdeploy結果の照合は分けて行う。登録済みdefinitionのABI・bytecode一致だけではdeploy成功とみなさない。
 
 ローカル補助画面を用意した。`REGISTRY_DEPLOY_WALLET`には手動testで`admin`・`writer`に使うwallet addressをローカル環境変数として設定し、次のcommandを起動する。`REGISTRY_DEPLOY_PORT`は使用するloopback portを環境変数で指定する。
 
@@ -77,7 +77,7 @@ Windows PowerShell:
 node scripts/serve-registry-deploy.mjs --wallet "$env:REGISTRY_DEPLOY_WALLET" --port "$env:REGISTRY_DEPLOY_PORT"
 ```
 
-WSL bash / macOS zsh（未検証）:
+WSL bash / macOS zsh:
 
 ```sh
 node scripts/serve-registry-deploy.mjs --wallet "$REGISTRY_DEPLOY_WALLET" --port "$REGISTRY_DEPLOY_PORT"

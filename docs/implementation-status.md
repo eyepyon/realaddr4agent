@@ -24,6 +24,8 @@
 
 ### T-11 ドキュメント整理・英語ガイド・OS別コマンド
 
+READMEと利用ガイドは機能・デモ構成・実行手順を中心に記載し、OSごとの実行証拠や開発途中の検証注記は本記録へ集約する。利用者の判断に必要な受付状態、testnet/sandbox区分、実行前提、認可・再送条件は各手順に保持する。この編集で実施済み検査の範囲や業務機能の有効化状態は変更していない。
+
 2026-09-27。READMEを現況と残件中心に整理し、管理ログイン、named DB移行、WIF・Cloud Run更新、MultiBaas read、ENS controller最終確定の記録と各手順の古い現況を一致させた。Base Sepoliaの決済chainを「候補」とする記述と、固定collection prefixへのsuffix例外を既存の確定方針へ揃えた。ENS拠点署名は作業中であり、完了や販売有効化を追加認定していない。
 
 日本語の文書案内、英語READMEと構成・API・外部連携・運用・実装状況・開発ガイドを追加した。日本語の要件/設計と共通OpenAPIを正本とし、英語は主要内容の対応ガイドと明記した。採用済み規約本文・version・機械schemaは変更していない。Windows PowerShell、WSL bash、macOS zsh/bashのコマンドを併記し、環境変数、hash確認、依存関係、PowerShell運用scriptの前提を区別した。

@@ -2,20 +2,16 @@
 
 AIエージェントがx402で実住所の利用区画を契約し、ENSv2名で住所契約を参照し、World IDによる人間承認後に郵便転送設定を有効化するサービス。
 
-## 現在の状態
+## 特徴
 
-仕様と部分実装を公開しています。event環境の公開HTTPS、専用named Firestore `realaddr`、公開ページ、所有者向け状態取得、管理画面を確認済みです。購入・更新の公開mutationと実決済は未接続で、販売を停止しています。mainnet運用は対象外です。
+- **Agentから使う住所契約**: 共通CLIとHTTP API、wallet認証、所有者向け状態取得を実装しています。
+- **ENSv2で契約を参照**: 親名・拠点・契約名のregistry階層、契約別Resolver、初回add-onの名前予約とbindingを設計・実装しています。
+- **人間が管理する転送設定**: owner walletとWorld sandbox認証、明示同意、宛先version管理、人間専用フォームを実装しています。
+- **永続化と運営画面**: Firestore transaction、決済の冪等性・復旧、Google OIDC管理画面、公開HTMLを備えます。
 
-| 項目 | 確認済み | 残る接続・検証 |
-| --- | --- | --- |
-| GCP・管理 | 公開HTTPS、runtime IAM、named DB、管理ログインの本人報告、停止中拠点の登録 | Tasks/Schedulerの実OIDC配信、実Firebase利用者clientのRules試験 |
-| 住所契約・決済 | DB予約・一意性・不明決済の保持・確認済みreceiptからの復旧をローカル検証 | Base Sepoliaのx402実決済、公開pay、署名器 |
-| LeaseRegistry・MultiBaas | Sepolia配備、独立RPC検証、MultiBaas read-only照合 | 実lease記録・取消、eventのworker有効化、indexed events/reorg回復 |
-| Intercepta | 認証付きQuick ScanのHTTP 200・schema一致 | 安全policy・chain coverageが未確定のためhold。公開pay・署名器未接続 |
-| World sandbox | OIDC・人間専用承認フォームをevent配備、未認証・Agent拒否 | live認証・token交換、実paid leaseでの明示同意・宛先保存 |
-| ENSv2 | 親名、上位registry接続、NameControllerのreceipt・runtime・権限・最終確定を独立検証。永続buildingKey保存と拠点5操作helperを準備 | 拠点署名操作の完了検証、公式解決、paid leaseの名前発行。`namespaceReady=false`・販売停止を維持 |
+住所購入・更新・ENS add-onは現在受付を停止しています。郵便のデモは人間承認、有効表示、宛先フォームまでで、実郵便の受領・発送は扱いません。
 
-最新の証拠、実行した検査と履歴は[実装状況](docs/implementation-status.md)、残件は[未解決事項](docs/open-items.md)を参照してください。ローカルfixtureや署名helperの起動を外部接続の完了とは扱いません。郵便のデモは人間承認、有効表示、宛先フォームに限定します。
+実装の詳細と接続記録は[実装状況](docs/implementation-status.md)を参照してください。
 
 日本語が仕様の正本です。[ドキュメント案内](docs/README.md)、[English overview](README.en.md)、[English documentation guide](docs/en/README.md)から目的別の資料を参照できます。現況更新: 2026-09-27。
 
@@ -27,7 +23,7 @@ AIエージェントがx402で実住所の利用区画を契約し、ENSv2名で
 4. [API契約](docs/api.md) / [OpenAPI](docs/openapi.json)
 5. [実装タスク](.kiro/specs/realaddr/tasks.md)
 6. [受入テスト・デモ](docs/acceptance.md)
-7. [運用・設定・未確定事項](docs/operations.md) / [未解決事項一覧](docs/open-items.md)
+7. [運用・設定](docs/operations.md) / [開発項目一覧](docs/open-items.md)
 8. [一次資料と確認状況](docs/sources.md)
 9. [ENSv2連携・住所契約の紐づけ](docs/ensv2.md)
 10. [GCP構成・Firestore設計・低コスト運用](docs/infrastructure.md)
@@ -50,23 +46,20 @@ AIエージェントがx402で実住所の利用区画を契約し、ENSv2名で
 
 ```text
 AGENTS.mdとREADME.mdから仕様を読み、.kiro/specs/realaddr/tasks.mdの
-依存関係を満たす最初の未完了タスクを実装してください。
-検証はdocs/acceptance.mdのハッカソン最小チェックを基準に、変更に関係する項目だけ行ってください。
-網羅テストや全49ケースの自動化は不要です。未実施は未実施と記録してください。
-外部APIの未確認部分を捏造せず、実接続できない項目はBLOCKEDとして記録し、
-独立して進められる作業を続けてください。
+依存関係に沿って次のタスクを実装してください。
+docs/acceptance.mdのハッカソン最小チェックに従い、変更と結果を実装状況へ記録してください。
 ```
 
 仕様の自動読み込みと、実サービスを利用するエージェントの接続は別です。実装後は3ツールとも同じCLI/HTTP APIを使用し、Worldの公式プラグインが使えないクライアントでもブラウザ承認URLを介して利用できます。
 
 ## 公開URLと画面方針
 
-公開originは **https://address.chain.tokyo**。ドメイン/DNS設定はユーザーが担当します。Cloud Runのweb公開とworker非公開を確認済みで、独自ドメインのTLS発行とHTTPS応答も確認済みです。公開サイト、利用者画面、人間承認画面、管理画面は白〜薄いグレーと控えめな青の標準的なSaaSデザインを使用します。公開説明は検索/AI向けにも初期HTMLで配信します。公開到達性は、未接続の購入・決済機能の利用開始を意味しません。
+公開originは **https://address.chain.tokyo**。ドメイン/DNS設定はユーザーが担当します。Cloud Runのweb公開とworker非公開を確認済みで、独自ドメインのTLS発行とHTTPS応答も確認済みです。公開サイト、利用者画面、人間承認画面、管理画面は白〜薄いグレーと控えめな青の標準的なSaaSデザインを使用します。公開説明は検索/AI向けにも初期HTMLで配信します。
 
 ## スコープ
 
 - Cloud Run（最小instance数0）、Firestore、Cloud Storage、GitHub Actions。非同期処理はCloud Tasks、回復はScheduler。無料枠中心の運用を設計し、完全0円は保証しない。
-- 共有GCP projectでは `RESOURCE_PREFIX=realaddr-event` と `FIRESTORE_COLLECTION_PREFIX=realaddr_event_` を使う。`(default)` DB等は共有参照に限定し、Terraform stateへimport・一括管理しない。デプロイ用service accountは保護された設定の`DEPLOY_SERVICE_ACCOUNT`で指定し、所有者・binding・実効権限を事前に確認する。そのaccountの作成・import・削除は本アプリのTerraform対象外とし、限定的なIAM追加は[インフラ仕様](docs/infrastructure.md)に従う。Cloud Run runtime/invoker等のservice accountは専用とする。prefixはIAM境界ではなく、project全体で無料枠/予算を評価する。基盤登録とCloud Run公開は完了し、独自ドメインHTTPSも確認済みで、スポンサー実接続は未完了。
+- 共有GCP projectでは `RESOURCE_PREFIX=realaddr-event` と `FIRESTORE_COLLECTION_PREFIX=realaddr_event_` を使う。`(default)` DB等は共有参照に限定し、Terraform stateへimport・一括管理しない。デプロイ用service accountは保護された設定の`DEPLOY_SERVICE_ACCOUNT`で指定し、所有者・binding・実効権限を事前に確認する。そのaccountの作成・import・削除は本アプリのTerraform対象外とし、限定的なIAM追加は[インフラ仕様](docs/infrastructure.md)に従う。Cloud Run runtime/invoker等のservice accountは専用とする。prefixはIAM境界ではなく、project全体で無料枠/予算を評価する。基盤とCloud Runは独自ドメインHTTPSで公開しています。
 - 1拠点につき1〜65,535の仮想区画。住所表記は実際の建物階数と区別する。
 - 住所契約は30日ごとにmainnet想定55 USDC、testnet/dev 0.55 USDC（USDC 6 decimalsでそれぞれ55,000,000 / 550,000 atomic）。purchase/renew共通。今回mainnet決済は無効で、test価格をmainnetへ流用しない。
 - 安全性判定 → x402決済 → 期間付き住所利用契約の永続保存 → オンチェーン記録。
@@ -84,9 +77,9 @@ AGENTS.mdとREADME.mdから仕様を読み、.kiro/specs/realaddr/tasks.mdの
 
 Curvegridは**Best AI Agent Project**を主対象とする設計です。RWA Tokenizationは追加候補ですが、初回スコープにNFT市場や不動産所有権の表現を追加しません。ENSは**Best Use of ENSv2**も対象とし、親名と上位接続は確認済みで、拠点接続・名前発行の実接続検証を進めています。賞への適合方針は[資料一覧](docs/sources.md)を参照。
 
-## 完成の意味
+## デモ構成
 
-単体テストのモックは許可しますが、提出デモでは公式World開発環境・実Intercepta API・テストネット決済・実MultiBaas照会・公式ENSv2の登録/名前解決を通します。再起動後にも契約が残り、二重課金と未承認の転送設定を防ぎます。
+デモはIntercepta screening、Base Sepoliaの住所決済、LeaseRegistry/MultiBaas照会、別途ENS add-on決済とSepolia登録・名前解決、World sandbox承認、人間の宛先保存を一つの流れとして構成します。Firestoreで契約と処理状態を保持し、二重課金・区画重複・人間承認のない転送設定を防ぐ設計です。
 
 Worldのイベント環境は主催者側の模擬proofを利用する旨が告知されています。公式環境への実接続と、本番の本人確認保証は区別します。World IDの認証だけで法的本人確認が完了するとは扱いません。
 
@@ -96,9 +89,9 @@ Worldのイベント環境は主催者側の模擬proofを利用する旨が告�
 
 ## ローカル起動と検証
 
-Windowsでの実行とLinux CIの結果を記録済みです。WSL・macOSの手動起動は未検証で、以下の対応コマンドを実行済みの結果とは扱いません。WSLではLinux版のNode.js・pnpm・Javaと、contract作業時のforgeを使い、別のLinux checkoutで依存関係を取得してください。Windowsの`node_modules`を流用せず、Windows/Linuxの実行ファイルを混在させないでください。
+以下にWindows PowerShell・WSL bash・macOS zsh/bashのコマンドを示します。各OSのnative toolchainを使ってください。WSLではLinux版のNode.js・pnpm・Javaと、contract作業時のforgeを使い、別のLinux checkoutで依存関係を取得してください。Windowsの`node_modules`を流用せず、Windows/Linuxの実行ファイルを混在させないでください。
 
-Node.js 22.21.0、pnpm 11.19.0、Java 21、Firestore Emulator 1.22.0を使用します。依存関係は`pnpm install --frozen-lockfile`で取得します。`.env.example`を未追跡の`.env`に複製し、既存の`.env`は上書きしないでください。`APP_ENV=local`と`GCP_PROJECT_ID=demo-realaddr-local`はローカルEmulator用です。`PAYMENT_ASSET`、`PAYMENT_PAY_TO`等の実設定が未確認の間、決済可能なintentは作成しません。
+Node.js 22.21.0、pnpm 11.19.0、Java 21、Firestore Emulator 1.22.0を使用します。依存関係は`pnpm install --frozen-lockfile`で取得します。`.env.example`を未追跡の`.env`に複製し、既存の`.env`は上書きしないでください。`APP_ENV=local`と`GCP_PROJECT_ID=demo-realaddr-local`はローカルEmulator用です。決済には`PAYMENT_ASSET`、`PAYMENT_PAY_TO`等の有効な環境設定が必要です。
 
 公式Firestore Emulator 1.22.0のJARを取得し、`FIRESTORE_EMULATOR_JAR`にそのファイルのパスを設定します。この作業で照合したJARのSHA-256は`9b6498b7f62714d67f48f59b3818883cd682dbcd46b9f59511de81c97bb5166c`です。hashが一致することを確認してから、以下のEmulatorコマンドを別のターミナルで起動します。
 
@@ -149,7 +142,7 @@ pnpm dev
 
 `pnpm dev`はAPIを`http://localhost:8080`で起動します。先にFirestore Emulatorを`127.0.0.1:8085`で起動してください。別のターミナルで`node packages/agent-cli/dist/index.js health --json`、`GET /ready`を確認できます。機械処理でJSONと終了コードを直接読む場合はbuild済みCLIを`node`で起動します。`pnpm agent`はpnpmの表示が標準出力に混ざり、終了コードもpnpm側で変換される場合があります。`/health`はプロセス、`/ready`はEmulator接続を確認します。実施済みチェックは[実装状況](docs/implementation-status.md)に記録します。`pnpm test`は通常の最小チェックです。DB transactionチェックはテスト用プロセスに`FIRESTORE_EMULATOR_HOST=127.0.0.1:8085`を設定して実行します。未設定ならそのDBチェックはskipされます。`AGENT_SIGNER_KEY_REF`はGit管理対象外の`.secrets/`内の署名鍵、`AGENT_CREDENTIAL_FILE`は`.credentials/`内のCLI tokenファイルを指すよう設定し、実値をリポジトリへ追加しないでください。
 
-`.env.example`では`CLOUD_TASKS_DISPATCH_ENABLED=false`です。dispatchを有効にできるのは、専用Cloud Tasks queueと同じprojectのworker、verified HTTPS `WORKER_URL`、専用invoke/runtime identitiesを備えた`APP_ENV=event`構成だけです。現時点でGCP上のCloud Tasks/Scheduler dispatchは未接続・未検証です。
+`.env.example`では`CLOUD_TASKS_DISPATCH_ENABLED=false`です。dispatchを有効にできるのは、専用Cloud Tasks queueと同じprojectのworker、verified HTTPS `WORKER_URL`、専用invoke/runtime identitiesを備えた`APP_ENV=event`構成だけです。
 
 Windows PowerShell:
 
@@ -180,4 +173,4 @@ node scripts/check-text-format.mjs --staged
 
 ## 提出前に揃えるもの
 
-起動・テストの実コマンド、公開デモURL、デプロイ情報、コントラクト、各スポンサー呼び出し箇所、チーム紹介・SNS、実測した連携フィードバック。未実行のコマンドや未取得の成功結果を掲載しないこと。
+起動・テストの実コマンド、公開デモURL、デプロイ情報、コントラクト、各スポンサー呼び出し箇所、チーム紹介・SNS、実測した連携フィードバック。

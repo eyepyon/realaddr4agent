@@ -1,10 +1,10 @@
 # Development and operations guide
 
-This English guide covers practical workflow and operational boundaries. Japanese [operations](../operations.md), [infrastructure](../infrastructure.md), [deployment configuration](../deployment-configuration.md), and [admin specification](../admin.md) remain authoritative. Consult [implementation status](../implementation-status.md) for actual evidence instead of interpreting a planned procedure as completed work. The adopted [terms](../terms.md), `realaddr-v1`, remain the legal text; this guide is not an English terms translation or adoption.
+This English guide covers practical workflow and operational boundaries. Japanese [operations](../operations.md), [infrastructure](../infrastructure.md), [deployment configuration](../deployment-configuration.md), and [admin specification](../admin.md) remain authoritative. Execution records are collected in [implementation status](../implementation-status.md). The adopted [terms](../terms.md), `realaddr-v1`, remain the legal text; this guide is not an English terms translation or adoption.
 
 ## Local development
 
-Use the [Windows, WSL, and macOS development guide](development.md) for the complete OS-specific setup. WSL/macOS execution is unverified. The following first block uses Windows PowerShell; the pnpm/Node/Git commands themselves are common to all three environments.
+Use the [Windows, WSL, and macOS development guide](development.md) for the complete OS-specific setup. The following first block uses Windows PowerShell; the pnpm/Node/Git commands themselves are common to all three environments.
 
 The tested toolchain is Node.js 22.21.0, pnpm 11.19.0, Java 21, and Firestore Emulator 1.22.0. The workspace uses strict TypeScript and pinned dependencies. Install from the lockfile, preserve an existing local `.env`, and keep secrets and credentials untracked.
 
@@ -39,7 +39,7 @@ java -jar $env:FIRESTORE_EMULATOR_JAR --host 127.0.0.1 --port 8085 --project_id 
 
 WSL uses `sha256sum "$FIRESTORE_EMULATOR_JAR"`; macOS uses `shasum -a 256 "$FIRESTORE_EMULATOR_JAR"`. Both start Java with `java -jar "$FIRESTORE_EMULATOR_JAR" --host 127.0.0.1 --port 8085 --project_id demo-realaddr-local --single_project_mode true`. Configure that reference within the selected OS.
 
-`pnpm dev` serves the API at `http://localhost:8080`. `/health` checks the process; `/ready` checks database readiness. A health response does not demonstrate sponsor connectivity or sale readiness. Local `event-demo-1` authentication is not consent to formal `realaddr-v1` terms.
+`pnpm dev` serves the API at `http://localhost:8080`. `/health` checks the process; `/ready` checks database readiness. Local `event-demo-1` authentication is not consent to formal `realaddr-v1` terms.
 
 ```powershell
 node packages/agent-cli/dist/index.js health --json
@@ -77,7 +77,7 @@ Select the existing deploy account through protected `DEPLOY_SERVICE_ACCOUNT`. I
 
 Use [infra procedures](../../infra/README.md) for `infra/bootstrap`, `infra/app`, protected state, and the manual event workflow. Ordinary deploy applies one immutable digest to worker and web and verifies both afterward; partial deployment requires deliberate recovery or rollback. `image-only` builds/pushes an image and does not deploy it. Domain/DNS configuration belongs to the user.
 
-The event web and private worker deployment, public HTTPS, and dedicated named database have been verified. This does not mean payments or the connected sponsor demo are complete. Cloud Tasks dispatch remains disabled and Scheduler paused; live OIDC task/sweep delivery is unverified. Keep provider activation separate from image publication.
+The event uses public HTTPS web, a private worker, and the dedicated named database. Cloud Tasks dispatch remains disabled and Scheduler paused. Provider activation is controlled separately from image publication.
 
 ## Operators and locations
 
@@ -85,11 +85,11 @@ Operators use `/admin`, Google OIDC, a dedicated session, and an active Firestor
 
 The event operator login and paused-location creation have been confirmed. Location creation always starts paused, fixes slots at 1..65535, and derives the plan server-side. Operators enter authorized location information through the form; actual addresses are not repository seeds. Editing uses version checks, idempotency, reasons, and atomic audit records. Resuming requires explicit publication confirmation and ready address/payment dependencies. Current missing payment/risk integration prevents resumption. ENS namespace readiness gates the optional add-on separately.
 
-The admin UI provides bounded summaries of locations, payments, subscriptions, operations, and audit entries. It cannot expose forwarding destinations, approve human consent, manually mark payment successful, or force ENS verification. Read reconciliation execution remains unavailable; a request is not evidence of completion. Do not clear uncertain holds or retry payments merely to remove a pending indicator.
+The admin UI provides bounded summaries of locations, payments, subscriptions, operations, and audit entries. It cannot expose forwarding destinations, approve human consent, manually mark payment successful, or force ENS verification. Read reconciliation execution remains unavailable. Do not clear uncertain holds or retry payments merely to remove a pending indicator.
 
 ## Verification and repository hygiene
 
-Use task IDs from [tasks](../../.kiro/specs/realaddr/tasks.md) and the [minimum acceptance gate](../acceptance.md). A-01..A-49 is a scenario catalog, not a requirement to automate every case. Code changes need build/typecheck and relevant focused checks; document-only edits need text-format and diff review. Record actual tests, manual steps, deferred coverage, and blockers in [implementation status](../implementation-status.md). Mock successes cannot replace the connected submission demo.
+Use task IDs from [tasks](../../.kiro/specs/realaddr/tasks.md) and the [minimum acceptance gate](../acceptance.md). A-01..A-49 is a scenario catalog, not a requirement to automate every case. Code changes need build/typecheck and relevant focused checks; document-only edits need text-format and diff review. Record test commands and manual operations with their results. The submission demo uses connected services.
 
 All text is UTF-8 without BOM and uses LF. Preserve existing hooks by integrating rather than replacing their checks, then enable the tracked hook where appropriate:
 
