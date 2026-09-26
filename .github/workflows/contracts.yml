@@ -8,7 +8,6 @@ on:
       - pnpm-lock.yaml
       - package.json
       - scripts/export-lease-registry.mjs
-      - scripts/export-lease-registry.mjs
       - .github/workflows/contracts.yml
   push:
     branches: [main]
@@ -17,7 +16,6 @@ on:
       - pnpm-workspace.yaml
       - pnpm-lock.yaml
       - package.json
-      - scripts/export-lease-registry.mjs
       - scripts/export-lease-registry.mjs
       - .github/workflows/contracts.yml
 

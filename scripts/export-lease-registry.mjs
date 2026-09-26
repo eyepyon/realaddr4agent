@@ -27,7 +27,8 @@ try {
   const require = createRequire(resolve(contracts, 'package.json'));
   const { keccak_256 } = require('@noble/hashes/sha3');
   const artifact = JSON.parse(await readFile(resolve(contracts, 'out/LeaseRegistry.sol/LeaseRegistry.json'), 'utf8'));
-  const metadata = typeof artifact.metadata === 'string' ? JSON.parse(artifact.metadata) : artifact.metadata;
+  // rawMetadata preserves solc's ABI; Forge's parsed metadata can omit empty outputs.
+  const metadata = typeof artifact.rawMetadata === 'string' ? JSON.parse(artifact.rawMetadata) : typeof artifact.metadata === 'string' ? JSON.parse(artifact.metadata) : artifact.metadata;
   assert(metadata && /^0\.8\.30\+/.test(metadata.compiler?.version ?? ''), 'Compiler must be 0.8.30');
   assert(metadata.settings?.optimizer?.enabled === true && metadata.settings.optimizer.runs === 200 && metadata.settings.evmVersion === 'cancun', 'Unexpected compiler settings');
   const target = metadata.settings.compilationTarget;

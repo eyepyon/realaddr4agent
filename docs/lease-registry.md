@@ -24,7 +24,7 @@ exportは`contracts/out/LeaseRegistry.sol/LeaseRegistry.json`を検査し、未�
 
 compiler/settings/contract/constructor不一致、空bytecode、未解決library link、想定外または絶対source pathはexportを拒否する。manifestのhashはローカルartifactの照合用であり、on-chain deployの証明ではない。runtimeにはconstructorによる変更がない現在のcontractを前提とし、deploy後のcodeを照合する。
 
-各sourceのKeccak-256をcompiler metadataと照合し、build後の変更があれば再buildを要求する。metadataのABIがある場合はartifact ABIとの一致も検査する。
+各sourceのKeccak-256をcompiler metadataと照合し、build後の変更があれば再buildを要求する。Forgeの`rawMetadata`があればcompiler元データとして優先し、なければ`metadata`を使う。metadataのABIは必須とし、artifact ABIとの一致も検査する。object keyとトップレベルentryの並び順だけを同等と扱い、引数・戻り値・tupleの順序と型は維持する。
 
 ## MultiBaas UIによる手動deploy
 
