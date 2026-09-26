@@ -3,12 +3,12 @@
   "info": {
     "title": "RealAddr Operator API",
     "version": "0.4.0-spec",
-    "description": "Planned same-origin operator API. No implementation or deployment exists. Authentication is server-side Google OIDC plus a separate admin session. This API cannot approve human actions or force payments."
+    "description": "Same-origin operator API contract. Google OIDC, separate admin sessions, location management and bounded reads are implemented behind disabled-by-default configuration. Live operator login and read-reconciliation execution remain unverified or unavailable. This API cannot approve human actions or force payments."
   },
   "servers": [
     {
       "url": "https://address.chain.tokyo",
-      "description": "Planned operator-configured origin; DNS and deployment unverified"
+      "description": "Operator UI origin; login requires protected Google client and allowlist configuration"
     }
   ],
   "paths": {

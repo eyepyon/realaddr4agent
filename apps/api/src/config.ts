@@ -14,6 +14,7 @@ export interface ApiConfig {
   rateLimitKey: Buffer;
   pricing: PricingConfig | null;
   world?: { clientId: string; clientSecret: string; redirectUri: string; sessionKey: Buffer; mailKey: Buffer };
+  admin?: { clientId: string; clientSecret: string; redirectUri: string; sessionKey: Buffer };
   ens?: { rpcUrl: string; namespaces: Record<string, NamespaceConfig>; maxGasAtomic?: string };
 }
 
@@ -73,6 +74,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     if (env.WORLD_REDIRECT_URI !== redirectUri) throw new Error('invalid_world_redirect_uri');
     world = { clientId: env.WORLD_CLIENT_ID, clientSecret: env.WORLD_CLIENT_SECRET, redirectUri, sessionKey: secretKey(env.WORLD_SESSION_KEY), mailKey: secretKey(env.MAIL_ENCRYPTION_KEY) };
   }
+  if (env.ADMIN_ENABLED && !['true', 'false'].includes(env.ADMIN_ENABLED)) throw new Error('invalid_admin_enabled');
+  let admin: ApiConfig['admin'];
+  if (env.ADMIN_ENABLED === 'true') {
+    if (!env.ADMIN_GOOGLE_CLIENT_ID?.trim() || !env.ADMIN_GOOGLE_CLIENT_SECRET?.trim() || /[\r\n]/.test(env.ADMIN_GOOGLE_CLIENT_ID + env.ADMIN_GOOGLE_CLIENT_SECRET)) throw new Error('admin_configuration_incomplete');
+    const redirectUri = `${origin}/auth/admin/callback`;
+    if (parsedOrigin.protocol !== 'https:' || env.ADMIN_OIDC_REDIRECT_URI !== redirectUri) throw new Error('invalid_admin_redirect_uri');
+    let sessionKey: Buffer;
+    try { sessionKey = secretKey(env.ADMIN_SESSION_SECRET); } catch { throw new Error('invalid_admin_session_secret'); }
+    admin = { clientId: env.ADMIN_GOOGLE_CLIENT_ID, clientSecret: env.ADMIN_GOOGLE_CLIENT_SECRET, redirectUri, sessionKey };
+  }
   if (env.ENS_READ_ENABLED && !['true', 'false'].includes(env.ENS_READ_ENABLED)) throw new Error('invalid_ens_enabled');
   let ens: ApiConfig['ens'];
   if (env.ENS_READ_ENABLED === 'true') {
@@ -90,5 +101,5 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       ens = { rpcUrl: rpc.href, namespaces: namespaces as Record<string, NamespaceConfig>, ...(env.ENS_DESCRIPTION_MAX_GAS_ATOMIC ? { maxGasAtomic: env.ENS_DESCRIPTION_MAX_GAS_ATOMIC } : {}) };
     } catch { throw new Error('invalid_ens_configuration'); }
   }
-  return { appEnv, port, origin, projectId, databaseId, collectionPrefix, termsVersion, rateLimitKey, pricing, ...(world ? { world } : {}), ...(ens ? { ens } : {}) };
+  return { appEnv, port, origin, projectId, databaseId, collectionPrefix, termsVersion, rateLimitKey, pricing, ...(admin ? { admin } : {}), ...(world ? { world } : {}), ...(ens ? { ens } : {}) };
 }

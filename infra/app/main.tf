@@ -16,7 +16,42 @@ locals {
     SCHEDULER_INVOKER_SA         = google_service_account.app["sched"].email,
     CLOUD_TASKS_DISPATCH_ENABLED = tostring(var.dispatch_enabled)
   }
-  service_env = { for role in local.runtime_roles : role => merge(local.common_env, role == "web" ? { PUBLIC_ORIGIN = "https://address.chain.tokyo", TERMS_VERSION = var.terms_version, WORLD_ENABLED = tostring(var.world_enabled), WORLD_REDIRECT_URI = "https://address.chain.tokyo/auth/world/callback" } : {}) }
+  service_env = { for role in local.runtime_roles : role => merge(local.common_env, role == "web" ? { PUBLIC_ORIGIN = "https://address.chain.tokyo", TERMS_VERSION = var.terms_version, WORLD_ENABLED = tostring(var.world_enabled), WORLD_REDIRECT_URI = "https://address.chain.tokyo/auth/world/callback", ADMIN_ENABLED = tostring(var.admin_enabled), ADMIN_OIDC_REDIRECT_URI = "https://address.chain.tokyo/auth/admin/callback" } : {}) }
+  admin_list_indexes = {
+    buildings_status       = { collection = "buildings", filters = ["status"], sort = "updatedAt" }
+    orders_status          = { collection = "orders", filters = ["status"], sort = "createdAt" }
+    orders_building        = { collection = "orders", filters = ["buildingId"], sort = "createdAt" }
+    orders_status_building = { collection = "orders", filters = ["status", "buildingId"], sort = "createdAt" }
+    leases_status          = { collection = "leases", filters = ["status"], sort = "updatedAt" }
+    leases_building        = { collection = "leases", filters = ["buildingId"], sort = "updatedAt" }
+    leases_status_building = { collection = "leases", filters = ["status", "buildingId"], sort = "updatedAt" }
+    operations_kind        = { collection = "admin_operations", filters = ["kind"], sort = "updatedAt" }
+    operations_status      = { collection = "admin_operations", filters = ["status"], sort = "updatedAt" }
+    operations_kind_status = { collection = "admin_operations", filters = ["kind", "status"], sort = "updatedAt" }
+    audit_target           = { collection = "audit_events", filters = ["targetType", "targetId"], sort = "occurredAt" }
+  }
+}
+resource "google_firestore_index" "realaddr_admin_lists" {
+  for_each    = var.firestore_database_ownership_reviewed ? local.admin_list_indexes : {}
+  project     = var.project_id
+  database    = google_firestore_database.realaddr[0].name
+  collection  = "realaddr_event_${each.value.collection}"
+  query_scope = "COLLECTION"
+  dynamic "fields" {
+    for_each = each.value.filters
+    content {
+      field_path = fields.value
+      order      = "ASCENDING"
+    }
+  }
+  fields {
+    field_path = each.value.sort
+    order      = "DESCENDING"
+  }
+  fields {
+    field_path = "__name__"
+    order      = "DESCENDING"
+  }
 }
 resource "google_service_account" "app" {
   for_each     = toset(["web", "worker", "tasks", "sched"])
@@ -30,6 +65,13 @@ resource "google_logging_project_exclusion" "world_callback" {
   name        = "realaddr-event-world-callback"
   description = "Omit this application's OIDC callback request URLs to keep authorization codes out of ordinary request logs."
   filter      = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"realaddr-event-web\" AND log_id(\"run.googleapis.com/requests\") AND httpRequest.requestUrl =~ \"/auth/world/callback([?]|$)\""
+}
+resource "google_logging_project_exclusion" "admin_callback" {
+  count       = var.admin_enabled ? 1 : 0
+  project     = var.project_id
+  name        = "realaddr-event-admin-callback"
+  description = "Omit this application's operator OIDC callback request URLs to keep authorization codes out of ordinary request logs."
+  filter      = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"realaddr-event-web\" AND log_id(\"run.googleapis.com/requests\") AND httpRequest.requestUrl =~ \"/auth/admin/callback([?]|$)\""
 }
 resource "google_storage_bucket" "data" {
   project                     = var.project_id
@@ -170,11 +212,15 @@ resource "google_cloud_run_v2_service" "app" {
       error_message = "World enablement requires all four dedicated web secret references with declared metadata and numeric versions."
     }
     precondition {
+      condition     = !var.admin_enabled || alltrue([for key in ["ADMIN_GOOGLE_CLIENT_ID", "ADMIN_GOOGLE_CLIENT_SECRET", "ADMIN_SESSION_SECRET"] : contains(keys(lookup(var.secret_versions, "web", {})), key)])
+      error_message = "Admin enablement requires all three dedicated web secret references with declared metadata and numeric versions."
+    }
+    precondition {
       condition     = var.runtime_ready && var.firestore_access_reviewed && (var.firestore_database_id == "(default)" ? var.retain_legacy_default_access : var.firestore_database_ownership_reviewed && var.firestore_rules_reviewed) && var.image_digest != "" && var.worker_url != "" && var.terms_version != "" && contains(keys(lookup(var.secret_versions, "web", {})), "RATE_LIMIT_HMAC_KEY")
       error_message = "Services require reviewed runtime IAM/configuration, real secret versions, terms, worker origin and an image digest."
     }
   }
-  depends_on = [google_secret_manager_secret_iam_member.runtime, google_project_iam_member.firestore, google_project_iam_member.firestore_realaddr, google_firestore_index.realaddr_outbox_due, google_firestore_index.realaddr_owner_lists, google_logging_project_exclusion.world_callback]
+  depends_on = [google_secret_manager_secret_iam_member.runtime, google_project_iam_member.firestore, google_project_iam_member.firestore_realaddr, google_firestore_index.realaddr_outbox_due, google_firestore_index.realaddr_owner_lists, google_firestore_index.realaddr_admin_lists, google_logging_project_exclusion.world_callback, google_logging_project_exclusion.admin_callback]
 }
 resource "google_cloud_run_v2_service_iam_member" "worker_invoker" {
   for_each = var.deploy_services ? toset(["tasks", "sched"]) : toset([])

@@ -72,3 +72,13 @@ test('ENS boot validates every namespace pin and canonical configuration',()=>{
  const id='11111111-1111-1111-1111-111111111111',env={...eventEnvironment,ENS_READ_ENABLED:'true',ENS_RPC_URL:'https://example.invalid',ENS_NAMESPACES_JSON:JSON.stringify({[id]:namespace})};assert.ok(loadConfig(env).ens);
  for(const changes of [{parentName:'OTHER.eth'},{locationSlug:'invalid.slug'},{userRegistryImplementation:{address:pin.address,codeHash:'bad'}},{proxyLogic:{address:pin.address,codeHash:'bad'}},{universalResolver:{address:'0x'+'0'.repeat(40),codeHash:pin.codeHash}}])assert.throws(()=>loadConfig({...env,ENS_NAMESPACES_JSON:JSON.stringify({[id]:{...namespace,...changes}})}),{message:'invalid_ens_configuration'});
 });
+
+test('Admin configuration is opt-in, uses exact HTTPS callback and independent session key', () => {
+  assert.equal(loadConfig(eventEnvironment).admin, undefined);
+  assert.throws(() => loadConfig({ ...eventEnvironment, ADMIN_ENABLED: 'yes' }), { message: 'invalid_admin_enabled' });
+  assert.throws(() => loadConfig({ ...eventEnvironment, ADMIN_ENABLED: 'true' }), { message: 'admin_configuration_incomplete' });
+  const configured = { ...eventEnvironment, ADMIN_ENABLED: 'true', ADMIN_GOOGLE_CLIENT_ID: 'fixture-client', ADMIN_GOOGLE_CLIENT_SECRET: 'fixture-secret', ADMIN_OIDC_REDIRECT_URI: 'https://address.chain.tokyo/auth/admin/callback', ADMIN_SESSION_SECRET: Buffer.alloc(32, 3).toString('base64') };
+  assert.ok(loadConfig(configured).admin);
+  assert.throws(() => loadConfig({ ...configured, ADMIN_OIDC_REDIRECT_URI: 'https://other.invalid/callback' }), { message: 'invalid_admin_redirect_uri' });
+  assert.throws(() => loadConfig({ ...configured, ADMIN_SESSION_SECRET: 'invalid' }), { message: 'invalid_admin_session_secret' });
+});

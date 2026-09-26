@@ -1,6 +1,6 @@
-# 運営管理画面・API契約（実装予定）
+# 運営管理画面・API契約
 
-本書はハッカソン用の最小運営機能を定義する。現在は仕様のみで、管理画面、Googleログイン、管理API、DNS、デプロイは未実装・未検証。公開Agent APIの正本は `docs/openapi.json`、運営APIのHTTP shapeは `docs/admin-openapi.json` とする。運営者画面は同じ公開origin `https://address.chain.tokyo/admin` のReact/Vite UIとして配信する。ドメイン/DNS設定はサービス運営者が行い、新しいCloud Run、ロードバランサ、IAPは追加しない。
+本書はハッカソン用の最小運営機能を定義する。管理UIに加え、Google OIDC、専用session、拠点登録・更新と限定された一覧APIを実装中。Googleクライアント・許可する運営者・Secret Manager参照・専用indexの設定と実ログイン確認が必要で、有効化前は管理機能を拒否する。読取再照合の実行は未接続で503を返す。公開Agent APIの正本は `docs/openapi.json`、運営APIのHTTP shapeは `docs/admin-openapi.json` とする。運営者画面は同じ公開origin `https://address.chain.tokyo/admin` のReact/Vite UIとして配信する。ドメイン/DNS設定はサービス運営者が行い、新しいCloud Run、ロードバランサ、IAPは追加しない。
 
 ## 画面と情報境界
 
@@ -53,3 +53,11 @@ Googleの[OpenID Connect検証手順](https://developers.google.com/identity/ope
 ## 実装・受入れ
 
 T-08のUI、T-16の同一origin配置に合わせて管理画面を追加する。Firestore server SDKはSecurity Rulesを迂回するので、operator認可と全更新条件をAPI/repositoryで強制する。adminの認証設定が未確定なら管理画面/APIの保護データと書込を提供しない。最小確認は運営者ログイン、Agent/human/未認証の拒否、拠点の停止または再開を1件、対象があれば読取再照合を1件とし、監査とversion競合を確認する。実接続していない結果を成功扱いしない。実施・未実施を `docs/implementation-status.md` に記録する。
+
+## 初回の保護された設定
+
+Google OAuthのウェブクライアントを作り、上記のcallback URIを完全一致で登録する。`ADMIN_ENABLED`は既定falseとし、Terraformの`admin_enabled`で有効化する前に3つのweb専用secret参照と、callback URLを通常ログから除外する専用設定を適用する。workerへ管理secretを渡さない。`ADMIN_SESSION_SECRET`は32 bytesの標準base64（末尾padding付き）で生成し、OAuth secretと同じく保護された設定に保存する。
+
+運営者allowlistは保護された実行環境の`ADMIN_ALLOWED_EMAILS`（comma区切り）から、`pnpm exec tsx scripts/admin-bootstrap.mts --apply`で初期登録する。対象の`APP_ENV`、`GCP_PROJECT_ID`、`FIRESTORE_DATABASE_ID=realaddr`、`FIRESTORE_COLLECTION_PREFIX=realaddr_event_`を明示し、localではEmulator、eventでは対象DBの書込権限を持つ認証済み運用環境で実行する。秘密鍵ファイルは使わない。既存entryのbindingやrevoked状態を上書きせず、実行後の出力は件数だけとする。allowlist入力をCloud Runの通常runtimeへ注入しない。
+
+住所の提供拠点登録には検証済みのtestnet価格設定も必要で、未設定なら503で登録・販売再開を止める。初期拠点は停止状態で作成される。外部決済・risk接続が未完了の間は販売再開を拒否する。概要の集計documentがなければ取得不可を表示し、0件や成功を捏造しない。

@@ -152,8 +152,16 @@ function validateService(service, policy, revision, role, config) {
       demand(env.WORLD_REDIRECT_URI?.value === `${origin}/auth/world/callback`, 'world_callback_mismatch');
       for (const key of ['WORLD_CLIENT_ID', 'WORLD_CLIENT_SECRET', 'WORLD_SESSION_KEY', 'MAIL_ENCRYPTION_KEY']) demand(env[key]?.valueFrom?.secretKeyRef && env[key].value === undefined, 'world_secret_reference_required');
     }
+    demand(env.ADMIN_ENABLED === undefined || (['true', 'false'].includes(env.ADMIN_ENABLED.value) && !env.ADMIN_ENABLED.valueFrom), 'admin_enablement_unknown');
+    if (env.ADMIN_OIDC_REDIRECT_URI !== undefined) demand(env.ADMIN_OIDC_REDIRECT_URI.value === `${origin}/auth/admin/callback` && !env.ADMIN_OIDC_REDIRECT_URI.valueFrom, 'admin_callback_mismatch');
+    if (env.ADMIN_ENABLED?.value === 'true') {
+      demand(env.ADMIN_OIDC_REDIRECT_URI?.value === `${origin}/auth/admin/callback`, 'admin_callback_mismatch');
+      for (const key of ['ADMIN_GOOGLE_CLIENT_ID', 'ADMIN_GOOGLE_CLIENT_SECRET', 'ADMIN_SESSION_SECRET']) demand(env[key]?.valueFrom?.secretKeyRef && env[key].value === undefined, 'admin_secret_reference_required');
+    }
   }
   if (role === 'worker') for (const key of ['WORLD_ENABLED', 'WORLD_REDIRECT_URI', 'WORLD_CLIENT_ID', 'WORLD_CLIENT_SECRET', 'WORLD_SESSION_KEY', 'MAIL_ENCRYPTION_KEY']) demand(!env[key], 'worker_world_configuration_disallowed');
+  if (role === 'worker') for (const key of ['ADMIN_ENABLED', 'ADMIN_OIDC_REDIRECT_URI', 'ADMIN_GOOGLE_CLIENT_ID', 'ADMIN_GOOGLE_CLIENT_SECRET', 'ADMIN_SESSION_SECRET', 'ADMIN_ALLOWED_EMAILS']) demand(!env[key], 'worker_admin_configuration_disallowed');
+  demand(!env.ADMIN_ALLOWED_EMAILS, 'admin_bootstrap_input_disallowed_at_runtime');
   for (const entry of entries) if (entry.valueFrom) demand(entry.valueFrom.secretKeyRef && /^realaddr-event-[a-z0-9-]+$/.test(entry.valueFrom.secretKeyRef.name ?? '') && /^[1-9][0-9]*$/.test(entry.valueFrom.secretKeyRef.key ?? ''), 'secret_reference_must_be_dedicated_numeric_version');
   const invokers = (policy.bindings ?? []).filter(item => item.role === 'roles/run.invoker');
   const expectedInvokers = role === 'worker' ? [`serviceAccount:realaddr-event-tasks@${config.GCP_PROJECT_ID}.iam.gserviceaccount.com`, `serviceAccount:realaddr-event-sched@${config.GCP_PROJECT_ID}.iam.gserviceaccount.com`].sort() : ['allUsers'];

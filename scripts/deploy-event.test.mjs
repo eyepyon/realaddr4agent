@@ -141,6 +141,36 @@ function enableWorld(service) {
   env.push({ name: 'WORLD_ENABLED', value: 'true' }, { name: 'WORLD_REDIRECT_URI', value: 'https://address.chain.tokyo/auth/world/callback' });
   for (const [name, purpose] of [['WORLD_CLIENT_ID', 'world-client-id'], ['WORLD_CLIENT_SECRET', 'world-client-secret'], ['WORLD_SESSION_KEY', 'world-session-key'], ['MAIL_ENCRYPTION_KEY', 'mail-encryption-key']]) env.push({ name, valueFrom: { secretKeyRef: { name: `realaddr-event-${purpose}`, key: '1' } } });
 }
+
+function enableAdmin(service) {
+  service.spec.template.spec.containers[0].env.push(
+    { name: 'ADMIN_ENABLED', value: 'true' },
+    { name: 'ADMIN_OIDC_REDIRECT_URI', value: 'https://address.chain.tokyo/auth/admin/callback' },
+    ...[['ADMIN_GOOGLE_CLIENT_ID', 'admin-google-client-id'], ['ADMIN_GOOGLE_CLIENT_SECRET', 'admin-google-client-secret'], ['ADMIN_SESSION_SECRET', 'admin-session-secret']].map(([name, purpose]) => ({ name, valueFrom: { secretKeyRef: { name: `realaddr-event-${purpose}`, key: '1' } } })),
+  );
+}
+
+test('admin deployment preserves dedicated secret references and rejects unsafe authentication settings', async () => {
+  const enabled = fakeSubprocess(null, services => enableAdmin(services.web));
+  assert.deepEqual(await deploy(config, dependencies(enabled)), { status: 'deployed' });
+  for (const key of ['ADMIN_GOOGLE_CLIENT_ID', 'ADMIN_GOOGLE_CLIENT_SECRET', 'ADMIN_SESSION_SECRET', 'ADMIN_OIDC_REDIRECT_URI', 'ADMIN_ENABLED']) {
+    const fake = fakeSubprocess(null, services => {
+      enableAdmin(services.web);
+      const item = services.web.spec.template.spec.containers[0].env.find(entry => entry.name === key);
+      delete item.valueFrom; item.value = 'invalid';
+    });
+    await assert.rejects(deploy(config, dependencies(fake)), /admin_/);
+    assert.equal(fake.updates.length, 0);
+  }
+  for (const role of ['web', 'worker']) {
+    const fake = fakeSubprocess(null, services => services[role].spec.template.spec.containers[0].env.push({ name: 'ADMIN_ALLOWED_EMAILS', value: 'operator@example.test' }));
+    await assert.rejects(deploy(config, dependencies(fake)), /admin_/);
+    assert.equal(fake.updates.length, 0);
+  }
+  const worker = fakeSubprocess(null, services => enableAdmin(services.worker));
+  await assert.rejects(deploy(config, dependencies(worker)), /worker_admin_configuration_disallowed/);
+  assert.equal(worker.updates.length, 0);
+});
 test('World opt-in preserves complete dedicated web configuration during deployment', async () => {
   const fake = fakeSubprocess(null, services => enableWorld(services.web));
   assert.deepEqual(await deploy(config, dependencies(fake)), { status: 'deployed' });

@@ -9,9 +9,10 @@ import { ownerCursor, uuidPattern } from './owner-cursor.js';
 import { recoverMessageAddress } from 'viem';
 import type { ApiConfig } from './config.js';
 import { repoRoot } from './paths.js';
-import { WorldRepository } from '@realaddr/db';
+import { AdminRepository, WorldRepository } from '@realaddr/db';
 import { registerWorldRoutes } from './world.js';
 import { registerEnsRoutes } from './ens.js';
+import { registerAdminRoutes } from './admin.js';
 
 const mime: Record<string, string> = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
@@ -72,6 +73,9 @@ export function createApp(config: ApiConfig, repository: RealAddrRepository | nu
     }
   });
   app.setErrorHandler((error, request, reply) => {
+    if (error instanceof DomainError && error.status === 409 && error.code === 'version_conflict' && request.url.startsWith('/v1/admin/') && 'currentVersion' in error && typeof error.currentVersion === 'number' && Number.isSafeInteger(error.currentVersion) && error.currentVersion >= 1) {
+      return reply.code(409).send({ error: error.code, message: error.message, retryable: error.retryable, traceId: traceId(request), currentVersion: error.currentVersion });
+    }
     if (error instanceof DomainError) return failure(reply, request, error.status, error.code, error.message, error.retryable);
     if (error && typeof error === 'object' && 'statusCode' in error && typeof error.statusCode === 'number' && error.statusCode < 500) return failure(reply, request, error.statusCode, 'invalid_request');
     return failure(reply, request, 503, 'dependency_unavailable', 'Dependency unavailable', true);
@@ -199,15 +203,7 @@ export function createApp(config: ApiConfig, repository: RealAddrRepository | nu
     ['POST', '/v1/payment-intents'], ['POST', '/v1/payment-intents/:intentId/pay'],
   ] as const) app.route({ method, url: path, handler: protectedUnavailable });
   const bootstrapHuman = registerWorldRoutes(app, config, repository, db ? new WorldRepository(db, config.collectionPrefix) : null, principal);
-  for (const [method, path] of [
-    ['GET', '/v1/admin/session'], ['DELETE', '/v1/admin/session'],
-    ['GET', '/v1/admin/overview'], ['GET', '/v1/admin/locations'], ['POST', '/v1/admin/locations'],
-    ['PATCH', '/v1/admin/locations/:locationId'], ['GET', '/v1/admin/payment-intents'],
-    ['GET', '/v1/admin/subscriptions'], ['GET', '/v1/admin/operations'],
-    ['POST', '/v1/admin/operations/:operationId/reconcile'], ['GET', '/v1/admin/audit-events'],
-    ['GET', '/auth/admin/callback'],
-  ] as const) app.route({ method, url: path, handler: async (request, reply) => failure(reply, request, 401, 'operator_session_required') });
-  app.get('/auth/admin/start', async (request, reply) => failure(reply, request, 503, 'admin_login_unavailable', 'Operator login is unavailable', true));
+  registerAdminRoutes(app, config, db ? new AdminRepository(db, config.collectionPrefix, config.pricing, { cursorSecret: config.admin?.sessionKey.toString('hex') ?? config.rateLimitKey.toString('hex') }) : null, repository);
 
   const staticRoute = async (request: FastifyRequest, reply: FastifyReply, file: string, privacy: boolean) => {
     try {
