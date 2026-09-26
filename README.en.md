@@ -162,7 +162,7 @@ ABI registration, contract linking, and read-back worked in our setup. A deploym
 
 ### Team
 
-The team biography and social handles will use the public details supplied by the members. Operator information is not substituted for a developer biography.
+Team: **chain.tokyo**. Member: **Masafumi Aida** — [X](https://x.com/masafumiaida).
 
 ### License
 

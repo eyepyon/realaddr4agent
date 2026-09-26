@@ -201,7 +201,7 @@ ABI登録・contract link・read-backを確認できました。deployment UIで
 
 ### チーム
 
-チーム紹介と公開SNSは、メンバーが指定した公開情報を掲載します。運営者情報を開発チームの個人プロフィールとして推定しません。
+チーム: **chain.tokyo**。メンバー: **Masafumi Aida** — [X](https://x.com/masafumiaida)。
 
 ### ライセンス
 

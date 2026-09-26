@@ -114,7 +114,7 @@ The judging flow is screening → testnet payment → lease/optional ENS issuanc
 - World: 支払済み契約で公式event環境の認証成功・明示承認と、取消または期限切れを通す。
 - ENS: 拠点namespace接続、支払済み名前の発行、公式解決と権限拒否を通す。照合フォーム自体は名前発行の代わりにならない。
 - Intercepta/x402: providerの判定条件・coverageを確定し、facilitatorのverify/settle/照合を既存の永続注文へ接続する。実APIによるholdの確認だけで成功決済の要件を満たしたことにはしない。
-- Curvegrid: Agent操作とMultiBaas利用箇所、再現手順をREADMEから辿れるようにする。チーム紹介・公開SNSを本人情報で記載する。
+- Curvegrid: Agent操作とMultiBaas利用箇所、再現手順をREADMEから辿れるようにする。チームchain.tokyo、メンバーMasafumi Aidaと[公開SNS](https://x.com/masafumiaida)はREADMEに記載済み。
 - 共通: 動作する公開デモ、公開repo、動画、コード行リンク、feedbackを揃える。独自コードは[MIT](../LICENSE)、依存ライブラリのライセンスは各配布元のまま維持する。
 
-Finish the connected World success/refusal, ENS issuance/resolution, and Intercepta-controlled successful/blocked payment demonstrations before declaring prize requirements complete. Add the team's public biography/social handles and measured debrief details. MIT covers this project's original code; third-party licenses remain unchanged.
+Finish the connected World success/refusal, ENS issuance/resolution, and Intercepta-controlled successful/blocked payment demonstrations before declaring prize requirements complete. The README includes team chain.tokyo, member Masafumi Aida and the member's [public social profile](https://x.com/masafumiaida). Add measured debrief details. MIT covers this project's original code; third-party licenses remain unchanged.
