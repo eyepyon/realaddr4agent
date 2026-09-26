@@ -1,6 +1,6 @@
 # event環境の設定値と投入先
 
-この資料はT-00/T-01/T-16の設定準備用である。ローカル用`.env.example`、GitHub Actionsの`ci` workflow、[Terraform bootstrap](../infra/README.md)と[read-only inventory](gcp-inventory.md)は作成済み。bootstrap5件の初期登録とlive設定確認は完了した。`infra/app`、`deploy-event` workflow、app runtime resource、Secret Managerの値は未作成・未検証。GCS state移行も未実施。ローカル検証結果は[実装状況](implementation-status.md)へ記録する。ここに書いた外部設定例は払い出し済みの値を意味しない。設定の正本は[運用仕様](operations.md)、[インフラ仕様](infrastructure.md)、[管理仕様](admin.md)、[料金仕様](pricing.md)とする。実際の外部account識別子、secret、鍵、個人住所をリポジトリ文書・source comment・例・commit messageへ載せない。Terraformの保護されたstate/planにはresource metadataが必要だが、secret payload、署名鍵、個人住所を入れない。Actions logにも実値やcredentialを出力しない。
+この資料はT-00/T-01/T-16の設定準備用である。ローカル用`.env.example`、GitHub Actionsの`ci` workflow、[Terraform bootstrap](../infra/README.md)と[read-only inventory](gcp-inventory.md)は作成済み。bootstrap5件の初期登録とlive設定確認は完了した。`infra/app`の基盤・条件付きサービス定義とコンテナ準備を追加し、GCS state移行は完了した。app基盤applyは完了した。`deploy-event` workflow、Cloud Run/Scheduler、Secret Managerの値は未作成・未検証。ローカル検証結果は[実装状況](implementation-status.md)へ記録する。ここに書いた外部設定例は払い出し済みの値を意味しない。設定の正本は[運用仕様](operations.md)、[インフラ仕様](infrastructure.md)、[管理仕様](admin.md)、[料金仕様](pricing.md)とする。実際の外部account識別子、secret、鍵、個人住所をリポジトリ文書・source comment・例・commit messageへ載せない。Terraformの保護されたstate/planにはresource metadataが必要だが、secret payload、署名鍵、個人住所を入れない。Actions logにも実値やcredentialを出力しない。
 
 ## 投入先と順序
 
@@ -74,3 +74,9 @@ Web buildは`VITE_APP_ENV=local|event`と`VITE_TERMS_VERSION=<published-terms-ve
 ## 未確定と記録
 
 T-00でWorld/Intercepta/facilitator/USDC/MultiBaas/ENSの実endpoint・address・認証方式・finalityを確定する。T-16でproject/region、専用resourceの実ID、WIF provider・信頼条件、IAM、Secret Manager名/版とruntime割当、domain mapping対応を確定する。管理者OIDC client/初期principalはT-18前に確定する。作業結果と未実施は`docs/implementation-status.md`に記録し、設定契約が変われば本表と`operations.md`、実装のenv validationを同時に更新する。
+
+## 現実装の起動とapp opt-in
+
+コンテナは`VITE_APP_ENV`と`VITE_TERMS_VERSION`を必須build引数とし、同一imageを`web`/`worker`引数で使う。現実装のweb起動には`APP_ENV=event`、`GCP_PROJECT_ID`、上表の`PUBLIC_ORIGIN`、正式な`TERMS_VERSION`、実`RATE_LIMIT_HMAC_KEY`が必要。worker起動は環境・project・prefix・default databaseと、実`WORKER_URL`・専用Tasks/Scheduler invokerを必要とする。provider secretは現在の閉じた起動経路では必須でなく、値を仮置きして販売を開かない。APIのdatabase明示検査とkey credential拒否はworkerと同等ではなく、runtime gateの残件である。
+
+`infra/app`では非秘密設定を固定し、`secret_versions`でweb/workerごとの既存numeric versionだけを指定する。`secret_purposes`はmetadata作成対象で、payload/version作成を行わない。service配備・runtime ready・公開・Scheduler・dispatch・共有Firestore grantのopt-inは全て既定false。初期基盤applyとその後のruntime gateは別工程である。backend設定は保護されたbucketと専用prefixを使い、`TF_DATA_DIR`も保護directoryへ分ける。bootstrapはGCS移行済みで、cloneは既存remote stateへ接続する。[初期化手順](../infra/README.md)を参照。

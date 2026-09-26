@@ -167,7 +167,7 @@ inventory scriptのfixture検証4件が通過した。読み取りcommandだけ�
 
 Firestoreは現在未使用との運用者確認を得た。これは他IAM主体のアクセス不可やstate所有権の証明ではない。管理主体が初期deny-all Rulesを適用した。適用直前にdefault releaseの404を確認し、immutable rulesetとreleaseをCREATEだけで作成した。再取得したlive sourceは管理sourceとbyte一致し、公式Rules engineで未認証・合成した他利用者のget/list/create/update/delete計10件がDENY期待のSUCCESSだった。Authorizationなしの実Firestore REST GETとPOST createもPERMISSION_DENIEDを返し、documentは書かれていない。実際の別Firebase利用者tokenによるclient試験は未実施。server IAM・DB本体・indexは変更していない。
 
-Cloud Asset APIは運用手順で有効化し、横断inventoryの再確認は進行中。既存budget一件を読み取り、変更していない。Rules初期適用に続きbootstrap5件を作成し、限定IAM memberを追加した。DNS変更・app deployは未実施。GitHubのevent Environmentは確認時点で未作成。app resource作成、GCS state移行、`infra/app`、deploy workflowとCloud Run公開は残件で、T-16は未完了のままとする。詳細は[読み取りinventory](gcp-inventory.md)に記録する。
+Cloud Asset APIは運用手順で有効化し、横断inventoryの再確認は進行中。既存budget一件を読み取り、変更していない。Rules初期適用に続きbootstrap5件を作成し、限定IAM memberを追加した。DNS変更・app deployは未実施。GitHubのevent Environmentは確認時点で未作成。この確認時点ではapp resource作成、GCS state移行、`infra/app`、deploy workflowとCloud Run公開が残件だった。後続のGCS移行とapp基盤登録は下記へ記録し、T-16は未完了のままとする。詳細は[読み取りinventory](gcp-inventory.md)に記録する。
 
 ## 次の接続条件
 
@@ -182,6 +182,42 @@ Cloud Asset APIは運用手順で有効化し、横断inventoryの再確認は�
 
 ## bootstrap初期登録結果
 
-bootstrap applyは終了code 0で成功し、専用state bucket、Docker repository、無効WIF pool/provider、限定impersonation memberの5件を作成した。live再取得でbucketのuniform bucket-level access=true・public access prevention=enforced・versioning=true、repositoryのDOCKER、WIF pool/providerのdisabled=true、追加memberと既存deploy accountの全従前memberの保持を確認した。local stateと別時刻のbackupは保護されたリポジトリ外にあり、GCSへのstate移行は未実施。
+bootstrap applyは終了code 0で成功し、専用state bucket、Docker repository、無効WIF pool/provider、限定impersonation memberの5件を作成した。live再取得でbucketのuniform bucket-level access=true・public access prevention=enforced・versioning=true、repositoryのDOCKER、WIF pool/providerのdisabled=true、追加memberと既存deploy accountの全従前memberの保持を確認した。local stateと別時刻のbackupは保護されたリポジトリ外にあり、GCSへのstate移行は完了。
 
-初期登録は完了したがT-16全体とアプリ稼働は未完了。infra/app、web/worker/tasks/schedの4 runtime account、Cloud Run、Cloud Tasks/Scheduler、secret metadata、deploy workflow、GitHub event Environment、runtime IAM・実Firebase他利用者client試験、GCS state移行は残件。適用後Terraform planはdetailed exit code 0で差分なし。修正した5型CAI filterのlive検索は終了code 0・metadata 34件を取得した。CAIのeventual freshnessと他regionのScheduler coverageは引き続き確認対象。
+初期登録は完了したがT-16全体とアプリ稼働は未完了。Cloud Run/Scheduler配備、deploy workflow、GitHub event Environment、未検証のCloud Run/Tasks/Scheduler権限と実Firebase他利用者client試験は残件。適用後Terraform planはdetailed exit code 0で差分なし。修正した5型CAI filterのlive検索は終了code 0・metadata 34件を取得した。CAIのeventual freshnessと他regionのScheduler coverageは引き続き確認対象。
+
+## T-01/T-16 GCS state移行・app基盤・コンテナ準備
+
+bootstrapのGCS state移行は成功。保護されたリポジトリ外へsource backupを保存し、専用bucketの所有権・対象prefixの空状態・権限の確認後、保護copyのlocal backend初期化とGCSへの`terraform init -migrate-state -force-copy`を実施した。取得stateのlineage・resource 5件・outputsが一致し、serialは6から7へ増加した。リポジトリのGCS backendからの後続planは差分0。state・変数・credential・backend cacheはリポジトリ外で扱い、local backupを通常applyに使わない。
+
+`infra/app`へ専用4 service account、7日保持のprivate業務bucket、queue、secret metadata、限定IAMと条件付きRun/Schedulerを追加した。service配備・runtime ready・公開・Scheduler・dispatch・共有Firestore grantのopt-inは全て既定false。secret値/versionをTerraformへ入れない。app基盤applyは17 add・0 update・0 deleteで完了し、live metadataを再確認した。runtime IAMの代表検査は通過し、実Firebase他利用者client gateは未確認。T-16全体に完了チェックを付けない。
+
+| 実行したチェック | 結果 | 範囲・未実施 |
+| --- | --- | --- |
+| infra/appのTerraform fmt-check・validate・mock test | 通過・3 passed / 0 failed | backend無効のローカル設定検査。保護stateやクラウド呼出しを使用しない |
+| 公式Docker registryでNode 22.21.0 tag/index digestを照合 | 通過 | Dockerfileへdigest固定。実image取得は未実施 |
+| `VITE_APP_ENV=local VITE_TERMS_VERSION=event-demo-1 node scripts/container-build.mjs` | 通過 | domain/DB/API/worker/Web型検査、API/worker bundle、Web HTML/assets build。local demo設定 |
+| `node scripts/container-entrypoint.mjs invalid`とbuild設定なしの実行 | 期待通り拒否 | 未知roleと環境/terms欠落で非0終了 |
+| `docker version` / `docker info` | daemon利用不可 | installed Desktopのhidden起動を試したがpipeへ接続不可。Docker build/runは未実行 |
+
+image entrypointは`web`または`worker`を選ぶ。privateファイルをbuild contextへ送信せず、Web distと公開OpenAPIを同梱する。正式なterms/public configは未確定なのでevent image build・push・Cloud Run配備・DNSは未実施。支払い・World・ENSの実統合を成功扱いせず、業務mutationは閉じたまま。Cloud Buildは使用していない。
+
+## app基盤の実登録結果
+
+app foundationの実applyは17 add・0 update・0 deleteで成功した。live再取得で専用4 service accountがenabled・user-managed key 0、既存project IAM memberの保持、業務bucketのuniform access/public access prevention有効・soft delete 0・7日削除、queueの毎秒1・同時実行1・最大10試行、作成secretのversion 0件を確認した。web/workerの共有default DB限定IAM grantは個別レビュー後に今回の保護設定で有効にした。入力の既定値は引き続きfalseであり、同DB内のcollection隔離を意味しない。
+
+正式termsは未確定で、今回は基盤登録までとの利用者指定に従う。event image、Cloud Run、公開IAM、Scheduler、dispatch、deploy CI/WIFの有効化は行っていない。専用主体のFirestore操作・DB拒否とqueue権限の代表検査は通過し、合成documentと短期grantのcleanupを確認した。Cloud Run invoker、Tasks OIDC、スポンサー、別Firebase利用者のclient試験は未検証。詳しい証跡範囲は実装状況のruntime IAM節を参照する。appのremote post-apply planはdetailed exit code 0で差分なし。state pullの17 resource instance、保護backupとmanifest更新を確認した。T-16全体は未完了。
+
+## T-16 専用主体のruntime IAM代表検査
+
+4専用service accountの短期token発行は初回に403となったが、15分の条件付き一時grantを保持して反映を待ち、再検査で全4主体が成功した。条件を緩めたり恒久権限へ変更していない。10分tokenで以下を実施し、token値と実識別子は公開記録に含めない。
+
+| 実検査 | 結果・範囲 |
+| --- | --- |
+| web/workerでdefault DBの`realaddr_event_ops_metrics`へ一意な合成documentをPOST/GET/DELETE | 両主体で成功。業務データではなく代表的なserver CRUD確認 |
+| 全4主体で既存の対象外named DB内の一意な不存在documentをGET | 全て`PERMISSION_DENIED`。NOT_FOUNDを拒否証拠として扱わない |
+| tasks/schedでdefault DB documentをGET | 両主体で`PERMISSION_DENIED` |
+| queueの`testIamPermissions` | webはtask createのみ、workerはcreate/get。tasks/schedは指定した5権限を持たない |
+| cleanup/read-back | 合成document削除、一時grantの全4主体からの削除、baseline member保持を確認 |
+
+これは検査したDB操作・queue権限の証拠であり、prefix内外のcollection IAM隔離を意味しない。Cloud Run invoker、Cloud Tasks/Schedulerの実OIDC配信、スポンサー接続、実際の別Firebase利用者tokenによるRules client試験は未検証。appのremote post-apply planはdetailed exit code 0で差分なし。state pullは17 resource instanceを保持し、保護backupとmanifest更新を確認した。T-16は未完了。

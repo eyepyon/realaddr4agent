@@ -2,7 +2,7 @@
 
 決定日: 2026-09-25。ユーザー指定によりCloud Run / Cloud Firestore / Cloud Storage / GitHub Actionsを採用する。これは実装仕様であり、billing有効を読み取り確認したが、bootstrapの5件を作成済みで、アプリデプロイは未実施。
 
-実装状況: `infra/bootstrap`の専用state bucket・Artifact Registry・WIFと限定IAM定義、`scripts/gcp-inventory.ps1`のmetadata読取を追加した。ローカル検証は[infra手順](../infra/README.md)と[実装状況](implementation-status.md)を参照。`infra/app`とdeploy workflowは未実装であり、認証済みlive inventoryと実plan（5 create・0 update・0 destroy）は確認済み。bootstrap applyは成功し、runtime/clientの残るgateとGCS state移行は未完了。
+実装状況: `infra/bootstrap`の専用state bucket・Artifact Registry・WIFと限定IAM定義、`scripts/gcp-inventory.ps1`のmetadata読取を追加した。ローカル検証は[infra手順](../infra/README.md)と[実装状況](implementation-status.md)を参照。`infra/app`の基盤・条件付きサービス定義を追加し、基盤applyは完了したが、deploy workflowは未実装。認証済みlive inventoryと実plan（5 create・0 update・0 destroy）は確認済み。bootstrap applyは成功し、GCS state移行は完了したが、runtime/clientのgateは残る。
 
 ## 採用理由と配置
 
@@ -21,11 +21,11 @@
 
 ### Terraformとデプロイの責任境界（T-16の実装契約）
 
-`infra/bootstrap`と`infra/app`の2 rootを作る。利用するGCP project IDを参照し、project・billing・GitHub repository・DNS zone/record・`(default)` Firestore DB・project予算は作成、import、管理しない。bootstrapは本アプリ専用のTerraform state用private GCS bucket、Artifact Registry repository、GitHub OIDC/WIF pool・providerを管理する。デプロイ用service accountは保護された`DEPLOY_SERVICE_ACCOUNT`設定で明示参照し、本アプリのstateへimport・作成・削除しない。必要なproject APIの有効化は管理主体と調整した運用手順で行い、本アプリのstateには含めない。初回bootstrapは管理者がローカルstateで実行し、state bucket作成後のbootstrap state移行はバックアップ・移行先確認を伴う別の手動手順として記録する。plan用のlocal stateは保護されたリポジトリ外で扱い、bootstrap resourceは作成済みで、GCSへのstate移行は未実施。app rootは専用state bucketをGCS backendとして使い、本アプリ専用のCloud Run 2サービス、web/worker/tasks/schedの4 service account、業務用private bucket、Tasks/Scheduler、Secret Managerのsecret metadata、限定したIAM、`realaddr_event_` collection groupだけの複合indexとfield exemptionを管理する。backend bucketは先に存在する必要があり、GCS backendはstate lockingに対応する。[Terraform GCS backend](https://developer.hashicorp.com/terraform/language/backend/gcs)
+`infra/bootstrap`と`infra/app`の2 rootを作る。利用するGCP project IDを参照し、project・billing・GitHub repository・DNS zone/record・`(default)` Firestore DB・project予算は作成、import、管理しない。bootstrapは本アプリ専用のTerraform state用private GCS bucket、Artifact Registry repository、GitHub OIDC/WIF pool・providerを管理する。デプロイ用service accountは保護された`DEPLOY_SERVICE_ACCOUNT`設定で明示参照し、本アプリのstateへimport・作成・削除しない。必要なproject APIの有効化は管理主体と調整した運用手順で行い、本アプリのstateには含めない。初回bootstrapは管理者がローカルstateで実行し、state bucket作成後のbootstrap state移行はバックアップ・移行先確認を伴う別の手動手順として記録する。plan用のlocal stateは保護されたリポジトリ外で扱い、bootstrap resourceは作成済みで、GCSへのstate移行は完了。app rootは専用state bucketをGCS backendとして使い、本アプリ専用のCloud Run 2サービス、web/worker/tasks/schedの4 service account、業務用private bucket、Tasks/Scheduler、Secret Managerのsecret metadata、限定したIAM、`realaddr_event_` collection groupだけの複合indexとfield exemptionを管理する。backend bucketは先に存在する必要があり、GCS backendはstate lockingに対応する。[Terraform GCS backend](https://developer.hashicorp.com/terraform/language/backend/gcs)
 
 state bucketと業務用bucketは分離し、他サービスのstate bucket/prefixも共有しない。state prefixはbootstrapが`realaddr/event/bootstrap`、appが`realaddr/event/app`。state bucketはuniform bucket-level access、public access prevention、versioning、削除防止を設定し、読書き権限を本アプリのinfra管理主体だけへ絞る。versioningの保持量・費用を監視する。業務用bucketには後述の短期保持とsoft delete無効の方針を適用し、Terraform stateを置かない。Terraform変数・state・planにprovider秘密、署名鍵、World情報、宛先、支払いpayloadを入れない。secret名とIAMだけをTerraformで管理し、値は権限を持つ運用者がSecret Managerへ別途登録する。未設定のsecretを成功用の仮値で埋めない。
 
-Terraform/providerの動作確認済みversionと各rootの`.terraform.lock.hcl`を管理する。`.terraform/`、local state/backup、plan、実値を含むtfvars、認証ファイルはGit対象外にし、公開用exampleにはplaceholderだけを置く。bootstrapの初回image指定とstate移行を含むコマンドは実装時に記載し、現時点で実行可能と主張しない。
+Terraform/providerの動作確認済みversionと各rootの`.terraform.lock.hcl`を管理する。`.terraform/`、local state/backup、plan、実値を含むtfvars、認証ファイルはGit対象外にし、公開用exampleにはplaceholderだけを置く。GCS backendの初期化・移行済みstateの運用手順はinfra READMEへ記載した。初回event image配備は未実施であり、公開稼働を主張しない。
 
 T-16の必須共存ゲートでproject内の既存Cloud Run、Firestore DB/rules/index、API、IAM、予算、bucket、Artifact Registry、Tasks、Scheduler、Secret Manager、WIF、service accountと各resourceの所有者を読み取り確認する。認証済みlive inventoryは20件成功・1件incompleteで、全regionの横断検索と実効IAMは未完了。管理主体によるRules初期適用と公式engineのdeny評価を確認し、実Firebase利用者tokenのclient試験は未実施。共有resourceを本アプリのstateへimportしない。同名の既存resourceが本アプリ所有と確認できなければ上書き・importを止め、明示的に設定したsuffixで衝突を解消する。毎回ランダム名を生成しない。apply前のplanは本アプリ専用resourceと許可されたprefix collection indexだけに限定し、他サービスへの変更があれば停止する。
 
@@ -188,10 +188,22 @@ Cloud Tasksは配信をexactly-onceにしない。task IDの短期重複排除�
 
 ## T-16のlive Rules確認
 
-管理主体が初期deny-all Rulesを適用した。適用直前にdefault releaseの404を確認し、immutable rulesetとreleaseをCREATEだけで作成した。再取得したlive sourceは管理sourceとbyte一致し、公式Rules engineで未認証・合成した他利用者のget/list/create/update/delete計10件がDENY期待のSUCCESSだった。Authorizationなしの実Firestore REST GETとPOST createもPERMISSION_DENIEDを返し、documentは書かれていない。実際の別Firebase利用者tokenによるclient試験は未実施。server IAM・DB本体・indexは変更していない。 Cloud Asset APIは運用手順で有効化したが、横断inventoryの再確認は進行中。既存budget一件を読み取り、変更していない。bootstrap初期登録は完了し、app resource作成・runtime IAM検証は未実施。
+管理主体が初期deny-all Rulesを適用した。適用直前にdefault releaseの404を確認し、immutable rulesetとreleaseをCREATEだけで作成した。再取得したlive sourceは管理sourceとbyte一致し、公式Rules engineで未認証・合成した他利用者のget/list/create/update/delete計10件がDENY期待のSUCCESSだった。Authorizationなしの実Firestore REST GETとPOST createもPERMISSION_DENIEDを返し、documentは書かれていない。実際の別Firebase利用者tokenによるclient試験は未実施。server IAM・DB本体・indexは変更していない。 Cloud Asset APIは運用手順で有効化したが、横断inventoryの再確認は進行中。既存budget一件を読み取り、変更していない。bootstrapとapp基盤の実登録は完了した。runtime IAMの代表検査結果は実装状況を参照。
 
 ## bootstrap初期登録結果
 
-bootstrap applyは終了code 0で成功し、専用state bucket、Docker repository、無効WIF pool/provider、限定impersonation memberの5件を作成した。live再取得でbucketのuniform bucket-level access=true・public access prevention=enforced・versioning=true、repositoryのDOCKER、WIF pool/providerのdisabled=true、追加memberと既存deploy accountの全従前memberの保持を確認した。local stateと別時刻のbackupは保護されたリポジトリ外にあり、GCSへのstate移行は未実施。
+bootstrap applyは終了code 0で成功し、専用state bucket、Docker repository、無効WIF pool/provider、限定impersonation memberの5件を作成した。live再取得でbucketのuniform bucket-level access=true・public access prevention=enforced・versioning=true、repositoryのDOCKER、WIF pool/providerのdisabled=true、追加memberと既存deploy accountの全従前memberの保持を確認した。local stateと別時刻のbackupは保護されたリポジトリ外にあり、GCSへのstate移行は完了。
 
-初期登録は完了したがT-16全体とアプリ稼働は未完了。infra/app、web/worker/tasks/schedの4 runtime account、Cloud Run、Cloud Tasks/Scheduler、secret metadata、deploy workflow、GitHub event Environment、runtime IAM・実Firebase他利用者client試験、GCS state移行は残件。適用後Terraform planはdetailed exit code 0で差分なし。修正した5型CAI filterのlive検索は終了code 0・metadata 34件を取得した。CAIのeventual freshnessと他regionのScheduler coverageは引き続き確認対象。
+初期登録は完了したがT-16全体とアプリ稼働は未完了。Cloud Run/Scheduler配備、deploy workflow、GitHub event Environment、未検証のCloud Run/Tasks/Scheduler権限と実Firebase他利用者client試験は残件。適用後Terraform planはdetailed exit code 0で差分なし。修正した5型CAI filterのlive検索は終了code 0・metadata 34件を取得した。CAIのeventual freshnessと他regionのScheduler coverageは引き続き確認対象。
+
+## T-16追加準備の現在地
+
+bootstrap stateをGCSへ移行し、lineage・5 resource・outputsの一致と後続plan差分0を確認した。保護されたlocal backupは復旧専用で、通常操作はremote stateから行う。`infra/app`の専用4 account、7日保持のprivate業務bucket、queue、secret metadata、限定IAMと条件付きRun/Schedulerを追加し、基盤applyは17 add・0 update・0 deleteで完了した。共有Firestore grant、service配備、公開、dispatch、Schedulerは既定で無効であり、各gateの明示レビューを必要とする。
+
+一つのimageにAPI/worker bundleとWeb distを含めるDockerfile、source allowlistの`.dockerignore`、role指定entrypointを追加した。固定済み既存ツールでlocal build/typecheckは通過したが、Docker daemonが利用できず実image build/runは未検証。正式なtermsと公開設定が未確定のためevent image build、Cloud Run公開、DNSは未実施。手順は[infra README](../infra/README.md)、設定契約は[deployment configuration](deployment-configuration.md)を正とする。
+
+## app基盤の実登録結果
+
+app foundationの実applyは17 add・0 update・0 deleteで成功した。live再取得で専用4 service accountがenabled・user-managed key 0、既存project IAM memberの保持、業務bucketのuniform access/public access prevention有効・soft delete 0・7日削除、queueの毎秒1・同時実行1・最大10試行、作成secretのversion 0件を確認した。web/workerの共有default DB限定IAM grantは個別レビュー後に今回の保護設定で有効にした。入力の既定値は引き続きfalseであり、同DB内のcollection隔離を意味しない。
+
+正式termsは未確定で、今回は基盤登録までとの利用者指定に従う。event image、Cloud Run、公開IAM、Scheduler、dispatch、deploy CI/WIFの有効化は行っていない。専用主体のFirestore操作・DB拒否とqueue権限の代表検査は通過し、合成documentと短期grantのcleanupを確認した。Cloud Run invoker、Tasks OIDC、スポンサー、別Firebase利用者のclient試験は未検証。詳しい証跡範囲は実装状況のruntime IAM節を参照する。appのremote post-apply planはdetailed exit code 0で差分なし。state pullの17 resource instance、保護backupとmanifest更新を確認した。T-16全体は未完了。

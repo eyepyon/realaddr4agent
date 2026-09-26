@@ -1,6 +1,6 @@
 # eventインフラ準備（T-16）
 
-`bootstrap/`はTerraformのローカル検証用rootで、専用state bucket、Docker repository、専用GitHub WIF pool/providerと既存deploy service accountへの限定的なimpersonation memberだけを定義する。認証済みlive inventoryと実planを確認済み。実planは5 create・0 update・0 destroyで、bootstrap applyと5件の初期登録は完了し、GCS state移行は未実施。`app/`とdeploy workflowは未実装であり、このrootだけでサービスは稼働しない。
+`bootstrap/`はTerraformの初期基盤rootで、専用state bucket、Docker repository、専用GitHub WIF pool/providerと既存deploy service accountへの限定的なimpersonation memberだけを定義する。認証済みlive inventoryと実planを確認済み。実planは5 create・0 update・0 destroyで、bootstrap applyと5件の初期登録は完了し、GCS state移行は完了。`app/`の基盤applyとコンテナ準備は完了した。deploy workflowは未実装で、このrootだけでサービスは稼働しない。
 
 Terraform 1.14.6、Google provider 8.4.0を固定し、Windows上でfmt、validate、mock test 2件を確認した。lockfileには公式署名を検証したWindows/Linux amd64 packageのchecksumを含む。Linuxでの実行は未検証。作成後のlive metadata確認は下記に記録する。
 
@@ -19,9 +19,9 @@ terraform -chdir=infra/bootstrap test
 
 mock testはGCP認証・通信を行わず、resource設定を検査する。provider取得時のnetworkアクセスとは別である。lockfileを更新する場合はWindows/Linux両platformの公式checksumを取得し、変更をレビューする。
 
-実apply前に[共存ゲート](../docs/infrastructure.md)のread-only inventoryと変更範囲・既存管理主体との競合確認を完了し、API有効化、既存IAMのauthoritative管理との競合、名前の所有者、管理主体だけのstate読書き権限を確認する。bucketのprivate設定は既存project IAMの広いアクセスを除去しない。初回はローカルstateで実行する契約で、このrootはremote backendを定義しない。stateはバックアップ、移行先所有権、権限、専用prefix `realaddr/event/bootstrap`を確認してから別のレビュー済み手順でGCSへ移行する。versioning保持量と費用を監視する。Terraformのprevent_destroyは設定が削除された場合や外部削除の防止を保証しない。
+実apply前に[共存ゲート](../docs/infrastructure.md)のread-only inventoryと変更範囲・既存管理主体との競合確認を完了し、API有効化、既存IAMのauthoritative管理との競合、名前の所有者、管理主体だけのstate読書き権限を確認する。bucketのprivate設定は既存project IAMの広いアクセスを除去しない。初回はローカルstateで実行し、その後、バックアップ・移行先所有権・権限・専用prefix `realaddr/event/bootstrap`を確認してGCSへ移行した。現在のrootは値を含まないGCS backendを定義する。versioning保持量と費用を監視する。Terraformのprevent_destroyは設定が削除された場合や外部削除の防止を保証しない。
 
-共有project/API/IAM、Firestore database/rules/index、予算、DNS、既存deploy accountのlifecycleはこのrootの管理対象外。runtime IAM、実Firebase利用者tokenのclient確認、スポンサー接続、デプロイ確認は残件。Rulesの適用・評価結果は下記に記録する。
+共有project/API/IAM、Firestore database/rules/index、予算、DNS、既存deploy accountのlifecycleはこのrootの管理対象外。runtime IAMの確認済み範囲は実装状況を参照。実Firebase利用者tokenのclient確認、スポンサー接続、デプロイ確認は残件。Rulesの適用・評価結果は下記に記録する。
 
 実planでは確認済みregionとimmutable repository/owner IDを使用し、WIF pool/providerのdisabled、state bucketのuniform bucket-level access・public access prevention・versioningを確認した。plan・state・実値入り変数は保護されたリポジトリ外に置く。state bucket、Artifact Registry repository、WIF poolの指定名へのGETは各404だったが、全域の名前空きや所有権の証拠にはしない。
 
@@ -29,6 +29,40 @@ mock testはGCP認証・通信を行わず、resource設定を検査する。pro
 
 ## bootstrap初期登録結果
 
-bootstrap applyは終了code 0で成功し、専用state bucket、Docker repository、無効WIF pool/provider、限定impersonation memberの5件を作成した。live再取得でbucketのuniform bucket-level access=true・public access prevention=enforced・versioning=true、repositoryのDOCKER、WIF pool/providerのdisabled=true、追加memberと既存deploy accountの全従前memberの保持を確認した。local stateと別時刻のbackupは保護されたリポジトリ外にあり、GCSへのstate移行は未実施。
+bootstrap applyは終了code 0で成功し、専用state bucket、Docker repository、無効WIF pool/provider、限定impersonation memberの5件を作成した。live再取得でbucketのuniform bucket-level access=true・public access prevention=enforced・versioning=true、repositoryのDOCKER、WIF pool/providerのdisabled=true、追加memberと既存deploy accountの全従前memberの保持を確認した。local stateと別時刻のbackupは保護されたリポジトリ外にあり、GCSへのstate移行は完了。
 
-初期登録は完了したがT-16全体とアプリ稼働は未完了。infra/app、web/worker/tasks/schedの4 runtime account、Cloud Run、Cloud Tasks/Scheduler、secret metadata、deploy workflow、GitHub event Environment、runtime IAM・実Firebase他利用者client試験、GCS state移行は残件。適用後Terraform planはdetailed exit code 0で差分なし。修正した5型CAI filterのlive検索は終了code 0・metadata 34件を取得した。CAIのeventual freshnessと他regionのScheduler coverageは引き続き確認対象。
+初期登録は完了したがT-16全体とアプリ稼働は未完了。Cloud Run/Scheduler配備、deploy workflow、GitHub event Environment、未検証のCloud Run/Tasks/Scheduler権限と実Firebase他利用者client試験は残件。適用後Terraform planはdetailed exit code 0で差分なし。修正した5型CAI filterのlive検索は終了code 0・metadata 34件を取得した。CAIのeventual freshnessと他regionのScheduler coverageは引き続き確認対象。
+
+## GCS backendとapp準備
+
+bootstrap stateのGCS移行は成功した。移行前backupを保護されたリポジトリ外へ保存し、専用bucketの所有権・空の対象prefix・必要権限を確認した。保護された設定copyで元のlocal backendとstateを初期化してからGCSへ切り替え、`terraform init -migrate-state -force-copy`を実行した。取得したremote stateはlineage・5 resource・outputsが一致し、serialは移行により6から7へ増加した。リポジトリのGCS backendからの後続planは差分0。local backupは復旧専用とし、古いlocal stateでapplyしない。
+
+新しいcloneは短期credentialと保護manifestを別途準備し、既存remote stateへ接続する。backend cacheもリポジトリ外に置く。placeholderを実値へ置き換え、backend設定・変数・plan・state・credentialをGitへ追加しない。
+
+```sh
+export TF_DATA_DIR="<protected-backend-cache-directory>"
+terraform -chdir=infra/bootstrap init -backend-config="<protected-bootstrap-backend-config>"
+terraform -chdir=infra/bootstrap plan -var-file="<protected-bootstrap-variable-file>"
+```
+
+backend configは専用state bucketと`prefix = "realaddr/event/bootstrap"`を指定する。app rootは別cacheと`realaddr/event/app`を使う。通常のclone初期化で移行commandを再実行しない。認証不要の検証は別cacheへ`init -backend=false`で初期化し、実plan/applyにはremote backend接続を確認する。
+
+`app/`はweb/worker/tasks/schedの4専用service account、private業務bucket、Cloud Tasks queue、指定したSecret Manager metadata、限定IAMと条件付きCloud Run/Schedulerを定義する。業務bucketは7日でobject削除、versioningなし、soft deleteなし、public access prevention・uniform access・削除防止。queueは同時実行1、毎秒1、最大10試行。secret値/version作成はTerraformで扱わない。共有default DBの`datastore.user` grantは`firestore_access_reviewed=true`をレビュー後に指定した場合だけで、prefixをIAM境界とは扱わない。
+
+`deploy_services`、`runtime_ready`、`web_public`、`scheduler_enabled`、`dispatch_enabled`、`firestore_access_reviewed`は既定でfalse。`secret_purposes`も空が既定。基盤のapp applyは17 add・0 update・0 deleteで完了した。service配備には正式なterms、実secret version、同一image digest、worker origin、runtime IAM gateが必要で、公開/dispatch/Schedulerは別の明示的な有効化が必要になる。
+
+## コンテナ準備
+
+DockerfileはNode 22.21.0のofficial registry digestとpnpm 11.19.0を固定し、frozen lockfileで一つのimageをbuildする。entrypointは`node scripts/container-entrypoint.mjs`、引数は`web`（既定）または`worker`。web assetは`/app/apps/web/dist`に同梱する。`.dockerignore`はsource・manifest・lockfile・build設定・公開OpenAPIだけを許可し、`.env`、秘密、state、Git、local build/dependencyを送信しない。Cloud Buildは使わない。
+
+```sh
+docker build --build-arg VITE_APP_ENV=local --build-arg VITE_TERMS_VERSION=event-demo-1 -t realaddr-local-check .
+```
+
+これはlocal検証用commandで、今回Docker daemonが利用できず未実行。既存Node toolingによるlocalの型検査/API/worker/Web buildは通過した。event imageは正式なterms versionと公開設定が確定するまでbuildしない。実image build/run、image push、Cloud Run配備、スポンサー接続、DNSは未実施。
+
+## app基盤の実登録結果
+
+app foundationの実applyは17 add・0 update・0 deleteで成功した。live再取得で専用4 service accountがenabled・user-managed key 0、既存project IAM memberの保持、業務bucketのuniform access/public access prevention有効・soft delete 0・7日削除、queueの毎秒1・同時実行1・最大10試行、作成secretのversion 0件を確認した。web/workerの共有default DB限定IAM grantは個別レビュー後に今回の保護設定で有効にした。入力の既定値は引き続きfalseであり、同DB内のcollection隔離を意味しない。
+
+正式termsは未確定で、今回は基盤登録までとの利用者指定に従う。event image、Cloud Run、公開IAM、Scheduler、dispatch、deploy CI/WIFの有効化は行っていない。専用主体のFirestore操作・DB拒否とqueue権限の代表検査は通過し、合成documentと短期grantのcleanupを確認した。Cloud Run invoker、Tasks OIDC、スポンサー、別Firebase利用者のclient試験は未検証。詳しい証跡範囲は実装状況のruntime IAM節を参照する。appのremote post-apply planはdetailed exit code 0で差分なし。state pullの17 resource instance、保護backupとmanifest更新を確認した。T-16全体は未完了。
