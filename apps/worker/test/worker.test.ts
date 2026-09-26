@@ -61,7 +61,7 @@ test('runner recovers only the supported persisted event and never completes una
   let recoveries = 0;
   const reasons: string[] = [];
   const outbox = { claim: async () => claim, retry: async (_claim: unknown, reason: string) => { reasons.push(reason); return 'pending' as const; } } as unknown as Pick<OutboxRepository, 'claim' | 'retry' | 'getDeliveryState'>;
-  const recovery = { recoverConfirmedPurchaseFromOutbox: async () => { recoveries += 1; return { orderId: 'order', status: 'fulfilled' as const, leaseId: 'order' }; } } as unknown as Pick<RealAddrRepository, 'recoverConfirmedPurchaseFromOutbox'>;
+  const recovery = { recoverConfirmedPurchaseFromOutbox: async () => { recoveries += 1; return { orderId: 'order', status: 'fulfilled' as const, leaseId: 'order' }; } } as unknown as Pick<RealAddrRepository, 'recoverConfirmedPurchaseFromOutbox' | 'recoverConfirmedRenewalFromOutbox'>;
   const runner = createWorkerRunner(outbox, recovery, 'owner');
   assert.deepEqual(await runner.run(id), { status: 'fulfilled', retryable: false });
   assert.equal(recoveries, 1);
@@ -77,7 +77,7 @@ test('duplicate claims and inconsistent issuance do not report fulfillment', asy
   let occupied = true;
   const reasons: string[] = [];
   const outbox = { getDeliveryState: async () => 'pending' as const, claim: async () => occupied ? null : claim, retry: async (_claim: unknown, reason: string) => { reasons.push(reason); return 'manual_review' as const; } } as unknown as Pick<OutboxRepository, 'claim' | 'retry' | 'getDeliveryState'>;
-  const recovery = { recoverConfirmedPurchaseFromOutbox: async (input: typeof claim) => { assert.equal(input.claimGeneration, 2); return { orderId: 'order', status: 'manual_review' as const }; } } as unknown as Pick<RealAddrRepository, 'recoverConfirmedPurchaseFromOutbox'>;
+  const recovery = { recoverConfirmedPurchaseFromOutbox: async (input: typeof claim) => { assert.equal(input.claimGeneration, 2); return { orderId: 'order', status: 'manual_review' as const }; } } as unknown as Pick<RealAddrRepository, 'recoverConfirmedPurchaseFromOutbox' | 'recoverConfirmedRenewalFromOutbox'>;
   const runner = createWorkerRunner(outbox, recovery, 'owner');
   assert.deepEqual(await runner.run(id), { status: 'not_claimed', retryable: true });
   occupied = false;
@@ -85,10 +85,25 @@ test('duplicate claims and inconsistent issuance do not report fulfillment', asy
   assert.deepEqual(reasons, ['issuance_inconsistent']);
 });
 
+test('renewal recovery passes the fenced claim and holds inconsistent persisted state', async () => {
+  const claim = { id, eventType: 'payment.renewal_recovery_requested', aggregateId: 'renewal', version: 3, payload: { orderId: 'renewal' }, claimOwner: 'owner', claimGeneration: 2, claimUntil: new Date(Date.now() + 60_000), reconciliationOnly: false };
+  const reasons: string[] = [];
+  let calls = 0;
+  const outbox = { claim: async () => claim, getDeliveryState: async () => 'pending' as const, retry: async (_claim: unknown, reason: string) => { reasons.push(reason); return 'pending' as const; } };
+  const repository = {
+    recoverConfirmedPurchaseFromOutbox: async () => { throw new Error('wrong recovery handler'); },
+    recoverConfirmedRenewalFromOutbox: async (input: typeof claim) => { assert.strictEqual(input, claim); calls += 1; return { orderId: 'renewal', status: 'manual_review' as const }; },
+  };
+  const runner = createWorkerRunner(outbox as unknown as Pick<OutboxRepository, 'claim' | 'retry' | 'getDeliveryState'>, repository, 'owner');
+  assert.deepEqual(await runner.run(id), { status: 'retry', retryable: true });
+  assert.equal(calls, 1);
+  assert.deepEqual(reasons, ['issuance_inconsistent']);
+});
+
 test('terminal duplicate delivery acknowledges business state without claiming fulfillment', async () => {
   for (const state of ['completed', 'superseded', 'manual_review', 'missing'] as const) {
     const outbox = { claim: async () => null, getDeliveryState: async () => state, retry: async () => 'pending' as const };
-    const runner = createWorkerRunner(outbox as unknown as Pick<OutboxRepository, 'claim' | 'retry' | 'getDeliveryState'>, {} as Pick<RealAddrRepository, 'recoverConfirmedPurchaseFromOutbox'>);
+    const runner = createWorkerRunner(outbox as unknown as Pick<OutboxRepository, 'claim' | 'retry' | 'getDeliveryState'>, {} as Pick<RealAddrRepository, 'recoverConfirmedPurchaseFromOutbox' | 'recoverConfirmedRenewalFromOutbox'>);
     assert.deepEqual(await runner.run(id), { status: state, retryable: false });
     const app = createWorkerApp(config, runner, async () => ({ iss: 'https://accounts.google.com', aud: audience, email: tasks, email_verified: true }));
     try {

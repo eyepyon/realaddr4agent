@@ -31,7 +31,7 @@ test('owner HTTP reads authenticate, isolate, paginate and preserve closed integ
       const owned = { schemaVersion: 1, id, tenantId: owner.principal.tenantId, agentId: owner.principal.agentId, ownerWallet: owner.principal.walletAddress };
       await repo.collections.doc('orders', id!).set({ ...owned, kind: 'purchase', status: 'reconciling', buildingId: locationId, slotNumber: 42, amountAtomic: '550000', network: 'eip155:84532', asset: `0x${'1'.repeat(40)}`, payTo: `0x${'2'.repeat(40)}`, expiresAt: now, createdAt: now, encryptedPayload: 'PRIVATE_MARKER', authorizationNonce: 'PRIVATE_MARKER' });
       await repo.collections.doc('leases', id!).set({ ...owned, buildingId: locationId, slotNumber: 42, addressSnapshot: { postalCode: '1000001', address: 'Test building' }, status: 'active', startsAt: new Date(now.getTime() - 1000), expiresAt: new Date(now.getTime() - 1), version: 1, chainSyncStatus: 'pending', updatedAt: now, worldSubject: 'PRIVATE_MARKER' });
-      await repo.collections.doc('mail_profiles', id!).set({ schemaVersion: 1, leaseId: id, status: 'disabled', grantExpiresAt: null, destinationConfigured: true, encryptedDestination: 'PRIVATE_MARKER' });
+      await repo.collections.doc('mail_profiles', id!).set({ schemaVersion: 1, leaseId: id, status: 'disabled', destinationConfigured: true, encryptedDestination: 'PRIVATE_MARKER' });
     }
     const get = (url: string, token = owner.token) => app.inject({ method: 'GET', url, headers: { authorization: `Bearer ${token}` } });
     assert.equal((await app.inject({ method: 'GET', url: '/v1/subscriptions' })).statusCode, 401);
@@ -58,6 +58,7 @@ test('owner HTTP reads authenticate, isolate, paginate and preserve closed integ
     }
     const lease = await get(`/v1/subscriptions/${ids[0]}`);
     assert.equal(lease.json().status, 'expired');
+    assert.equal(Object.hasOwn(lease.json().mail, 'grantExpiresAt'), false);
     assert.equal(lease.body.includes('PRIVATE_MARKER'), false);
     const ens = await get(`/v1/subscriptions/${ids[0]}/ens`);
     assert.deepEqual(ens.json(), { status: 'not_purchased', network: 'eip155:11155111' });
@@ -77,6 +78,11 @@ test('owner HTTP reads authenticate, isolate, paginate and preserve closed integ
       const validate = ajv.compile({ $ref: `contract#/components/schemas/${schema}` });
       assert.ok(validate(body), JSON.stringify(validate.errors));
     }
+    await repo.collections.doc('mail_profiles', ids[0]!).update({ status: 'suspended' });
+    assert.equal((await get(`/v1/subscriptions/${ids[0]}`)).json().mail.status, 'suspended');
+    await repo.collections.doc('mail_profiles', ids[0]!).update({ status: 'enabled', enabledByApprovalId: 'test-applied-approval' });
+    assert.equal((await get(`/v1/subscriptions/${ids[0]}`)).statusCode, 503);
+    await repo.collections.doc('mail_profiles', ids[0]!).update({ status: 'disabled' });
     const origin = await app.listen({ host: '127.0.0.1', port: 0 });
     for (const [group, flag] of [['lease', '--subscription'], ['intent', '--intent']] as const) {
       const cli = await promisify(execFile)(process.execPath, [fileURLToPath(new URL('../../../node_modules/tsx/dist/cli.mjs', import.meta.url)), fileURLToPath(new URL('../../../packages/agent-cli/src/index.ts', import.meta.url)), group, 'status', flag, ids[0]!, '--json'], { env: { ...process.env, AGENT_API_ORIGIN: origin, AGENT_API_TOKEN: owner.token }, timeout: 20_000 });

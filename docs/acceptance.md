@@ -7,7 +7,7 @@
 少数の実装に即したチェックを再利用し、実行コマンド、手動操作、公開可能な証跡、未実行範囲を`docs/implementation-status.md`に記録する。コード変更ではbuild/typecheckと変更箇所に関係するチェックを実行する。文書・設定だけの変更は形式検査とdiff確認を行い、動作に影響する場合は対応する重点チェックも行う。提出前に次を確認する。
 
 1. Firestore EmulatorなどのDB統合チェックで、slot境界と同一区画への競合予約、同じ支払いの再送・結果不明時の照合を確認する。一つの確定支払いが複数注文を有効にせず、不明な支払い中のslotを解放・再課金しない（A-01/A-03/A-05/A-06/A-19/A-38の代表例）。100並行・全組合せは不要。
-2. backendの権限チェックで、owner wallet proofとWorldのfresh認証・明示同意を通した場合だけmail.enableと宛先保存を許し、Agent資格情報や別人sessionによる承認・宛先全文取得/書込を拒否する（A-10〜A-16の代表例）。JWTの全改変パターンと全入力境界の網羅は追加検証とする。
+2. backendの権限チェックで、owner wallet proofとWorldのfresh認証・明示同意を通した場合だけmail.enableと宛先保存を許し、Agent資格情報や別人sessionによる承認・宛先全文取得/書込を拒否する（A-10〜A-17の代表例）。同じ宛先の同意を保持したlease失効と確定paid renewal/revival、旧同意で宛先変更を拒否するケースを小さなチェックで確認する。人間取消/security suspensionをrenewで解除しない。JWTの全改変パターンと全入力境界の網羅は追加検証とする。
 3. 公式環境へつないだ一つの手動縦断フローで、Intercepta allowと住所30日料金のBase Sepolia決済後にENSが未購入であること、標準またはcustomを明示選択した別ENS add-on見積・決済、SepoliaのLeaseRegistry/MultiBaas照会、ENS発行・公式解決・住所照合、World承認、人間の宛先保存と再読込を確認する（A-20〜A-23/A-27/A-28/A-32の代表例）。ENS testnet/dev設定は標準100000、custom300000 atomic、6 decimalsに一致すること。価格設定欠落/0またはnetwork不一致なら販売拒否を確認し、そのままではadd-on決済から発行のlive gateは未実施/BLOCKEDであり、正しい設定後に一本を通して合格させる。二重add-on拒否または住所renew時の追加ENS課金なしを一件確認する。名前競合時に黙って別名へ切替/課金しないことも確認する。実Intercepta denyとWorld拒否または取消、ENSの禁止操作または失効照合を代表的な失敗経路として示す。providerごとの生応答と画面表示を照合し、sandbox/testnetを明記する。
 4. 一度停止・再起動して契約、支払い冪等記録、承認状態、宛先、未完了jobが残り、再開後の状態取得ができることを確認する。Cloud Run/Firestoreの実環境を使う場合はmin=0復帰と未認証アクセス拒否も少数の手動チェックで確認する（A-18/A-39〜A-41の代表例）。完全なsnapshot復元訓練は追加検証とする。
 5. 同じCLIをCodex/Claude Code/Kiroから実行し、代表する一つのツールで購入から承認後の状態確認まで通す。他の二つは認証、状態取得、ENS照合の短い疎通でよい（A-25/A-36）。秘密・転送先のログ/公開応答/chainへの露出がないことを代表フローで確認し、`node scripts/check-text-format.mjs`とcommit時の`--staged`検査を維持する。
@@ -33,10 +33,10 @@
 | A-11 | R-05/R-06 | 正しいowner proof+World fresh認証+approve | DBのbinding/approval/profileを一回だけ更新、転送可表示 |
 | A-12 | R-06 | World cancel/deny/expired/無効state | enabledにならず住所保存403 |
 | A-13 | R-06 | JWT改変/誤iss/aud/nonce/期限/alg/kid、古いauth_time、既存bindingと別sub | backend拒否。JWKS更新も失敗なら拒否 |
-| A-14 | R-06 | World callback成功だけ、CSRFなし、同時approve、lease version変更 | 同意前はdisabled、CSRF拒否、二重適用なし、古いapprovalは409/410 |
+| A-14 | R-06 | World callback成功だけ、CSRFなし、同時approve、lease version変更 | 同意前はdisabled、CSRF拒否、二重適用なし、古い未適用approvalは409/410。適用済み同宛先同意はrenew version変更だけでは失効しない |
 | A-15 | R-07 | 人間が承認後住所入力→保存→reload | 暗号化DBに永続化し本人画面で復元。転送可/登録済み表示 |
-| A-16 | R-07 | Agentから宛先書込/全文取得、別human、無効郵便番号、過長文字、古いversion | 拒否。Agentはstatus/登録有無だけ。XSSなし |
-| A-17 | R-01/R-07 | lease失効/停止、mail-disable、期限切れrenew | 転送可停止。再開は新承認。cron遅延でも期限判定 |
+| A-16 | R-07 | Agentから宛先書込/全文取得、別human、無効郵便番号、過長文字、古いversion、旧同意による宛先変更 | 拒否。変更先destination versionの新承認が必要。宛先を変えない再ログイン/閲覧は再同意不要。Agentはstatus/登録有無だけ。XSSなし |
+| A-17 | R-01/R-06/R-07 | 承認済み同宛先のlease失効→同じleaseの確定paid renewal/revival、mail-disable、明示security suspension | 失効中はeffective enabled停止、同意/宛先保持。paid renewal/revivalは再承認なしでenabled再開。人間は期間を承認しない。取消/security suspensionはrenewで解除せず、取消後の再開は新承認。cron遅延でもlease期限判定。初回保存前はenabledとdestinationConfigured=falseを分離 |
 | A-18 | R-10 | API/worker停止・Firestore接続断とsnapshot restore | 契約・approval・住所・cursor・冪等記録を保持 |
 | A-19 | R-03 | settle成功直後DB停止、timeout後遅延receipt、reorg。別の決定的な発行失敗を1件、同じ返金jobの重複・応答喪失とともに確認 | 不明結果はreconcilingから照合回復しslot解放/再課金なし。発行失敗確定後だけ元payer・同一network/asset・注文額全額の返金receiptを検証し、一payment一返金。返金結果不明は同じtx/nonceを照合し、二重送金なし |
 | A-20 | R-04 | 実Intercepta key、mainnet安全/危険アドレス | 実レスポンスでpay/blockを制御。理由と時刻を表示。危険先送金0 |

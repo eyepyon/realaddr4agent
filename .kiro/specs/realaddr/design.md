@@ -67,10 +67,10 @@ event起動時はprefix空値・不正値・設定の不一致を拒否し、未
 | idempotency_keys | principalId, method, path, key, bodyHash, resourceId, responseSnapshot; composite 一意 |
 | risk_assessments | id, orderId, side, subjectAddress, paymentNetwork, riskNetwork, decision, reasonCodes, responseHash, checkedAt, expiresAt, policyVersion |
 | human_bindings | id, leaseId 一意, ownerWallet, encryptedIssuer, encryptedSubject, keyedSubjectHash, createdAt |
-| approvals | id, leaseId, agentId, actionHash, nonce, status, expiresAt, authTime, consentAt, bindingId?, appliedAt |
+| approvals | id, leaseId, agentId, actionHash, nonce, targetDestinationVersion, targetProfileVersion, status, expiresAt, authTime, consentAt, bindingId?, appliedAt, destinationWriteAuthorized, destinationWriteConsumedAt? |
 | oidc_sessions | id, approvalId, stateHash 一意, nonceHash, encryptedPkceVerifier, browserSessionId, expiresAt, consumedAt |
 | browser_sessions | idHash, ownerWallet?, walletProvedAt?, candidateIssuer?, candidateSubject?, worldAuthTime?, expiresAt |
-| mail_profiles | leaseId PK, status, enabledByApprovalId?, grantExpiresAt?, version, encryptedDestination?, destinationConfigured, updatedAt |
+| mail_profiles | leaseId PK, status, enabledByApprovalId?, approvedDestinationVersion?, initialDestinationPending, destinationVersion, version, encryptedDestination?, destinationConfigured, updatedAt |
 | refunds | paymentId PK, orderId, reason(issuance_failed_final), originalPayer, network, asset, amountAtomic, signerAddress, transferNonce?, encryptedSignedTx?, txHash?, status(prepared/submitting/unknown/confirmed), settlementEvidence?, createdAt, updatedAt, version; 一確定paymentに一件、宛先・額は元決済から固定。confirmedが返金記録の終端状態 |
 | outbox | id, aggregateId, version, eventType, payload, state, availableAt, attempts; 一意(aggregateId,version,eventType) |
 | admin_operations | operationId PK, kind(payment/registry/ens), targetId, status, version, lastErrorCode?, nextAttemptAt?, updatedAt; 安全な一覧専用projection。元の業務状態と同一transactionで更新 |
@@ -103,6 +103,16 @@ Browser sessionはidle 15分/absolute 60分、owner proofは承認時点で10分
 
 DBとchainが一つのtransactionになると仮定しない。住所の配信は支払い確認後のみ。処理受付202と商品配信は区別し、HTTP終了後のメモリ内settleは行わない。
 
+### 住所契約の更新（T-05 partial implementation contract）
+
+更新は既存leaseへの独立した`renew` orderであり、新規購入ではない。`renew quote`はownerのactiveまたはexpired leaseのみ受け付け、suspended/revoked leaseは拒否する。quote transactionでlease version/owner/slot、旧expiry、住所snapshot、testnet 30日・550000 USDC atomicの価格設定を固定し、`uniques(hash(lease_renewal, leaseId))`を一つ取得する。既存のpayment nonce/receipt guardと購入時の不明結果規則を再利用する。slot bitmap、wallet新規購入quota、日次新規契約数は変更しない。
+
+決済準備はquoteの固定値・lease version・guardを再検査して既存payment/outboxへ接続する。支払結果不明、または確認済み支払いがまだ反映されていないrenewはguardと旧lease権利を保持し、quote期限だけで解放しない。未履行注文のguardを解放できるのは、認可が一度も始まっていない期限切れquote、または検証済みの確定未払いだけ。その注文は終了状態とし、同じ注文で支払いを再開しない。更新履行時にも同一transactionでguardを解放して次回更新を可能にするが、payment nonce/receipt guardは保持する。confirmed receiptの復旧は保存済み証跡をclaim-fence付きで処理し、呼出側から新しいreceiptを受け取らない。
+
+履行時は現在のlease version/owner/slotがquote snapshotと一致し、statusがactiveまたはexpiredであることを確認する。条件を満たす場合のみ同じleaseを一度だけ更新し、`expiresAt=max(frozenOldExpiry, originalConfirmedAt)+30 days`、versionを一度増やす。予期しない差異はreceipt/paymentをconfirmedとして保持し、旧権利を残したままorderを`manual_review`にしてrenew recovery outboxへ送る。slotやleaseを作り直さない。
+
+各successful renewalは新lease versionのregistry同期jobを作る。期限更新のchain呼出は外部処理としてtransaction外で行う。version変更で未適用approvalは失効するが、適用済みの同じ宛先への同意は無期限であり変更しない。期限切れでも同意・encryptedDestination・destinationConfigured・human bindingを保持し、同じleaseの確定paid renewal/revivalがactiveな期限内権利を復旧するとeffective enabledも再開する。人間取消・明示security suspension・owner/policyの不整合をrenewで解除しない。人間は契約期間を承認しない。ENS entitlementがpaidの場合のみ同じcanonical nameのens.lease_sync_requestedを追加し、ENS未購入ならENS jobを作らない。ENS同期・retry・同一lease復旧に追加料金やrenameはない。
+
 ### 冪等性と復旧
 
 同キー同bodyは同一結果、別bodyは409。キーはprincipal/method/path/bodyHashとともに注文記録の存続期間中保持する。402を最終結果として固定せず、同じ要求へpayment headerを付けて進められる。
@@ -117,22 +127,22 @@ finality前のreorgは保留、確認後のreorg検知はsuspendedと運用通�
 
 ## 5. World承認→フォーム
 
-1. Agentが POST /v1/subscriptions/{subscriptionId}/mail-approval を実行。scope=mail.enable、固定actionHash、10分期限のApprovalと人間用URLを返す。enabledなら既存profileを返す。
+1. Agentが POST /v1/subscriptions/{subscriptionId}/mail-approval を実行。scope=mail.enable、固定actionHash、10分期限のApprovalと人間用URLを返す。同じ宛先への有効な適用済み同意なら既存profileを返す。宛先変更は人間sessionから変更先destination versionとprofile versionを固定した新しい要求を作る。
 2. 人間が /approve/{approvalId} を開くとanonymous browser sessionを作る。URLだけでは契約の非公開情報を見せない。人間が接続したwalletの署名を検証してownerWallet一致を確認する。challengeはpurpose=mail.owner、approvalId、sessionId、domain、chain、nonce、期限で束縛。
 3. 対象Agent/Lease、権限の意味を表示しWorld認証開始。serverがstate/nonce/PKCEを生成しapprovalとbrowser sessionへ束縛する。
 4. callbackで署名/issuer/audience/nonce/時刻を検証し、prompt=login・max_age=0に対応したfreshnessを確認。auth_timeは開始時刻以降、許容clock skew最大30秒。既存bindingがあれば(iss,sub)一致必須。初回はcandidateとしてsessionへ保存し、まだbindingを作らない。
 5. 人間に「郵便転送設定を有効にする」を再表示。CSRF付きapprove POSTでactionHash、owner proof、World freshness（5分以内）、Approval期限、Lease有効性、policyを再検査する。
-6. 一つのDB transactionで初回binding確定、Approval=applied、MailProfile=enabled、grantExpiresAt=現在のlease.expiresAtにする。World認証だけではenabledにしない。二回目の同一承認は同じ結果を返す。
+6. 一つのDB transactionで初回binding確定、Approval=appliedとする。初回はMailProfileへinitialDestinationPendingと承認対象profile/versionを固定し、初回保存前のenabled表示を許す。初回保存・宛先変更ともApprovalにtargetProfileVersion/targetDestinationVersionへ束縛した一回限りのdestinationWriteAuthorizedを記録する。宛先変更の承認だけでは既存profileの宛先・enabledByApprovalId・approvedDestinationVersionを変更しない。同じ宛先への適用済み同意には期限を設けない。World認証だけでは同意を作らず、二回目の同一承認は同じ結果を返す。
 7. UIに「郵便転送可」「転送先未登録」と人間用フォームを表示。recipient、郵便番号、都道府県、市区町村、番地、任意建物名を本人が入力する。
-8. PUT /v1/subscriptions/{subscriptionId}/mail-destination は人間sessionのみ受理。ownerWalletとWorld binding、enabled権限、有効契約、CSRF、expectedVersionを検査して暗号化保存。成功後「転送先登録済み」を表示。実発送・送料決済は発生させない。
-9. AgentのGETはstatusとdestinationConfiguredのみ返す。人間のGETだけ転送先を復号。再編集は同じwallet+World認証の新sessionを確立できるよう、別Approvalで同一scopeを再承認する。既存bindingを変えない。
-10. 人間のdisable操作は権限を取り消す。lease期限切れでもenabledを有効として返さない。renew後は再承認が必要。保存済み住所はdisabled中にAgentへ返さず、人間の再承認後のみ表示する。
+8. PUT /v1/subscriptions/{subscriptionId}/mail-destination は人間sessionのみ受理。ownerWalletとWorld binding、有効人間session、activeな支払い済み契約と期限、CSRF、expectedVersion、未消費のdestinationWriteAuthorizedとtargetProfileVersion/targetDestinationVersionのCASを検査する。変更先について保存前のeffective enabled一致を要求しない。初回はinitialDestinationPendingも比較する。暗号化宛先保存、destination/profile version更新、enabledByApprovalId/approvedDestinationVersionの切替、初回保存待ち解除、write authorization消費を同一transactionで行う。取消・明示security suspension後の既存write authorizationは拒否し、PUTだけで解除しない。以後の変更は変更先destination versionへのfresh World認証と明示承認が必須で、旧宛先同意を流用しない。成功後「転送先登録済み」を表示。実発送・送料決済は発生させない。
+9. AgentのGETはstatusとdestinationConfiguredのみ返す。人間のGETだけ転送先を復号。再ログイン・同宛先の閲覧は同じwallet+World認証の有効sessionで許可し、新たなmail.enable同意は要求しない。宛先変更だけは別Approvalで変更先versionを明示承認する。既存bindingを変えない。
+10. 人間のdisable操作は同意を取り消し、再開には新承認が必要。明示security suspensionもrenewで解除しない。lease期限切れは同意を取り消さずeffective enabledだけを停止する。期限内renewと期限切れ後のsame-lease paid renewal/revivalは同じ宛先への同意を維持して再開し、新承認を要求しない。renewのversion変更は未適用approvalだけを失効させる。保存済み住所はAgentへ返さず、認可された人間sessionの取得だけを許可する。
 
-actionHash=SHA-256(JCS({schemaVersion, action:'mail.enable', leaseId, leaseVersion, agentId, ownerWallet, policyVersion, nonce, expiresAt}))。
+actionHash=SHA-256(JCS({schemaVersion, action:'mail.enable', leaseId, leaseVersion, agentId, ownerWallet, policyVersion, targetProfileVersion, targetDestinationVersion, nonce, expiresAt}))。
 
 HTTP公開語彙は`locationId`=内部`buildingId`、`floor`=内部`slotNumber`、`intentId`=内部`orderId`、`subscriptionId`=内部`leaseId`。公開名称を変更してもactionHashのcanonical payload、Firestore documentとguardの内部IDは変えない。公開Agent APIは`/v1/locations`、`/v1/payment-intents`、`/v1/subscriptions`を用い、共通errorはflatな`{"error":"lower_snake_code","message":"…","retryable":false,"traceId":"…"}`とする。健康確認は`GET /health`、仕様取得は`GET /openapi.json`。どちらも外部接続の成功を示さない。
 
-この承認は宛先フォームの設定権限であり、個々の郵便の転送同意ではない。承認時点に存在しない宛先を承認済みの発送先として扱わない。将来発送を追加する場合は別の宛先・料金・郵便ごとの操作承認を設計する。
+初回承認はそのprofile/versionへの最初の人間入力を許可し、保存時に同意対象宛先を確定する。以後は同じ宛先への無期限の設定同意であり、宛先変更には新たな明示承認が必要。宛先全文や宛先hashはactionHash payload、prompt、通常ログ、chainへ含めない。初回保存前のenabled表示はdestinationConfigured=falseと併記し、発送先確定を意味しない。将来の実郵便処理は別スコープであり、今回その実装を追加しない。
 
 ## 6. 状態
 
@@ -143,9 +153,9 @@ HTTP公開語彙は`locationId`=内部`buildingId`、`floor`=内部`slotNumber`�
 | Payment | prepared → settling → confirmed。settling → unknown → confirmed / failed。confirmed → refund_pending → refunded（発行失敗確定時だけ）。各状態で元決済証跡を保持 |
 | Lease | active → expired / suspended / revoked。expiredはrenewでactive可 |
 | Approval | pending → authenticated → applied。pending/authenticated → denied / expired / cancelled |
-| MailProfile | disabled → enabled（appliedのみ）。enabled → disabled（人間取消）/ suspended（契約停止・期限切れ） |
+| MailProfile | 保存同意: disabled → enabled（appliedのみ）、enabled → disabled（人間取消）/ suspended（明示security suspension）。lease期限切れは保存同意を変更しない |
 
-effective mail statusは毎要求でlease有効期限と照合し、cron遅延でもenabledを返さない。expired→renew後はprofileをdisabledへ戻し新承認を要求する。契約version変更は未適用approvalを失効させるが、期限内renewによる既存grantは元grant期間まで有効とする。profileにgrantExpiresAtを保持しlease期限以上へ自動延長しない。
+effective enabledは毎要求で、適用済み同意の宛先version一致（初回保存待ちは承認profile/version一致）、activeな支払い済みleaseと期限、取消・security suspensionなしを検査する。cron遅延でも失効leaseにenabledを返さない。同じleaseのpaid renewal/revival後は保持した同意で再開する。destinationConfiguredは独立項目であり、転送にはその成立も必要だが今回実発送は行わない。Approval.expiresAtは10分の未適用要求期限だけで、適用済み同意には期限項目を設けない。
 
 ## 7. LeaseRegistry
 

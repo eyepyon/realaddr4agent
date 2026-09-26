@@ -1,6 +1,8 @@
 # GCPインフラ・Firestore・低コスト運用仕様
 
-決定日: 2026-09-25。ユーザー指定によりCloud Run / Cloud Firestore / Cloud Storage / GitHub Actionsを採用する。これは実装仕様であり、リソース作成・課金確認・デプロイは未実施。
+決定日: 2026-09-25。ユーザー指定によりCloud Run / Cloud Firestore / Cloud Storage / GitHub Actionsを採用する。これは実装仕様であり、billing有効を読み取り確認したが、bootstrapの5件を作成済みで、アプリデプロイは未実施。
+
+実装状況: `infra/bootstrap`の専用state bucket・Artifact Registry・WIFと限定IAM定義、`scripts/gcp-inventory.ps1`のmetadata読取を追加した。ローカル検証は[infra手順](../infra/README.md)と[実装状況](implementation-status.md)を参照。`infra/app`とdeploy workflowは未実装であり、認証済みlive inventoryと実plan（5 create・0 update・0 destroy）は確認済み。bootstrap applyは成功し、runtime/clientの残るgateとGCS state移行は未完了。
 
 ## 採用理由と配置
 
@@ -19,13 +21,13 @@
 
 ### Terraformとデプロイの責任境界（T-16の実装契約）
 
-`infra/bootstrap`と`infra/app`の2 rootを作る。利用するGCP project IDを参照し、project・billing・GitHub repository・DNS zone/record・`(default)` Firestore DB・project予算は作成、import、管理しない。bootstrapは本アプリ専用のTerraform state用private GCS bucket、Artifact Registry repository、GitHub OIDC/WIF pool・providerを管理する。デプロイ用service accountは保護された`DEPLOY_SERVICE_ACCOUNT`設定で明示参照し、本アプリのstateへimport・作成・削除しない。必要なproject APIの有効化は管理主体と調整した運用手順で行い、本アプリのstateには含めない。初回bootstrapは管理者がローカルstateで実行し、state bucket作成後のbootstrap state移行はバックアップ・移行先確認を伴う別の手動手順として記録する。現時点ではstate作成も移行も未実施。app rootは専用state bucketをGCS backendとして使い、本アプリ専用のCloud Run 2サービス、web/worker/tasks/schedの4 service account、業務用private bucket、Tasks/Scheduler、Secret Managerのsecret metadata、限定したIAM、`realaddr_event_` collection groupだけの複合indexとfield exemptionを管理する。backend bucketは先に存在する必要があり、GCS backendはstate lockingに対応する。[Terraform GCS backend](https://developer.hashicorp.com/terraform/language/backend/gcs)
+`infra/bootstrap`と`infra/app`の2 rootを作る。利用するGCP project IDを参照し、project・billing・GitHub repository・DNS zone/record・`(default)` Firestore DB・project予算は作成、import、管理しない。bootstrapは本アプリ専用のTerraform state用private GCS bucket、Artifact Registry repository、GitHub OIDC/WIF pool・providerを管理する。デプロイ用service accountは保護された`DEPLOY_SERVICE_ACCOUNT`設定で明示参照し、本アプリのstateへimport・作成・削除しない。必要なproject APIの有効化は管理主体と調整した運用手順で行い、本アプリのstateには含めない。初回bootstrapは管理者がローカルstateで実行し、state bucket作成後のbootstrap state移行はバックアップ・移行先確認を伴う別の手動手順として記録する。plan用のlocal stateは保護されたリポジトリ外で扱い、bootstrap resourceは作成済みで、GCSへのstate移行は未実施。app rootは専用state bucketをGCS backendとして使い、本アプリ専用のCloud Run 2サービス、web/worker/tasks/schedの4 service account、業務用private bucket、Tasks/Scheduler、Secret Managerのsecret metadata、限定したIAM、`realaddr_event_` collection groupだけの複合indexとfield exemptionを管理する。backend bucketは先に存在する必要があり、GCS backendはstate lockingに対応する。[Terraform GCS backend](https://developer.hashicorp.com/terraform/language/backend/gcs)
 
 state bucketと業務用bucketは分離し、他サービスのstate bucket/prefixも共有しない。state prefixはbootstrapが`realaddr/event/bootstrap`、appが`realaddr/event/app`。state bucketはuniform bucket-level access、public access prevention、versioning、削除防止を設定し、読書き権限を本アプリのinfra管理主体だけへ絞る。versioningの保持量・費用を監視する。業務用bucketには後述の短期保持とsoft delete無効の方針を適用し、Terraform stateを置かない。Terraform変数・state・planにprovider秘密、署名鍵、World情報、宛先、支払いpayloadを入れない。secret名とIAMだけをTerraformで管理し、値は権限を持つ運用者がSecret Managerへ別途登録する。未設定のsecretを成功用の仮値で埋めない。
 
 Terraform/providerの動作確認済みversionと各rootの`.terraform.lock.hcl`を管理する。`.terraform/`、local state/backup、plan、実値を含むtfvars、認証ファイルはGit対象外にし、公開用exampleにはplaceholderだけを置く。bootstrapの初回image指定とstate移行を含むコマンドは実装時に記載し、現時点で実行可能と主張しない。
 
-T-16の必須共存ゲートでproject内の既存Cloud Run、Firestore DB/rules/index、API、IAM、予算、bucket、Artifact Registry、Tasks、Scheduler、Secret Manager、WIF、service accountと各resourceの所有者を読み取り確認する。現時点ではlive inventoryを実施していない。共有resourceを本アプリのstateへimportしない。同名の既存resourceが本アプリ所有と確認できなければ上書き・importを止め、明示的に設定したsuffixで衝突を解消する。毎回ランダム名を生成しない。apply前のplanは本アプリ専用resourceと許可されたprefix collection indexだけに限定し、他サービスへの変更があれば停止する。
+T-16の必須共存ゲートでproject内の既存Cloud Run、Firestore DB/rules/index、API、IAM、予算、bucket、Artifact Registry、Tasks、Scheduler、Secret Manager、WIF、service accountと各resourceの所有者を読み取り確認する。認証済みlive inventoryは20件成功・1件incompleteで、全regionの横断検索と実効IAMは未完了。管理主体によるRules初期適用と公式engineのdeny評価を確認し、実Firebase利用者tokenのclient試験は未実施。共有resourceを本アプリのstateへimportしない。同名の既存resourceが本アプリ所有と確認できなければ上書き・importを止め、明示的に設定したsuffixで衝突を解消する。毎回ランダム名を生成しない。apply前のplanは本アプリ専用resourceと許可されたprefix collection indexだけに限定し、他サービスへの変更があれば停止する。
 
 基本の`RESOURCE_PREFIX=realaddr-event`と名前は次の通り。実project ID、認証主体、bucketの実値や衝突回避suffixは保護された設定manifestに置き、リポジトリへ展開しない。同名衝突でsuffixを選ぶ場合はresource名と`FIRESTORE_COLLECTION_PREFIX`の物理mapperを同じmanifestで確定し、コード・Terraform・運用手順で一致を検査する。運用開始後のprefix変更は既存documentの移行を伴うため、単純な設定変更として扱わない。
 
@@ -96,6 +98,7 @@ IDがそのまま一意性を表すものは同じdocumentに集約する。そ�
 | orderのpayment | payments/{orderId} |
 | 支払い認可の再利用 | uniques: network + asset + payer + authorizationNonce → orderId |
 | 冪等キー | idempotency_keys/{hash(principal,method,path,key)}。bodyHashはフィールドで比較 |
+| lease更新排他 | uniques/{hash(lease_renewal,leaseId)}。未解決renewを一件に制限し、結果不明/確認済み未履行は保持。更新履行、未認可の期限切れquote、検証済み確定未払いで解放する。終了した注文・支払い認可は再利用しない |
 | leaseの人間binding/profile/ENS binding | human_bindings/{leaseId}、mail_profiles/{leaseId}、ens_bindings/{leaseId} |
 | ENS初回購入の排他・購入権 | ens_entitlements/{leaseId}。pending_paymentのintentIdとpaid/refund_pending/refundedを永続化し、送金不明では解放しない |
 | 同時有効approval | approval_heads/{leaseId}で現在approvalIdを管理し作成/適用/取消をtransaction化 |
@@ -182,3 +185,13 @@ Cloud Tasksは配信をexactly-onceにしない。task IDの短期重複排除�
 通常のalerts-only予算は利用停止の上限ではない。[Cloud Billing budgets](https://docs.cloud.google.com/billing/docs/how-to/budgets)。共有projectの管理主体による通知設定を確認し、本アプリ側はRun instance数、専用queue速度/試行数、API quota、日次新規契約件数を併用する。instance上限だけで請求総額を固定できない。初期日次新規契約上限は100件とし、本アプリprefixのFirestore UTC日付budget documentで原子的に予約、確定消費を記録する。orderへ予約時のUTC日付を保存し、未払い確定の取消/期限切れは元の日付bucketの予約だけ解放、支払確定は元bucketの消費へ移す。renewは新規件数に含めない。未知決済の予約は解放しない。上限到達時は新規購入を止め、既存契約閲覧と決済照合を継続する。
 
 [GCS soft delete](https://docs.cloud.google.com/storage/docs/soft-delete)/旧世代保持、image増殖、verbose log、日本などへの外向き通信にも費用が発生しうる。bucketはハッカソン用でversioning/soft deleteを無効とする選択を明記し、snapshot自体の7日保持で誤削除リスクを管理する。Secret版の破棄は復号/rollbackへの不要確認後のみ。無料枠を守るために鍵を公開したり、決済記録を省略したりしない。
+
+## T-16のlive Rules確認
+
+管理主体が初期deny-all Rulesを適用した。適用直前にdefault releaseの404を確認し、immutable rulesetとreleaseをCREATEだけで作成した。再取得したlive sourceは管理sourceとbyte一致し、公式Rules engineで未認証・合成した他利用者のget/list/create/update/delete計10件がDENY期待のSUCCESSだった。Authorizationなしの実Firestore REST GETとPOST createもPERMISSION_DENIEDを返し、documentは書かれていない。実際の別Firebase利用者tokenによるclient試験は未実施。server IAM・DB本体・indexは変更していない。 Cloud Asset APIは運用手順で有効化したが、横断inventoryの再確認は進行中。既存budget一件を読み取り、変更していない。bootstrap初期登録は完了し、app resource作成・runtime IAM検証は未実施。
+
+## bootstrap初期登録結果
+
+bootstrap applyは終了code 0で成功し、専用state bucket、Docker repository、無効WIF pool/provider、限定impersonation memberの5件を作成した。live再取得でbucketのuniform bucket-level access=true・public access prevention=enforced・versioning=true、repositoryのDOCKER、WIF pool/providerのdisabled=true、追加memberと既存deploy accountの全従前memberの保持を確認した。local stateと別時刻のbackupは保護されたリポジトリ外にあり、GCSへのstate移行は未実施。
+
+初期登録は完了したがT-16全体とアプリ稼働は未完了。infra/app、web/worker/tasks/schedの4 runtime account、Cloud Run、Cloud Tasks/Scheduler、secret metadata、deploy workflow、GitHub event Environment、runtime IAM・実Firebase他利用者client試験、GCS state移行は残件。適用後Terraform planはdetailed exit code 0で差分なし。修正した5型CAI filterのlive検索は終了code 0・metadata 34件を取得した。CAIのeventual freshnessと他regionのScheduler coverageは引き続き確認対象。

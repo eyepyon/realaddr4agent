@@ -2347,7 +2347,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Already enabled; forceReauth creates a new approval for a human session.",
+            "description": "Already enabled; forceReauth renews human session verification without requiring fresh consent for an unchanged destination.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3706,7 +3706,7 @@
             }
           }
         },
-        "description": "Require owner proof, matching World binding/candidate, fresh auth_time, action hash, active lease/version and unexpired approval. Bind and apply atomically."
+        "description": "Require owner proof, matching World binding/candidate, fresh auth_time, action hash, active lease/version and unexpired approval. Bind and apply atomically. The pending request expires after 10 minutes and binds the current leaseVersion, target profile version and target destinationVersion; this expiry does not limit applied consent. Applied consent persists for the same lease and destination until destination change or human disable, subject to security suspension. For a destination change, approval creates a one-time write authorization bound to targetProfileVersion and targetDestinationVersion; existing consent is replaced only by successful atomic destination PUT."
       }
     },
     "/v1/subscriptions/{subscriptionId}/mail-profile": {
@@ -3911,7 +3911,7 @@
             }
           }
         },
-        "description": "Requires owning-wallet proof and matching World human binding. Agent bearer is not accepted. Address read requires an active enabled grant."
+        "description": "Requires owning-wallet proof and matching World human binding. Agent bearer is not accepted. Address read requires effective enabled consent and an active lease. Same-destination consent persists without a time limit across login and same-lease renewal or revival. Lease expiry suspends effective availability; human disable and security suspension still block access. These human endpoints remain unavailable until approval verification is integrated."
       }
     },
     "/v1/subscriptions/{subscriptionId}/mail-destination": {
@@ -4127,7 +4127,7 @@
             }
           }
         },
-        "description": "Require owning wallet and matching World binding, active lease, enabled grant, CSRF and expectedVersion. Prefecture must match a Japanese prefecture allowlist."
+        "description": "Require owning wallet and matching World binding, active paid lease, verified one-time write approval, CSRF and expectedVersion CAS. First save atomically binds approved first-save authorization to the first destinationVersion. Changing a destination requires fresh write approval bound to targetProfileVersion and targetDestinationVersion; atomic PUT saves the destination, consumes authorization and switches consent binding. Do not require effective enabled consent for the unsaved new destination. Keep existing consent until save succeeds, and do not bypass human disable or security suspension. Unchanged destinations do not require reapproval on login, renewal or revival. Prefecture must match a Japanese prefecture allowlist."
       }
     },
     "/v1/subscriptions/{subscriptionId}/mail-disable": {
@@ -5866,6 +5866,7 @@
         ]
       },
       "MailStatus": {
+        "description": "Effective mail setting status. Applied human consent has no time limit for the same lease and destination; lease expiry suspends availability, and same-lease renewal or revival resumes it unless human disable or security suspension blocks it. Physical forwarding is outside scope.",
         "type": "object",
         "additionalProperties": false,
         "properties": {
@@ -5880,13 +5881,6 @@
           "destinationConfigured": {
             "type": "boolean"
           },
-          "grantExpiresAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
           "physicalForwardingAvailable": {
             "type": "boolean",
             "const": false
@@ -5895,7 +5889,6 @@
         "required": [
           "status",
           "destinationConfigured",
-          "grantExpiresAt",
           "physicalForwardingAvailable"
         ]
       },
@@ -6052,7 +6045,8 @@
           },
           "expiresAt": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Short-lived approval request deadline, at most 10 minutes after creation; not an expiry of applied same-destination consent."
           }
         },
         "required": [
@@ -6103,7 +6097,8 @@
           },
           "expiresAt": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Short-lived approval request deadline, at most 10 minutes after creation; not an expiry of applied same-destination consent."
           },
           "worldAuthenticated": {
             "type": "boolean"

@@ -17,7 +17,7 @@ test('owner reads isolate principals, allowlist fields, expire without writes an
   const leaseId = ids[0]!;
   const lease = {schemaVersion:1,id:leaseId,tenantId:p.tenantId,agentId:p.agentId,ownerWallet:p.walletAddress,buildingId:locationId,slotNumber:42,addressSnapshot:{postalCode:'1000001',address:'Test address'},status:'active',startsAt:new Date(now.getTime()-86400000),expiresAt:now,version:1,chainSyncStatus:'pending',updatedAt:now};
   await repo.collections.doc('leases',leaseId).set(lease);
-  await repo.collections.doc('mail_profiles',leaseId).set({schemaVersion:1,leaseId,status:'disabled',destinationConfigured:true,grantExpiresAt:null,encryptedDestination:'private',worldSubject:'private'});
+  await repo.collections.doc('mail_profiles',leaseId).set({schemaVersion:1,leaseId,status:'disabled',destinationConfigured:true,encryptedDestination:'private',worldSubject:'private'});
   const unseen = (e: unknown) => e instanceof DomainError && e.status === 404;
   for (const principal of [{...p,tenantId:randomUUID()},{...p,agentId:randomUUID()},{...p,walletAddress:`0x${'b'.repeat(40)}`}]) {
     await assert.rejects(repo.getOrder(principal,leaseId),unseen); await assert.rejects(repo.getSubscription(principal,leaseId),unseen);
@@ -26,7 +26,7 @@ test('owner reads isolate principals, allowlist fields, expire without writes an
   const first = await repo.listOrders(p,{limit:2}); assert.deepEqual(first.items.map(x=>x.id),ids.slice(0,2)); assert.ok(first.nextCursor);
   const second = await repo.listOrders(p,{limit:2,cursor:first.nextCursor}); assert.deepEqual(second.items.map(x=>x.id),ids.slice(2)); assert.equal(second.nextCursor,null);
   const order = await repo.getOrder(p,leaseId); assert.equal(order.riskAssessments.length,0); assert.ok(!JSON.stringify(order).includes('private'));
-  const dto = await repo.getSubscription(p,leaseId); assert.equal(dto.status,'expired'); assert.match(dto.displayAddress,/V00042$/); assert.equal(dto.mail.destinationConfigured,true); assert.deepEqual(dto.ens,{status:'not_purchased',network:'eip155:11155111'}); assert.ok(!JSON.stringify(dto).includes('private'));
+  const dto = await repo.getSubscription(p,leaseId); assert.equal(dto.status,'expired'); assert.match(dto.displayAddress,/V00042$/); assert.equal(dto.mail.destinationConfigured,true); assert.equal(Object.hasOwn(dto.mail,'grantExpiresAt'),false); assert.deepEqual(dto.ens,{status:'not_purchased',network:'eip155:11155111'}); assert.ok(!JSON.stringify(dto).includes('private'));
   assert.equal((await repo.collections.doc('leases',leaseId).get()).data()?.status,'active');
   await repo.collections.doc('mail_profiles',leaseId).update({status:'enabled'}); await assert.rejects(repo.getSubscription(p,leaseId),(e: unknown)=>e instanceof DomainError && e.status===503);
   await db.terminate();
@@ -49,7 +49,7 @@ test('owner projections require confirmed payment evidence and never trust store
     await repo.collections.doc('payments',id).update({'settlementEvidence.finalityVerified':false}); await assert.rejects(repo.getOrder(p,id),unavailable);
     await repo.collections.doc('payments',id).set({...payment,amountAtomic:'1'}); await assert.rejects(repo.getOrder(p,id),unavailable);
     await repo.collections.doc('leases',id).set({schemaVersion:1,id,tenantId:p.tenantId,agentId:p.agentId,ownerWallet:p.walletAddress,buildingId:locationId,slotNumber:42,addressSnapshot:{postalCode:'1000001',address:'Test address'},status:'active',startsAt:now,expiresAt:new Date(now.getTime()+60000),version:1,chainSyncStatus:'pending',updatedAt:now});
-    await repo.collections.doc('mail_profiles',id).set({schemaVersion:1,leaseId:id,status:'disabled',destinationConfigured:false,grantExpiresAt:null});
+    await repo.collections.doc('mail_profiles',id).set({schemaVersion:1,leaseId:id,status:'disabled',destinationConfigured:false});
     await repo.collections.doc('ens_bindings',id).set({status:'ready',textRecords:{'realaddr.status':'active'}});
     const entitlement={schemaVersion:1,leaseId:id,state:'pending_payment'}; await repo.collections.doc('ens_entitlements',id).set(entitlement);
     assert.equal((await repo.getEns(p,id)).status,'not_purchased'); await repo.collections.doc('ens_entitlements',id).update({state:'paid'}); assert.equal((await repo.getEns(p,id)).status,'pending');

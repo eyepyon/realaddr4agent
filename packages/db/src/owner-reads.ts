@@ -8,7 +8,7 @@ export interface PublicRisk { decision: 'allow' | 'deny' | 'hold'; reasonCodes: 
 export interface PublicReceipt { paymentId: string; network: string; asset: string; amountAtomic: string; payer: string; payTo: string; txHash: string; confirmedAt: string }
 export interface PublicOrder { id: string; kind: 'purchase' | 'renew' | 'ens_addon'; status: string; locationId: string; floor: number; amountAtomic: string; network: string; asset: string; payTo: string; expiresAt: string; createdAt: string; riskAssessments: PublicRisk[]; payPath: string; subscriptionId?: string; receipt?: PublicReceipt; nameType?: 'floor' | 'custom'; label?: string; fqdn?: string; pricingVersion?: string }
 export interface PublicEnsStatus { status: 'not_purchased' | 'pending' | 'expired' | 'disabled'; network: 'eip155:11155111'; name?: string; expiresAt?: string; targetLeaseVersion?: number; lastErrorCode?: string }
-export interface PublicLease { id: string; locationId: string; floor: number; displayAddress: string; status: 'active' | 'expired' | 'suspended' | 'revoked'; startsAt: string; expiresAt: string; version: number; chain: {status: 'pending'; network: string}; mail: {status: 'disabled' | 'suspended'; destinationConfigured: boolean; grantExpiresAt: string | null; physicalForwardingAvailable: false}; ens: PublicEnsStatus }
+export interface PublicLease { id: string; locationId: string; floor: number; displayAddress: string; status: 'active' | 'expired' | 'suspended' | 'revoked'; startsAt: string; expiresAt: string; version: number; chain: {status: 'pending'; network: string}; mail: {status: 'disabled' | 'suspended'; destinationConfigured: boolean; physicalForwardingAvailable: false}; ens: PublicEnsStatus }
 const corrupt = (): never => { throw new DomainError('invalid_stored_owner_resource', 503); };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const wallet = /^0x[0-9a-f]{40}$/i;
@@ -67,7 +67,7 @@ export class OwnerReadRepository {
     const floor = integer(d.slotNumber ?? d.floor, 1, 65535); const snapshot = d.addressSnapshot; if (!snapshot || typeof snapshot !== 'object') corrupt();
     const [mailSnap, entitlementSnap] = await Promise.all([tx.get(this.collections.doc('mail_profiles', id)), tx.get(this.collections.doc('ens_entitlements', id))]); const mail = mailSnap.data(); const entitlement = entitlementSnap.data();
     if (!mail) return corrupt();
-    if (mail.leaseId !== id || mail.schemaVersion !== SCHEMA_VERSION || typeof mail.destinationConfigured !== 'boolean' || mail.grantExpiresAt !== null || !['disabled','suspended'].includes(mail.status)) corrupt();
+    if (mail.leaseId !== id || mail.schemaVersion !== SCHEMA_VERSION || typeof mail.destinationConfigured !== 'boolean' || !['disabled','suspended'].includes(mail.status)) corrupt();
     const ens: PublicEnsStatus = {status: 'not_purchased', network: 'eip155:11155111'};
     if (entitlement) {
       if (entitlement.leaseId !== id || entitlement.schemaVersion !== SCHEMA_VERSION) corrupt();
@@ -75,6 +75,6 @@ export class OwnerReadRepository {
       ens.status = state === 'pending_payment' ? 'not_purchased' : state !== 'paid' || status === 'revoked' || status === 'suspended' ? 'disabled' : status === 'expired' ? 'expired' : 'pending';
       if (state === 'refunded') ens.lastErrorCode = 'ens_refunded';
     }
-    return {id, locationId: text(d.buildingId ?? d.locationId, uuid), floor, displayAddress: `${text(snapshot.postalCode)} ${text(snapshot.address)} V${String(floor).padStart(5,'0')}`, status, startsAt: date(d.startsAt).toISOString(), expiresAt: expires.toISOString(), version: integer(d.version, 0), chain: {status: 'pending', network: 'eip155:11155111'}, mail: {status: mail.status as 'disabled' | 'suspended', destinationConfigured: mail.destinationConfigured, grantExpiresAt: null, physicalForwardingAvailable: false}, ens};
+    return {id, locationId: text(d.buildingId ?? d.locationId, uuid), floor, displayAddress: `${text(snapshot.postalCode)} ${text(snapshot.address)} V${String(floor).padStart(5,'0')}`, status, startsAt: date(d.startsAt).toISOString(), expiresAt: expires.toISOString(), version: integer(d.version, 0), chain: {status: 'pending', network: 'eip155:11155111'}, mail: {status: mail.status as 'disabled' | 'suspended', destinationConfigured: mail.destinationConfigured, physicalForwardingAvailable: false}, ens};
   }
 }

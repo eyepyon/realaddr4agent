@@ -13,7 +13,7 @@ Keep external account identifiers, local paths, URLs, secrets, deployment identi
 - A building has virtual slots 1..65535; zero is invalid. Never present them as physical floors.
 - A confirmed payment activates at most one order. A slot belongs to at most one current lease/hold.
 - Do not settle payment before screening and reserve checks. Basic address rental does not require World approval.
-- World OIDC authentication is not consent or legal KYC by itself. Bind mail.enable approval to the owner-wallet proof, World human, agent, lease version, policy, nonce, and expiry.
+- World OIDC authentication is not consent or legal KYC by itself. Bind each pending mail.enable request to the owner-wallet proof, World human, agent, lease version, policy, nonce, target destination version, and its short-lived request expiry. Applied consent has no time limit for the unchanged destination: paid lease expiry blocks effective eligibility but retains consent, and same-lease confirmed paid renewal/revival restores eligibility without reapproval. Human consent never sets the paid lease period. Destination changes require fresh explicit human approval; human disable and explicit security suspension must not be bypassed by renewal.
 - Never replace live sponsor calls with fake successes. Missing or unknown security verdicts hold the action.
 - Never put private keys, World secrets, API keys, identity documents, or mail contents in prompts, client bundles, chain events, or ordinary logs.
 - Business state and retry jobs must persist in Firestore. Use atomic transactions and deterministic uniqueness guards. Never execute external effects inside a retried transaction callback; reconcile uncertain outcomes before retrying.

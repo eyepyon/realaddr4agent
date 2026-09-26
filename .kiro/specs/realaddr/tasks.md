@@ -37,9 +37,9 @@
   - 不明結果を永続化し照合、二重settle防止、更新、確定した発行失敗だけの自動全額返金を実装。元payer・同一network/asset・注文額を固定し、送金前に署名済みtx/nonceを永続化、未知返金結果は同じtxを照合して二重送金しない。middlewareの配信順に依存しない。
   - 最小確認: 実決済一件、同じ要求の再送、結果不明時の照合とslot保持。A-05/A-06/A-19/A-22は追加検証の参照。R-03。
 - [ ] T-06 郵便転送設定の最小機能
-  - 依存: T-03、T-05。mail.enable承認URL、apply一回、enabled表示、人間専用フォーム、国内住所validation、暗号化、version競合、取消。
+  - 依存: T-03、T-05。mail.enable承認URL、apply一回、enabled表示、人間専用フォーム、国内住所validation、暗号化、profile/destination version競合、取消。10分の未適用要求と無期限の適用済み同意を分離し、初回宛先保存を承認profile/versionへ原子的に束縛する。宛先変更には対象destination versionへの新たな明示承認を要求する。
   - 実郵便処理・送料・配送APIは作らない。Agentはenabled/destinationConfiguredのみ参照。
-  - 最小確認: 人間の承認・宛先保存/再読込、Agentまたは別人の全文取得/書込拒否。A-10〜A-16は追加検証の参照。R-06/R-07。
+  - 最小確認: 人間の承認・宛先保存/再読込、Agentまたは別人の全文取得/書込拒否、同意を保持したlease失効とsame-lease paid renewal/revivalによる再開、旧同意での宛先変更拒否。人間は契約期間を承認せず、取消/security suspensionはrenewで解除しない。A-10〜A-17は追加検証の参照。R-06/R-07。
 - [ ] T-07 LeaseRegistryとMultiBaas
   - 依存: T-00 MultiBaas、T-02。role/slot/version/非譲渡registry、Foundryテスト、Sepolia deploy、MultiBaas ABI/read/write/events、outbox/reorg回復。
   - 宛先/World subjectなどPIIをchainへ出さない。

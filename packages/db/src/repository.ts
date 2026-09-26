@@ -332,7 +332,52 @@ export class RealAddrRepository {
     throw new DomainError('sold_out', 409);
   }
 
-  async preparePurchaseSettlement(input: { orderId: string; principal: AgentPrincipal; authorization: VerifiedPurchaseAuthorization; risk: { payTo: VerifiedRiskAssessment; payer: VerifiedRiskAssessment } }): Promise<{ orderId: string; status: 'settling' | 'reconciling' | 'manual_review' | 'fulfilled'; leaseId?: string }> {
+  async reserveRenewalIntent(input: { subscriptionId: string; idempotencyKey: string; principal: AgentPrincipal; readiness: PurchaseReadiness }): Promise<Record<string, unknown>> {
+    if (input.readiness?.paymentConfigVerified !== true || input.readiness.riskProviderAvailable !== true) throw new DomainError('payment_dependency_unavailable', 503);
+    const key = assertIdempotencyKey(input.idempotencyKey);
+    const principal = input.principal;
+    if (!principal?.tenantId || !principal.agentId || principal.walletChain !== 'eip155:84532') throw new DomainError('unauthorized', 401);
+    const wallet = normalizeWallet(principal.walletAddress);
+    const pricing = this.pricing;
+    const requestHash = bodyHash({ kind: 'renew', subscriptionId: input.subscriptionId });
+    const orderId = randomUUID();
+    const idemRef = this.collections.doc('idempotency_keys', guardId('agent', principal.agentId, 'POST', '/v1/payment-intents', key));
+    const leaseRef = this.collections.doc('leases', input.subscriptionId);
+    const renewalGuardRef = this.collections.doc('uniques', guardId('lease_renewal', input.subscriptionId));
+    return this.db.runTransaction(async tx => {
+      const [idem, leaseSnap, agentSnap, tenantSnap, guardSnap] = await Promise.all([tx.get(idemRef), tx.get(leaseRef), tx.get(this.collections.doc('agents', principal.agentId)), tx.get(this.collections.doc('tenants', principal.tenantId)), tx.get(renewalGuardRef)]);
+      const agent = agentSnap.data();
+      if (agent?.status !== 'active' || agent.tenantId !== principal.tenantId || agent.walletAddress !== wallet || agent.walletChain !== principal.walletChain || tenantSnap.data()?.status !== 'active') throw new DomainError('unauthorized', 401);
+      if (idem.exists) {
+        const response = sameIdempotency<Record<string, unknown>>(idem.data(), requestHash);
+        const current = await tx.get(this.collections.doc('orders', idem.data()!.resourceId));
+        if (!current.exists || current.data()?.tenantId !== principal.tenantId || current.data()?.agentId !== principal.agentId) throw new DomainError('not_found', 404);
+        return { ...response, status: current.data()!.status };
+      }
+      const lease = leaseSnap.data();
+      if (!lease || lease.tenantId !== principal.tenantId || lease.agentId !== principal.agentId || lease.ownerWallet !== wallet) throw new DomainError('not_found', 404);
+      if (!['active', 'expired'].includes(lease.status) || !Number.isSafeInteger(lease.version) || lease.version < 1) throw new DomainError('lease_not_renewable', 409);
+      if (guardSnap.exists) throw new DomainError('renewal_pending', 409);
+      const { shard, bit } = shardForFloor(lease.slotNumber);
+      const [slotSnap, shardSnap] = await Promise.all([tx.get(this.collections.doc('slots', lease.buildingId + '_' + lease.slotNumber)), tx.get(this.collections.doc('slot_shards', lease.buildingId + '_' + shard))]);
+      if (slotSnap.data()?.state !== 'leased' || slotSnap.data()?.leaseId !== input.subscriptionId || !shardSnap.exists || !bitmapHas(shardSnap.data()!.issued, bit) || bitmapHas(shardSnap.data()!.held, bit)) throw new DomainError('renewal_state_conflict', 409);
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + HOLD_MS);
+      const order = { schemaVersion: SCHEMA_VERSION, id: orderId, kind: 'renew', leaseId: input.subscriptionId, subscriptionId: input.subscriptionId, leaseVersion: lease.version, previousExpiresAt: asDate(lease.expiresAt), tenantId: principal.tenantId, agentId: principal.agentId, ownerWallet: wallet, buildingId: lease.buildingId, locationId: lease.buildingId, floor: lease.slotNumber, slotNumber: lease.slotNumber, addressSnapshot: lease.addressSnapshot, bodyHash: requestHash, pricingVersion: pricing.pricingVersion, amountAtomic: amountFor(pricing, 'address'), network: pricing.network, asset: pricing.asset, payTo: pricing.payTo, createdAt: now, expiresAt, periodDays: 30, status: 'awaiting_payment', version: 1 };
+      const response = { id: orderId, kind: 'renew', leaseId: input.subscriptionId, subscriptionId: input.subscriptionId, locationId: lease.buildingId, floor: lease.slotNumber, status: 'awaiting_payment', amountAtomic: order.amountAtomic, network: order.network, asset: order.asset, payTo: order.payTo, pricingVersion: order.pricingVersion, expiresAt: expiresAt.toISOString(), payPath: '/v1/payment-intents/' + orderId + '/pay' };
+      tx.create(this.collections.doc('orders', orderId), order);
+      tx.create(renewalGuardRef, { schemaVersion: SCHEMA_VERSION, kind: 'lease_renewal', leaseId: input.subscriptionId, orderId });
+      tx.create(idemRef, { schemaVersion: SCHEMA_VERSION, principalId: principal.agentId, bodyHash: requestHash, resourceId: orderId, responseSnapshot: response });
+      return response;
+    });
+  }
+
+  async preparePurchaseSettlement(input: Parameters<RealAddrRepository['prepareAddressSettlement']>[1]) { return this.prepareAddressSettlement('purchase', input); }
+  async prepareRenewalSettlement(input: Parameters<RealAddrRepository['prepareAddressSettlement']>[1]) { return this.prepareAddressSettlement('renew', input); }
+  async markPurchaseSettlementUnknown(input: { orderId: string; authorizationNonce: string }) { return this.markAddressSettlementUnknown('purchase', input); }
+  async markRenewalSettlementUnknown(input: { orderId: string; authorizationNonce: string }) { return this.markAddressSettlementUnknown('renew', input); }
+
+  private async prepareAddressSettlement(kind: 'purchase' | 'renew', input: { orderId: string; principal: AgentPrincipal; authorization: VerifiedPurchaseAuthorization; risk: { payTo: VerifiedRiskAssessment; payer: VerifiedRiskAssessment } }): Promise<{ orderId: string; status: 'settling' | 'reconciling' | 'manual_review' | 'fulfilled'; leaseId?: string }> {
     const { authorization, risk } = input;
     if (authorization?.verified !== true || !HEX32.test(authorization.authorizationNonce) || !validDate(authorization.validBefore) || (authorization.validAfter !== undefined && !validDate(authorization.validAfter))) throw new DomainError('invalid_payment_authorization', 422);
     assertHash(authorization.payloadHash);
@@ -349,8 +394,8 @@ export class RealAddrRepository {
       const [orderSnap, paymentSnap, guardSnap, agentSnap, tenantSnap] = await Promise.all([tx.get(orderRef), tx.get(paymentRef), tx.get(authGuardRef), tx.get(agentRef), tx.get(tenantRef)]);
       const order = orderSnap.data();
       const payment = paymentSnap.data();
-      if (!order || order.kind !== 'purchase' || order.tenantId !== input.principal.tenantId || order.agentId !== input.principal.agentId) throw new DomainError('not_found', 404);
-      if (agentSnap.data()?.status !== 'active' || agentSnap.data()?.tenantId !== order.tenantId || agentSnap.data()?.walletAddress !== order.ownerWallet || tenantSnap.data()?.status !== 'active') throw new DomainError('unauthorized', 401);
+      if (!order || order.kind !== kind || order.tenantId !== input.principal.tenantId || order.agentId !== input.principal.agentId) throw new DomainError('not_found', 404);
+      if (agentSnap.data()?.status !== 'active' || agentSnap.data()?.tenantId !== order.tenantId || agentSnap.data()?.walletAddress !== order.ownerWallet || agentSnap.data()?.walletChain !== order.network || tenantSnap.data()?.status !== 'active') throw new DomainError('unauthorized', 401);
       if (payer !== order.ownerWallet || payer !== normalizeWallet(input.principal.walletAddress) || input.principal.walletChain !== order.network || authorization.network !== order.network || asset !== order.asset.toLowerCase() || payTo !== order.payTo.toLowerCase() || authorization.amountAtomic !== order.amountAtomic || authorization.validBefore > asDate(order.expiresAt)) throw new DomainError('payment_authorization_mismatch', 409);
       if (guardSnap.exists && guardSnap.data()?.orderId !== input.orderId) throw new DomainError('payment_authorization_reused', 409);
       if (guardSnap.exists && !paymentSnap.exists) throw new DomainError('payment_guard_inconsistent', 503);
@@ -370,9 +415,13 @@ export class RealAddrRepository {
       }
       const slotRef = this.collections.doc('slots', `${order.buildingId}_${order.slotNumber}`);
       const shardRef = this.collections.doc('slot_shards', `${order.buildingId}_${shardForFloor(order.slotNumber).shard}`);
-      const [slotSnap, shardSnap] = await Promise.all([tx.get(slotRef), tx.get(shardRef)]);
+      const [slotSnap, shardSnap, leaseSnap, renewalGuardSnap] = await Promise.all([tx.get(slotRef), tx.get(shardRef), kind === 'renew' ? tx.get(this.collections.doc('leases', order.leaseId)) : Promise.resolve(null), kind === 'renew' ? tx.get(this.collections.doc('uniques', guardId('lease_renewal', order.leaseId))) : Promise.resolve(null)]);
       const bit = shardForFloor(order.slotNumber).bit;
-      if (slotSnap.data()?.state !== 'held' || slotSnap.data()?.heldByOrderId !== input.orderId || !shardSnap.exists || !bitmapHas(shardSnap.data()!.held, bit) || bitmapHas(shardSnap.data()!.issued, bit)) throw new DomainError('slot_hold_lost', 409);
+      if (kind === 'purchase') {
+        if (slotSnap.data()?.state !== 'held' || slotSnap.data()?.heldByOrderId !== input.orderId || !shardSnap.exists || !bitmapHas(shardSnap.data()!.held, bit) || bitmapHas(shardSnap.data()!.issued, bit)) throw new DomainError('slot_hold_lost', 409);
+      } else if (!renewalMatches(order, leaseSnap?.data(), slotSnap.data(), shardSnap.data(), bit, renewalGuardSnap?.data())) throw new DomainError('renewal_state_conflict', 409);
+      const fenceNow = new Date();
+      if (asDate(order.expiresAt) <= fenceNow || authorization.validBefore <= fenceNow || risk.payTo.expiresAt <= fenceNow || risk.payer.expiresAt <= fenceNow || fenceNow.getTime() - risk.payTo.checkedAt.getTime() > 60_000 || fenceNow.getTime() - risk.payer.checkedAt.getTime() > 60_000) throw new DomainError('payment_authorization_expired', 409);
       const nextVersion = order.version + 1;
       const outboxId = guardId(input.orderId, String(nextVersion), 'payment.settlement_requested');
       tx.create(authGuardRef, { schemaVersion: SCHEMA_VERSION, kind: 'payment_authorization', network: order.network, asset, payer, authorizationNonce: authorization.authorizationNonce.toLowerCase(), orderId: input.orderId });
@@ -385,7 +434,7 @@ export class RealAddrRepository {
     });
   }
 
-  async markPurchaseSettlementUnknown(input: { orderId: string; authorizationNonce: string }): Promise<{ orderId: string; status: 'reconciling' | 'manual_review' | 'fulfilled' }> {
+  private async markAddressSettlementUnknown(kind: 'purchase' | 'renew', input: { orderId: string; authorizationNonce: string }): Promise<{ orderId: string; status: 'reconciling' | 'manual_review' | 'fulfilled' }> {
     const now = new Date();
     const orderRef = this.collections.doc('orders', input.orderId);
     const paymentRef = this.collections.doc('payments', input.orderId);
@@ -393,7 +442,7 @@ export class RealAddrRepository {
       const [orderSnap, paymentSnap] = await Promise.all([tx.get(orderRef), tx.get(paymentRef)]);
       const order = orderSnap.data();
       const payment = paymentSnap.data();
-      if (!order || order.kind !== 'purchase' || !payment || payment.authorizationNonce !== input.authorizationNonce.toLowerCase()) throw new DomainError('payment_not_found', 404);
+      if (!order || order.kind !== kind || !payment || payment.authorizationNonce !== input.authorizationNonce.toLowerCase()) throw new DomainError('payment_not_found', 404);
       if (order.status === 'fulfilled' && payment.status === 'confirmed') return { orderId: input.orderId, status: 'fulfilled' as const };
       if (order.status === 'manual_review' && payment.status === 'confirmed') return { orderId: input.orderId, status: 'manual_review' as const };
       if (order.status === 'reconciling' && payment.status === 'unknown') return { orderId: input.orderId, status: 'reconciling' as const };
@@ -495,7 +544,7 @@ export class RealAddrRepository {
       const registryOutboxId = guardId(leaseId, '1', 'lease.registry_sync_requested');
       if (!recovering) tx.create(receiptGuardRef, { schemaVersion: SCHEMA_VERSION, kind: 'payment_transfer', network: receipt.network, txHash: receipt.txHash.toLowerCase(), transferLogIndex: receipt.transferLogIndex, orderId: input.orderId, paymentId: input.orderId });
       tx.create(leaseRef, { schemaVersion: SCHEMA_VERSION, id: leaseId, tenantId: order.tenantId, agentId: order.agentId, ownerWallet: order.ownerWallet, buildingId: order.buildingId, slotNumber: order.slotNumber, addressSnapshot: order.addressSnapshot, status: 'active', startsAt: confirmedAt, expiresAt: leaseExpiresAt, version: 1, chainSyncStatus: 'pending', createdAt: now, updatedAt: now });
-      tx.create(mailRef, { schemaVersion: SCHEMA_VERSION, leaseId, status: 'disabled', enabledByApprovalId: null, grantExpiresAt: null, version: 1, encryptedDestination: null, destinationConfigured: false, updatedAt: now });
+      tx.create(mailRef, { schemaVersion: SCHEMA_VERSION, leaseId, status: 'disabled', enabledByApprovalId: null, version: 1, encryptedDestination: null, destinationConfigured: false, updatedAt: now });
       tx.update(slotRef, { state: 'leased', leaseId, heldByOrderId: null, holdExpiresAt: null });
       tx.update(shardRef, { held: bitmapClear(bits.held, bit), issued: bitmapSet(bits.issued, bit) });
       tx.update(quotaRef, { heldCount: quota.heldCount - 1 });
@@ -508,6 +557,110 @@ export class RealAddrRepository {
       tx.create(this.collections.doc('outbox', registryOutboxId), { schemaVersion: SCHEMA_VERSION, aggregateId: leaseId, version: 1, eventType: 'lease.registry_sync_requested', payload: { leaseId, leaseVersion: 1 }, state: 'pending', availableAt: now, attempts: 0 });
       tx.delete(this.collections.doc('admin_operations', guardId('payment', input.orderId)));
       tx.create(this.collections.doc('admin_operations', guardId('registry', leaseId)), { schemaVersion: SCHEMA_VERSION, operationId: guardId('registry', leaseId), kind: 'registry', targetId: leaseId, status: 'pending_readback', version: 1, updatedAt: now });
+      return { orderId: input.orderId, status: 'fulfilled' as const, leaseId };
+    });
+  }
+
+  async confirmRenewalPayment(input: { orderId: string; receipt: VerifiedPurchaseReceipt }): Promise<{ orderId: string; status: 'fulfilled'; leaseId: string } | { orderId: string; status: 'manual_review' }> {
+    return this.applyRenewalPayment(input);
+  }
+
+  async recoverConfirmedRenewalFromOutbox(claim: OutboxClaim): Promise<{ orderId: string; status: 'fulfilled'; leaseId: string } | { orderId: string; status: 'manual_review' }> {
+    if (claim.eventType !== 'payment.renewal_recovery_requested' || claim.payload.orderId !== claim.aggregateId) throw new DomainError('unsupported_outbox_event', 409);
+    return this.applyRenewalPayment({ orderId: claim.aggregateId, claim });
+  }
+
+  private async applyRenewalPayment(input: { orderId: string; receipt?: VerifiedPurchaseReceipt; claim?: OutboxClaim }): Promise<{ orderId: string; status: 'fulfilled'; leaseId: string } | { orderId: string; status: 'manual_review' }> {
+    const orderRef = this.collections.doc('orders', input.orderId);
+    const paymentRef = this.collections.doc('payments', input.orderId);
+    const claimedOutboxRef = input.claim ? this.collections.doc('outbox', input.claim.id) : null;
+    return this.db.runTransaction(async tx => {
+      const [orderSnap, paymentSnap, claimedOutboxSnap] = await Promise.all([tx.get(orderRef), tx.get(paymentRef), claimedOutboxRef ? tx.get(claimedOutboxRef) : Promise.resolve(null)]);
+      let now = new Date();
+      const order = orderSnap.data();
+      const payment = paymentSnap.data();
+      if (!order || order.kind !== 'renew' || !payment) throw new DomainError('payment_not_found', 404);
+      if (input.claim) {
+        assertCurrentOutboxClaim(claimedOutboxSnap?.data(), input.claim, now);
+        if (input.claim.eventType !== 'payment.renewal_recovery_requested' || input.claim.aggregateId !== input.orderId || input.claim.payload.orderId !== input.orderId || input.claim.version !== order.version || order.recoveryOutboxId !== input.claim.id || order.status !== 'manual_review') throw new DomainError('outbox_claim_lost', 409);
+      }
+      let receipt = input.receipt;
+      if (!receipt && input.claim) {
+        if (payment.status !== 'confirmed' || payment.settlementEvidence?.finalityVerified !== true || payment.settlementEvidence?.evidenceHash !== payment.evidenceHash) throw new DomainError('stored_payment_unverified', 503);
+        receipt = { verified: true, finalityVerified: true, network: payment.network, asset: payment.asset, payer: payment.payer, payTo: payment.payTo, amountAtomic: payment.amountAtomic, authorizationNonce: payment.authorizationNonce, txHash: payment.txHash, transferLogIndex: payment.transferLogIndex, confirmedAt: asDate(payment.confirmedAt), evidenceHash: payment.evidenceHash };
+      }
+      if (receipt?.verified !== true || receipt.finalityVerified !== true || !HEX32.test(receipt.authorizationNonce) || !HEX32.test(receipt.txHash) || !Number.isSafeInteger(receipt.transferLogIndex) || receipt.transferLogIndex < 0 || !validDate(receipt.confirmedAt) || receipt.confirmedAt.getTime() > now.getTime() + 30_000) throw new DomainError('invalid_payment_receipt', 422);
+      assertHash(receipt.evidenceHash);
+      const payer = normalizeWallet(receipt.payer);
+      const asset = normalizeWallet(receipt.asset);
+      const payTo = normalizeWallet(receipt.payTo);
+      const receiptGuardRef = this.collections.doc('uniques', guardId('payment_transfer', receipt.network, receipt.txHash.toLowerCase(), String(receipt.transferLogIndex)));
+      const receiptGuardSnap = await tx.get(receiptGuardRef);
+      if (receiptGuardSnap.exists && receiptGuardSnap.data()?.orderId !== input.orderId) throw new DomainError('payment_receipt_reused', 409);
+      if (receipt.network !== order.network || asset !== order.asset.toLowerCase() || payer !== order.ownerWallet || payTo !== order.payTo.toLowerCase() || receipt.amountAtomic !== order.amountAtomic || receipt.authorizationNonce.toLowerCase() !== payment.authorizationNonce || payment.network !== receipt.network || payment.asset !== asset || payment.payer !== payer || payment.payTo !== payTo) throw new DomainError('payment_receipt_mismatch', 409);
+      if (order.status === 'fulfilled' && payment.status === 'confirmed') {
+        if (!receiptGuardSnap.exists || payment.txHash !== receipt.txHash.toLowerCase() || payment.transferLogIndex !== receipt.transferLogIndex || payment.evidenceHash !== receipt.evidenceHash.toLowerCase()) throw new DomainError('payment_receipt_conflict', 409);
+        return { orderId: input.orderId, status: 'fulfilled' as const, leaseId: order.leaseId as string };
+      }
+      if (order.status !== 'settling' && order.status !== 'reconciling' && order.status !== 'manual_review') throw new DomainError('payment_order_closed', 409);
+      const recovering = order.status === 'manual_review';
+      if (recovering && !input.claim) throw new DomainError('outbox_claim_required', 409);
+      if ((order.status === 'settling' && payment.status !== 'settling') || (order.status === 'reconciling' && payment.status !== 'unknown') || (recovering && payment.status !== 'confirmed') || (recovering !== receiptGuardSnap.exists)) throw new DomainError('payment_state_conflict', 409);
+      if (recovering && (payment.txHash !== receipt.txHash.toLowerCase() || payment.transferLogIndex !== receipt.transferLogIndex || payment.evidenceHash !== receipt.evidenceHash.toLowerCase() || asDate(payment.confirmedAt).getTime() !== receipt.confirmedAt.getTime())) throw new DomainError('payment_receipt_conflict', 409);
+      const slotRef = this.collections.doc('slots', `${order.buildingId}_${order.slotNumber}`);
+      const { shard, bit } = shardForFloor(order.slotNumber);
+      const shardRef = this.collections.doc('slot_shards', `${order.buildingId}_${shard}`);
+      const leaseId = order.leaseId as string;
+      const leaseRef = this.collections.doc('leases', leaseId);
+      const mailRef = this.collections.doc('mail_profiles', leaseId);
+      const renewalGuardRef = this.collections.doc('uniques', guardId('lease_renewal', leaseId));
+      const approvalHeadRef = this.collections.doc('approval_heads', leaseId);
+      const entitlementRef = this.collections.doc('ens_entitlements', leaseId);
+      const settlementOutboxRef = this.collections.doc('outbox', order.settlementOutboxId);
+      const reconciliationOutboxRef = order.reconciliationOutboxId ? this.collections.doc('outbox', order.reconciliationOutboxId) : null;
+      const recoveryOutboxRef = order.recoveryOutboxId ? this.collections.doc('outbox', order.recoveryOutboxId) : null;
+      const authGuardRef = this.collections.doc('uniques', guardId('payment_authorization', payment.network, payment.asset, payment.payer, payment.authorizationNonce));
+      const [slotSnap, shardSnap, leaseSnap, mailSnap, renewalGuardSnap, headSnap, entitlementSnap, authGuardSnap, settlementOutboxSnap, reconciliationOutboxSnap, recoveryOutboxSnap] = await Promise.all([tx.get(slotRef), tx.get(shardRef), tx.get(leaseRef), tx.get(mailRef), tx.get(renewalGuardRef), tx.get(approvalHeadRef), tx.get(entitlementRef), tx.get(authGuardRef), tx.get(settlementOutboxRef), reconciliationOutboxRef ? tx.get(reconciliationOutboxRef) : Promise.resolve(null), recoveryOutboxRef ? tx.get(recoveryOutboxRef) : Promise.resolve(null)]);
+      now = new Date();
+      if (input.claim) assertCurrentOutboxClaim(claimedOutboxSnap?.data(), input.claim, now);
+      if (authGuardSnap.data()?.orderId !== input.orderId) throw new DomainError('payment_guard_inconsistent', 503);
+      if (!settlementOutboxSnap.exists || (reconciliationOutboxRef && !reconciliationOutboxSnap?.exists) || (recoveryOutboxRef && !recoveryOutboxSnap?.exists)) throw new DomainError('renewal_outbox_inconsistent', 503);
+      const lease = leaseSnap.data();
+      const mail = mailSnap.data();
+      const issuanceReady = renewalMatches(order, lease, slotSnap.data(), shardSnap.data(), bit, renewalGuardSnap.data()) && !!mail && Number.isSafeInteger(mail.version) && mail.version >= 1 && ['disabled', 'enabled', 'suspended'].includes(mail.status) && mail.leaseId === leaseId && mail.schemaVersion === SCHEMA_VERSION && typeof mail.destinationConfigured === 'boolean' && (mail.status !== 'enabled' || (typeof mail.enabledByApprovalId === 'string' && mail.enabledByApprovalId.length > 0));
+      const nextVersion = order.version + 1;
+      if (!issuanceReady) {
+        if (recovering) return { orderId: input.orderId, status: 'manual_review' as const };
+        const recoveryId = guardId(input.orderId, String(nextVersion), 'payment.renewal_recovery_requested');
+        tx.create(receiptGuardRef, { schemaVersion: SCHEMA_VERSION, kind: 'payment_transfer', network: receipt.network, txHash: receipt.txHash.toLowerCase(), transferLogIndex: receipt.transferLogIndex, orderId: input.orderId, paymentId: input.orderId });
+        tx.update(paymentRef, { status: 'confirmed', txHash: receipt.txHash.toLowerCase(), transferLogIndex: receipt.transferLogIndex, evidenceHash: receipt.evidenceHash.toLowerCase(), confirmedAt: receipt.confirmedAt, settlementEvidence: { evidenceHash: receipt.evidenceHash.toLowerCase(), finalityVerified: true }, encryptedPayload: null, version: payment.version + 1, updatedAt: now });
+        tx.update(orderRef, { status: 'manual_review', version: nextVersion, recoveryOutboxId: recoveryId, updatedAt: now });
+        tx.update(settlementOutboxRef, { state: 'completed', updatedAt: now });
+        if (reconciliationOutboxRef) tx.update(reconciliationOutboxRef, { state: 'completed', updatedAt: now });
+        tx.create(this.collections.doc('outbox', recoveryId), { schemaVersion: SCHEMA_VERSION, aggregateId: input.orderId, version: nextVersion, eventType: 'payment.renewal_recovery_requested', payload: { orderId: input.orderId }, state: 'pending', availableAt: now, attempts: 0 });
+        tx.set(this.collections.doc('admin_operations', guardId('payment', input.orderId)), { schemaVersion: SCHEMA_VERSION, operationId: guardId('payment', input.orderId), kind: 'payment', targetId: input.orderId, status: 'manual_review', version: nextVersion, updatedAt: now });
+        return { orderId: input.orderId, status: 'manual_review' as const };
+      }
+      const confirmedAt = recovering ? asDate(payment.confirmedAt) : receipt.confirmedAt;
+      const leaseExpiresAt = new Date(Math.max(asDate(order.previousExpiresAt).getTime(), confirmedAt.getTime()) + 30 * 86_400_000);
+      const leaseVersion = order.leaseVersion + 1;
+      const registryOutboxId = guardId(leaseId, String(leaseVersion), 'lease.registry_sync_requested');
+      if (!recovering) tx.create(receiptGuardRef, { schemaVersion: SCHEMA_VERSION, kind: 'payment_transfer', network: receipt.network, txHash: receipt.txHash.toLowerCase(), transferLogIndex: receipt.transferLogIndex, orderId: input.orderId, paymentId: input.orderId });
+      tx.update(leaseRef, { status: 'active', expiresAt: leaseExpiresAt, version: leaseVersion, chainSyncStatus: 'pending', updatedAt: now });
+      if (headSnap.exists) tx.update(approvalHeadRef, { approvalId: null, currentApprovalId: null, leaseVersion, updatedAt: now });
+      tx.delete(renewalGuardRef);
+      if (entitlementSnap.data()?.state === 'paid') {
+        const ensOutboxId = guardId(leaseId, String(leaseVersion), 'ens.lease_sync_requested');
+        tx.create(this.collections.doc('outbox', ensOutboxId), { schemaVersion: SCHEMA_VERSION, aggregateId: leaseId, version: leaseVersion, eventType: 'ens.lease_sync_requested', payload: { leaseId, leaseVersion }, state: 'pending', availableAt: now, attempts: 0 });
+      }
+      if (!recovering) tx.update(paymentRef, { status: 'confirmed', txHash: receipt.txHash.toLowerCase(), transferLogIndex: receipt.transferLogIndex, evidenceHash: receipt.evidenceHash.toLowerCase(), confirmedAt: receipt.confirmedAt, settlementEvidence: { evidenceHash: receipt.evidenceHash.toLowerCase(), finalityVerified: true }, encryptedPayload: null, version: payment.version + 1, updatedAt: now });
+      tx.update(orderRef, { status: 'fulfilled', leaseId, version: nextVersion, fulfilledAt: now, updatedAt: now });
+      tx.update(settlementOutboxRef, { state: 'completed', updatedAt: now });
+      if (reconciliationOutboxRef) tx.update(reconciliationOutboxRef, { state: 'completed', updatedAt: now });
+      if (recoveryOutboxRef) tx.update(recoveryOutboxRef, { state: 'completed', claimOwner: null, claimUntil: null, updatedAt: now });
+      tx.create(this.collections.doc('outbox', registryOutboxId), { schemaVersion: SCHEMA_VERSION, aggregateId: leaseId, version: leaseVersion, eventType: 'lease.registry_sync_requested', payload: { leaseId, leaseVersion }, state: 'pending', availableAt: now, attempts: 0 });
+      tx.delete(this.collections.doc('admin_operations', guardId('payment', input.orderId)));
+      tx.set(this.collections.doc('admin_operations', guardId('registry', leaseId)), { schemaVersion: SCHEMA_VERSION, operationId: guardId('registry', leaseId), kind: 'registry', targetId: leaseId, status: 'pending_readback', version: leaseVersion, updatedAt: now }, { merge: true });
       return { orderId: input.orderId, status: 'fulfilled' as const, leaseId };
     });
   }
@@ -557,6 +710,39 @@ export class RealAddrRepository {
       return { orderId: input.orderId, status };
     });
   }
+  async releaseUnpaidRenewalIntent(input: { orderId: string; determination: { kind: 'expired_without_authorization' } | { kind: 'definitive_unpaid'; proof: DefinitiveUnpaidProof } }): Promise<{ orderId: string; status: 'expired' | 'failed_unpaid' }> {
+    let now = new Date();
+    const orderRef = this.collections.doc('orders', input.orderId);
+    const paymentRef = this.collections.doc('payments', input.orderId);
+    return this.db.runTransaction(async tx => {
+      const [orderSnap, paymentSnap] = await Promise.all([tx.get(orderRef), tx.get(paymentRef)]);
+      const order = orderSnap.data();
+      const payment = paymentSnap.data();
+      if (!order || order.kind !== 'renew') throw new DomainError('not_found', 404);
+      if (order.status === 'expired' || order.status === 'failed_unpaid') return { orderId: input.orderId, status: order.status as 'expired' | 'failed_unpaid' };
+      if (input.determination.kind === 'expired_without_authorization') {
+        if (order.status !== 'awaiting_payment' || paymentSnap.exists || asDate(order.expiresAt) > now) throw new DomainError('unpaid_not_established', 409);
+      } else {
+        const proof = input.determination.proof;
+        if ((order.status !== 'settling' && order.status !== 'reconciling') || !payment || (payment.status !== 'settling' && payment.status !== 'unknown') || proof?.verified !== true || proof.providerSettlementFinal !== true || proof.chainFinalityVerified !== true || proof.noTransferVerified !== true || !validDate(proof.checkedAt) || proof.checkedAt > now || (proof.checkedAt < asDate(payment.validBefore) && proof.irrevocablyCancelled !== true) || proof.network !== order.network || normalizeWallet(proof.asset) !== order.asset.toLowerCase() || normalizeWallet(proof.payer) !== order.ownerWallet || proof.authorizationNonce.toLowerCase() !== payment.authorizationNonce) throw new DomainError('unpaid_not_established', 409);
+        assertHash(proof.evidenceHash);
+      }
+      const renewalGuardRef = this.collections.doc('uniques', guardId('lease_renewal', order.leaseId));
+      const settlementOutboxRef = order.settlementOutboxId ? this.collections.doc('outbox', order.settlementOutboxId) : null;
+      const reconciliationOutboxRef = order.reconciliationOutboxId ? this.collections.doc('outbox', order.reconciliationOutboxId) : null;
+      const [guardSnap, settlementOutboxSnap, reconciliationOutboxSnap] = await Promise.all([tx.get(renewalGuardRef), settlementOutboxRef ? tx.get(settlementOutboxRef) : Promise.resolve(null), reconciliationOutboxRef ? tx.get(reconciliationOutboxRef) : Promise.resolve(null)]);
+      now = new Date();
+      if (guardSnap.data()?.orderId !== input.orderId || guardSnap.data()?.leaseId !== order.leaseId || (settlementOutboxRef && !settlementOutboxSnap?.exists) || (reconciliationOutboxRef && !reconciliationOutboxSnap?.exists)) throw new DomainError('renewal_state_conflict', 503);
+      const status = input.determination.kind === 'expired_without_authorization' ? 'expired' as const : 'failed_unpaid' as const;
+      tx.delete(renewalGuardRef);
+      tx.update(orderRef, { status, version: order.version + 1, releasedAt: now, updatedAt: now });
+      if (payment) tx.update(paymentRef, { status: 'failed', encryptedPayload: null, definitiveUnpaidEvidenceHash: input.determination.kind === 'definitive_unpaid' ? input.determination.proof.evidenceHash.toLowerCase() : null, version: payment.version + 1, updatedAt: now });
+      if (settlementOutboxRef) tx.update(settlementOutboxRef, { state: 'completed', updatedAt: now });
+      if (reconciliationOutboxRef) tx.update(reconciliationOutboxRef, { state: 'completed', updatedAt: now });
+      if (payment) tx.delete(this.collections.doc('admin_operations', guardId('payment', input.orderId)));
+      return { orderId: input.orderId, status };
+    });
+  }
 }
 
 function normalizeLocation(input: LocationInput): LocationInput {
@@ -569,4 +755,12 @@ function normalizeLocation(input: LocationInput): LocationInput {
 function sameIdempotency<T>(record: Record<string, unknown> | undefined, expectedHash: string): T {
   if (record?.bodyHash !== expectedHash) throw new DomainError('idempotency_conflict', 409);
   return record.responseSnapshot as T;
+}
+
+function renewalMatches(order: Record<string, unknown>, lease: Record<string, unknown> | undefined, slot: Record<string, unknown> | undefined, shard: Record<string, unknown> | undefined, bit: number, guard: Record<string, unknown> | undefined): boolean {
+  return !!lease && typeof lease.status === 'string' && ['active', 'expired'].includes(lease.status) && lease.version === order.leaseVersion && lease.tenantId === order.tenantId && lease.agentId === order.agentId && lease.ownerWallet === order.ownerWallet && lease.buildingId === order.buildingId && lease.slotNumber === order.slotNumber && storedTime(lease.expiresAt) !== null && storedTime(lease.expiresAt) === storedTime(order.previousExpiresAt) && bodyHash(lease.addressSnapshot) === bodyHash(order.addressSnapshot) && slot?.state === 'leased' && slot.leaseId === order.leaseId && !!shard && typeof shard.issued === 'string' && typeof shard.held === 'string' && /^[0-9a-f]{256}$/.test(shard.issued) && /^[0-9a-f]{256}$/.test(shard.held) && bitmapHas(shard.issued, bit) && !bitmapHas(shard.held, bit) && guard?.orderId === order.id && guard?.leaseId === order.leaseId;
+}
+
+function storedTime(value: unknown): number | null {
+  try { const time = asDate(value).getTime(); return Number.isFinite(time) ? time : null; } catch { return null; }
 }

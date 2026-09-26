@@ -15,6 +15,8 @@
 
 mainnet 55 USDCは将来の価格設定値であり、mainnet決済を解禁する指定ではない。testnet/devのUSDCは接続するtest tokenを明示し、実資産のmainnet USDCや商用住所提供と混同しない。期間は1回の確定決済につき30日。住所renewも同じ環境の住所料金を使用する。期限内更新は旧期限に30日を加え、期限切れ更新は確定時刻から30日を加える。自動課金はしない。
 
+各leaseで未解決のrenew注文は同時に一つだけ。renew quoteは価格・lease version・旧期限を固定し、結果不明の決済はquote期限後も排他を維持する。renewは新しい区画や新規契約の日次枠を使わない。人間は契約期間に関与せず、確定x402支払いが住所利用期間を決める。同じ宛先への適用済みmail同意は無期限で、lease期限切れは同意を保持したままeffective enabledだけを停止する。同じleaseのpaid renewal/revival後は再承認なしで再開する。取消・security suspensionをrenewで解除せず、宛先変更には変更先versionへの新たな人間承認が必要。未適用approvalはlease version変更時に失効するが、10分のapproval URL期限と適用済み同意は別である。ENS購入済みの場合は同じ名前の期限同期を住所料金内で行う。
+
 住所購入・更新とENS初回追加は、任意取消や通常運用では返金しない。ただし決済確定後、照合と安全な再試行を経ても対象商品の発行が復旧不能と確定した場合は、その注文の元payerへ同じnetwork/USDC assetで支払額全額を自動返金する。ENS追加の発行失敗ならENS追加料金だけを対象にし、住所契約・住所代金を巻き込まない。住所renewの発行失敗ならそのrenew注文だけを対象にし、それ以前の有効期間・権利を維持する。不明なchain結果や一時的な障害は直ちに返金とせず、証跡と権利を保持して照合・復旧を続ける。ガスは運営負担で返金額から控除しない。サービス終了時に残る前払い分の対象条件・方法・時期は、その時点で別途案内する。
 
 ENSは住所利用に含まれず、owner Agentが有効な自分のleaseへ任意で追加する。標準名は`f00042.<location-slug>.<parent>.eth`のようにfloorから決まり、カスタム名は同じ拠点名の下でlabelを指定する。`POST /v1/payment-intents`の`kind=ens_addon`、`subscriptionId`、`nameType=floor|custom`（省略時floor）、custom時だけ`customLabel`を使う。初回追加料金の確定決済後だけENS entitlementを一回有効化する。未購入はENS status=`not_purchased`とし、発行・resolver deploy jobを作らない。購入後のrename・2つ目の名前はv1対象外。購入後の技術retry、再照合、発行失敗の再実行では追加料金を再請求しない。住所renewには既購入ENS名の期限同期と通常維持を含め、追加料金は初回一回だけ。住所契約が終了・停止したらENSの有効表示も止め、同じleaseの期限切れ更新では同じ名前の復活を試みる。親名・拠点名・network・公式仕様・gas等の制約があるため、永久維持や即時復活は保証しない。ENSが`pending`でも住所利用は続く。LeaseRegistryへの記録はENSオプションの有無にかかわらず全契約で行う。[ENS設計](ensv2.md)

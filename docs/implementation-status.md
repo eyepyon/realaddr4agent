@@ -7,12 +7,13 @@
 | 対象 | 状態 | 範囲 |
 | --- | --- | --- |
 | T-01 実行基盤 | 実装中 | pnpm workspace、strict TypeScript、Fastify、web/worker、共通CLI、CI workflowとローカル`.env.example`を作成。全経路の起動確認は未完了 |
-| T-02 認証・Firestore・区画 | 部分実装 | wallet challenge、Bearer hash、collection prefix、64 shard予約に加え、住所購入の決済受付・不明状態保持・確定後の契約発行・未払い確定後のhold解放をrepositoryへ実装。外部の検証済み結果を受け取る内部DB境界であり、実決済・照合worker・更新・返金は未実装 |
+| T-02 認証・Firestore・区画 | 部分実装 | wallet challenge、Bearer hash、collection prefix、64 shard予約に加え、住所購入の決済受付・不明状態保持・確定後の契約発行・未払い確定後のhold解放をrepositoryへ実装。外部の検証済み結果を受け取る内部DB境界であり、実決済・外部照合・返金は未実装。更新の内部DB処理はT-05として追加 |
+| T-05 住所更新 | 部分実装・ローカル検証済み | 同一leaseの更新排他、固定見積、確定支払いの一度だけの反映、結果不明保持、保存済みreceiptからのworker復旧。公開更新API・実決済・chain/ENS同期は未接続 |
 | T-02/T-08 所有者向け状態取得 | 部分実装・ローカル検証済み | 注文・契約の一覧と詳細、ENS購入状態をFirestoreから返す。所有権、応答の公開field制限、署名付きcursor、既存CLIの状態取得を確認 |
 | T-05/T-16 worker・outbox | 部分実装・ローカル検証済み | Firestore claim/generation/期限、保存済み支払いからの発行復旧、Cloud Tasks REST配信・結果照合とSchedulerの永続cursor。実送金・chain同期・実Cloud Tasks/Scheduler接続は未検証 |
 | T-08/T-18/T-19 UI | 部分着手 | 公開HTML/AEO、標準SaaSの画面、実APIへの接続。業務統合・実管理者ログインは別途 |
 | T-00 外部連携 | 設定の有無を確認・実接続未実施 | MultiBaasの接続設定は一部入力済み。chain・registry設定、権限、実疎通は未確認。World、Intercepta、x402、ENS、管理者OIDCの必要設定も揃っていない。値を表示せずキーの有無だけ確認し、接続済みとは扱わない |
-| T-16 GCP | 未適用 | live inventory、IAM/Rules、専用resource作成、DNS/TLSが必要。現在の作業で実GCPへ変更していない |
+| T-16 GCP | bootstrap初期登録済み・全体未完了 | 専用state bucket・Artifact Registry・WIFと限定IAMのTerraform、read-only metadata inventoryを追加。認証済みlive inventoryは20件成功・1件incomplete。live Rulesの初期適用・公式engine評価と実未認証拒否を確認。bootstrap5件の作成とlive設定確認済み。実効IAM、実Firebase利用者client試験、app resource、DNS/TLSは残件 |
 
 ## 検証の記録
 
@@ -84,7 +85,7 @@ workerの環境変数は`APP_ENV=local|event`、`RESOURCE_PREFIX=realaddr-event`
 | build済みworkerをlocalで起動、未認証POSTを2経路へ送信 | 両方401・no-store | `/tasks/run`、`/scheduler/sweep`。確認後workerとEmulatorを停止 |
 | `node scripts/check-text-format.mjs` / `git diff --check` | 通過 | 作業ファイルのUTF-8・BOMなし・LFと差分 |
 
-live inventory、runtime IAMとclient Rules、prefixed index、実OIDC、実Cloud Tasks/Scheduler、Cloud Run停止復旧は未検証。25秒を超えたらsweepの新規job開始を止めるが、Firestore遅延時を含む実環境の要求期限内完了は未検証。公開購入APIは引き続き販売を拒否し、T-05/T-16の完了チェックは付けない。
+この段階ではlive inventoryも未実施だった。後続のinventory結果はT-16節に記録し、runtime IAMとclient Rules、prefixed index、実OIDC、実Cloud Tasks/Scheduler、Cloud Run停止復旧は未検証のままとする。25秒を超えたらsweepの新規job開始を止めるが、Firestore遅延時を含む実環境の要求期限内完了は未検証。公開購入APIは引き続き販売を拒否し、T-05/T-16の完了チェックは付けない。
 
 ## T-02/T-08 所有者向け状態取得
 
@@ -107,9 +108,80 @@ live inventory、runtime IAMとclient Rules、prefixed index、実OIDC、実Clou
 
 今回のテストは保存済み状態のローカルfixtureを使い、スポンサー応答を模擬して販売を開くものではない。既存の決済・outboxテスト全体は前節の実行結果とし、今回は変更箇所の重点チェックに限定した。CIはEmulatorを起動しないため、追加したAPI/DB統合チェックも通常CIではskipされる。実provider接続、人間承認、実GCPのprefixed index配備、3ツールのlive縦断デモは未実施。T-02/T-08全体の完了チェックは付けない。
 
+## T-05 同一住所契約の更新
+
+変更: `packages/db/src/repository.ts`、`packages/db/test/renewal.test.ts`、workerの復旧routeとテスト。購入・更新で認可、riskの鮮度確認、nonce guardを共有する。公開intent/payは引き続き503で、以下は信頼できるserver adapter向け内部DB境界のローカル検証である。
+
+- 同じownerのactive/expired leaseだけに更新見積を作り、lease version・旧期限・住所・区画・価格を固定する。同一leaseの未解決更新を一件に制限し、新規区画・wallet hold quota・日次新規購入枠を消費しない。
+- 確定支払いは同じleaseへ一度だけ反映し、期限を`max(旧期限, 元の支払い確定時刻)+30日`へ更新する。nonce/receiptを別注文で使えず、並行再送で期間が二重加算されない。
+- 結果不明は見積期限後も排他を保持する。未認可の期限切れ、または検証済み確定未払いだけを終了でき、旧lease・区画・利用期間は変えない。履行後は次回更新を許可するが、支払いguardを消さない。
+- 支払い後のlease/slot/version不整合は旧権利と支払い証跡を保持し、`manual_review`と更新復旧outboxへ送る。workerは保存済みreceiptだけを使い、claimのowner/generation/期限とorder versionを同じtransactionで検査する。
+- 新lease versionのregistry outboxを作る。ENS entitlementがpaidの場合だけ同じleaseの同期jobを追加し、名前変更や追加料金は発生させない。実chain/ENS handlerは未接続のままである。
+- 郵便転送の承認は転送先を変更するまで期限を設けず保持する。住所利用期間はx402の確認済み決済だけで更新し、期限内更新・期限切れ後の更新とも既存mail profileと承認を変更しない。明示的なdisabled/suspendedも更新で解除しない。未適用approvalは新lease versionで使えなくなる。暗号化宛先と登録有無・human bindingを保持し、outboxへ宛先を出さない。
+
+仕様の整合: 郵便転送の承認を住所契約の期間から切り離した。課金済み期間が切れた間は住所利用・転送可表示を停止するが、承認自体は消さない。同じ転送先で住所利用を再開する場合は再承認を要求せず、転送先変更には新たな人間承認を要求する。承認要求URLの有効期限と適用済みの承認を区別する。人間承認の実装・検証済みを意味せず、公開readは引き続き未検証のenabled profileを503で拒否する。
+
+| 実行したチェック | 結果 | 証跡・範囲 |
+| --- | --- | --- |
+| Emulatorを指定し固定済み`tsx --test packages/db/test/*.test.ts apps/worker/test/*.test.ts apps/api/test/*.test.ts` | 35件通過・skip 0 | 更新5件を含むDB21件、worker13件、API1件。購入・更新の共通認可処理、保存済み支払いの復旧、既存owner read/CLI確認を含む |
+| 固定済み`tsx --test packages/db/test/renewal.test.ts`をEmulatorへ再実行（承認期限の撤廃前） | 5件通過・skip 0 | owner readの更新反映とmail suspensionの保持を確認。旧承認期限のチェックは下記の承認保持チェックへ置換 |
+| 固定済み`tsc -p`を各workspaceへ実行 | 全6 package通過 | 共通DB処理を使うAPI/worker/CLIとWeb、domainを含む |
+| 固定済み`esbuild`でAPI/workerをbuild | 通過 | 更新repositoryとworker routeをbundle。CLI/Webの再buildと画面操作は今回未実施 |
+| `node scripts/check-text-format.mjs` / `git diff --check` | 通過 | UTF-8・BOMなし・LFと差分 |
+
+fixtureは検証済み入力を模したローカルの境界テストであり、実スポンサーの応答・送金・World同意ではない。実provider接続、送金直前の再検査、実chain/ENS同期、自動返金、人間承認・宛先アクセス、GCP配備と復旧は残件。CIでのEmulator起動も未実装であり、T-05の完了チェックは付けない。
+
+## T-05/T-06 郵便転送承認と課金期間の分離
+
+住所利用期間はx402の支払い確定だけで決まり、人間承認は期間を増減しない。DBと公開Mail schemaから承認期限の項目を削除し、更新処理がmail profileの承認・version・宛先を変更しないよう修正した。契約期限切れは承認取消として永続化せず、利用可否を現在の契約状態・期限から判定する設計に統一した。未払い・不明決済の注文を作っただけでは契約期間を延長しない。
+
+同じ転送先への承認継続と、転送先変更時の再承認を要件・設計・API・画面・受入条件へ反映した。人間向けの承認適用、転送先versionへの束縛、実効状態の公開readは引き続き未実装であり、保存済みenabledを公開APIから有効として返さない。実郵便物の転送処理は対象外のままである。
+
+| 実行したチェック | 結果 | 証跡・範囲 |
+| --- | --- | --- |
+| Emulatorへ固定済み`tsx --test packages/db/test/renewal.test.ts packages/db/test/owner-reads.test.ts` | 7件通過・skip 0 | 有効期限の前後でmail profile・適用済み承認を保持、disabled/suspendedを解除しない、不明・未払い更新では契約期間と承認を変えない、承認期限のないDTO |
+| Emulatorへ固定済み`tsx --test packages/db/test/purchase-lifecycle.test.ts` | 5件通過・skip 0 | 新規購入・再送・結果不明・復旧の既存動作 |
+| Emulatorへ固定済み`tsx --test apps/api/test/owner-reads.test.ts` | 1件通過・skip 0 | 変更後のOpenAPIとの整合、enabled profileの503維持、共通CLIの状態取得 |
+| 固定済み`tsc -p`、API/workerの`esbuild` | 全6 package型検査と両build通過 | 人間承認の実接続、実郵便処理、CLI/Webの再build・ブラウザ操作は未実施 |
+| `node scripts/check-text-format.mjs` / `git diff --check` | 通過 | 変更後のJSON解析、UTF-8・BOMなし・LFと差分 |
+
+旧承認期限モデルのテスト結果は前節の履歴とし、現在の動作確認には本節の結果を用いる。T-03/T-06の承認・宛先変更の実装やlive gateを完了扱いにしない。
+
+## T-16 GCP bootstrap準備
+
+`infra/bootstrap`は本アプリ専用のstate bucket（private・versioning・削除防止）、Docker用Artifact Registry、repository/owner immutable ID・main ref・event Environment subject・固定workflow ref・手動起動に限定したWIF pool/providerを定義する。既存の明示されたdeploy service accountへ狭いworkloadIdentityUser memberだけを追加し、そのaccount自体やIAM policy全体を管理しない。WIFは既定で無効であり、未実装のdeploy workflowを利用可能とは扱わない。共有project/API/Firestore database/rules/予算/DNSを作成・import・変更するresourceはない。
+
+`scripts/gcp-inventory.ps1`は指定projectのmetadataだけを読み、実識別子を含む結果は保護されたリポジトリ外の新規directoryへ保存する。secret値・Firestore document・Run環境変数・task本文は取得しない。失敗や読取不能はincompleteとし、空listや権限不足を名前の空きの証拠にしない。Rules client経路、runtime IAM、祖先を含む実効IAM、所有者と予算の確認は別gateとして残す。
+
+Terraform 1.14.6とGoogle provider 8.4.0を固定し、公式配布物のchecksumを検証した。provider lockfileにはWindows/Linuxの公式checksumを保存したが、実行検証はWindowsのみ。`terraform fmt -check`、`validate`、認証不要のmock test 2件が通過した。mockは設定検査だけであり、実GCPのplan/apply成功を意味しない。
+
+inventory scriptのfixture検証4件が通過した。読み取りcommandだけの実行、project明示、API-enable promptの抑止、HTTPログ抑止、同projectのdeploy account検査、失敗のincomplete保持、地域の推測拒否と画面への実識別子非表示を確認した。fixtureは実認証・IAM・GCP応答の証跡ではない。Google Cloud CLI 586.0.0の公式archiveをSHA-256照合してポータブル配置し、システムPATHや既存の認証設定を変更していない。
+
+隔離した一時CLI設定と付属Pythonでversionおよびinventoryの20 commandのローカルhelpを確認した。Firestore field exemptionはcollection groupを省略したdatabase全体の照会をサポートする。当時のlive権限・応答projectionは未検証であり、後続の読み取り結果は下記に記録する。`node scripts/check-text-format.mjs`と`git diff --check`も通過した。
+
+認証済みlive inventoryは20件成功・1件incomplete。共有`(default)` DBのNative mode / Standard edition、`asia-northeast1`配置とbilling有効を確認した。Cloud Asset APIが利用できず全regionの横断検索は未完了であり、確認regionの専用prefixに一致がない結果だけで所有権や名前の空きを認めない。project・organization・選択済みdeploy service accountのIAM metadataは取得したが、指定deploy accountのlifecycle管理を既存IaC sourceで確認し、レビューしたtracked sourceにdistinctなadditive IAM memberと競合するauthoritative policy/bindingは見つからなかった。live実効権限・他管理主体との競合・state所有権の検証は未完了。
+
+明示的なquota project headerでRules RESTを読み取った。release一覧にFirestore releaseはなく、defaultの両release形式のGETは404。Authorization headerなしのFirestore REST GETは`PERMISSION_DENIED` / `Missing or insufficient permissions`だった。これは対象の未認証read拒否のみの証拠であり、この時点ではlive Rules sourceの取得・評価と他利用者のread/write gateはpendingだった。後続の適用結果を下記に記録する。専用runtime identityのIAM・対象外DB拒否も未検証。
+
+実bootstrap planは5 create・0 update・0 destroyで、確認済みregion・immutable repository/owner ID、WIF pool/providerのdisabled、state bucketのuniform bucket-level access・public access prevention・versioningを確認した。指定state bucket、Artifact Registry repository、WIF poolのGETは各404だが、全域の名前空き・所有権の証拠にはしない。plan・local state・実値入り変数は保護されたリポジトリ外で扱う。
+
+Firestoreは現在未使用との運用者確認を得た。これは他IAM主体のアクセス不可やstate所有権の証明ではない。管理主体が初期deny-all Rulesを適用した。適用直前にdefault releaseの404を確認し、immutable rulesetとreleaseをCREATEだけで作成した。再取得したlive sourceは管理sourceとbyte一致し、公式Rules engineで未認証・合成した他利用者のget/list/create/update/delete計10件がDENY期待のSUCCESSだった。Authorizationなしの実Firestore REST GETとPOST createもPERMISSION_DENIEDを返し、documentは書かれていない。実際の別Firebase利用者tokenによるclient試験は未実施。server IAM・DB本体・indexは変更していない。
+
+Cloud Asset APIは運用手順で有効化し、横断inventoryの再確認は進行中。既存budget一件を読み取り、変更していない。Rules初期適用に続きbootstrap5件を作成し、限定IAM memberを追加した。DNS変更・app deployは未実施。GitHubのevent Environmentは確認時点で未作成。app resource作成、GCS state移行、`infra/app`、deploy workflowとCloud Run公開は残件で、T-16は未完了のままとする。詳細は[読み取りinventory](gcp-inventory.md)に記録する。
+
 ## 次の接続条件
 
 - World client/callbackとfresh認証、Intercepta keyと実schema、x402 facilitator/USDC/finalityを確認する。
 - MultiBaasの権限とSepolia接続、ENS親名の管理権限・公式deployment・署名方法・gasを確認する。
 - 専用Google OIDC clientと初期運用者、GCPのinventory/必要権限、公開ドメインのDNS/TLSを用意する。
 - 提供拠点住所は認可された管理画面の完成後に登録する。実郵便処理は今回の範囲外。
+
+## T-16 Cloud Asset型filterの修正
+
+公式対応asset型にないCloud Scheduler Jobを横断検索filterから除外した。選択regionのScheduler metadata listは維持し、他regionは別確認としてsummaryのmanualPendingへ記録する。運用上のfilterなしmetadata検索は成功したが、非対応型や全regionのScheduler不在証明ではない。修正後の固定fixture4件は全件通過・skip0。成功fixtureでCAI型filter、regional Scheduler list、coverage残件を確認した。`node scripts/check-text-format.mjs`（99 paths）と`git diff --check`も通過した。修正scriptのlive再実行はこのテストに含めない。
+
+## bootstrap初期登録結果
+
+bootstrap applyは終了code 0で成功し、専用state bucket、Docker repository、無効WIF pool/provider、限定impersonation memberの5件を作成した。live再取得でbucketのuniform bucket-level access=true・public access prevention=enforced・versioning=true、repositoryのDOCKER、WIF pool/providerのdisabled=true、追加memberと既存deploy accountの全従前memberの保持を確認した。local stateと別時刻のbackupは保護されたリポジトリ外にあり、GCSへのstate移行は未実施。
+
+初期登録は完了したがT-16全体とアプリ稼働は未完了。infra/app、web/worker/tasks/schedの4 runtime account、Cloud Run、Cloud Tasks/Scheduler、secret metadata、deploy workflow、GitHub event Environment、runtime IAM・実Firebase他利用者client試験、GCS state移行は残件。適用後Terraform planはdetailed exit code 0で差分なし。修正した5型CAI filterのlive検索は終了code 0・metadata 34件を取得した。CAIのeventual freshnessと他regionのScheduler coverageは引き続き確認対象。

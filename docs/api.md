@@ -6,7 +6,7 @@
 
 Agent認証済みowner向けに、payment-intentとsubscriptionの一覧・詳細read、および`GET /v1/subscriptions/{subscriptionId}/ens`を提供する。これらは認証主体のtenantとagentに束縛し、一覧は`createdAt DESC, document ID DESC`（orders）または`updatedAt DESC, document ID DESC`（leases）で安定順に返す。cursorは署名済みopaque値で、owner、endpoint、sort、limitに束縛する。limitは1〜100、default 20。次ページ有無の判定にはlookaheadを1件だけ読む。DTOは明示的な公開field allowlistから組み立て、暗号文、転送先全文、World識別子、authorization nonceを含めない。
 
-このread実装は購入/更新/ENS購入またはpay mutationを有効化しない。`GET /v1/subscriptions/by-ens`は503で利用不可。ENS未購入または`pending_payment`は`not_purchased`、支払済みで外部検証未接続の状態は`pending`とし、外部登録・controller・leaseを実検証できない限り`ready`を返さない。返金済みは`disabled`。mail profileは現行実装では`disabled`のみで、保存状態がenabledでもhuman approval統合がないためfail closedで503とする。人間承認・宛先保存と管理APIの範囲は別契約のまま閉じている。
+このread実装は購入/更新/ENS購入またはpay mutationを有効化しない。`GET /v1/subscriptions/by-ens`は503で利用不可。ENS未購入または`pending_payment`は`not_purchased`、支払済みで外部検証未接続の状態は`pending`とし、外部登録・controller・leaseを実検証できない限り`ready`を返さない。返金済みは`disabled`。mail profileは現行実装では`disabled`のみで、保存状態がenabledでもhuman approval統合がないためfail closedで503とする。人間承認・宛先保存と管理APIの範囲は別契約のまま閉じている。T-05の一部として内部renew quote/prepare/confirmed-recovery/unpaid-release処理は追加中だが、公開POST intent/payは依然503である。ここで定義するwire shapeは実接続済みAPIを意味しない。
 
 ## 共通
 
@@ -34,7 +34,7 @@ location/payment intent/subscription本体の識別子はid。参照先とpath p
 | DELETE /v1/auth/session | Agent | 現token失効 |
 | GET /v1/locations | Agent | 公開拠点・plan。locations/nextCursorを返す |
 | GET /v1/locations/{locationId}/floors/{floor} | Agent | 仮想区画の現在の空き状態。availableのみ返し、予約の確約はしない |
-| POST /v1/payment-intents | Agent | purchase/renewまたは既存契約への一回限りのens_addon intent。区画予約はpurchaseのみ |
+| POST /v1/payment-intents | Agent | purchase/renewまたは既存契約への一回限りのens_addon intent。区画予約はpurchaseのみ。現状は未接続のため503 |
 | GET /v1/payment-intents | owner Agent | 実装済みread。自分のintent一覧。createdAt降順、paymentIntents/nextCursor。署名payloadは返さない |
 | GET /v1/payment-intents/{intentId} | owner Agent | 実装済みread。状態・リスク・結果 |
 | POST /v1/payment-intents/{intentId}/pay | owner Agent | preconditions→402→決済→200/202 |
@@ -51,13 +51,17 @@ location/payment intent/subscription本体の識別子はid。参照先とpath p
 | PUT /v1/subscriptions/{subscriptionId}/mail-destination | 同一binding human+CSRF | expectedVersion付き宛先保存/更新 |
 | POST /v1/subscriptions/{subscriptionId}/mail-disable | 同一binding human+CSRF | enabledを取消 |
 
-/approve/{approvalId}はUIルートでありOpenAPI対象外。新browser sessionに同じ責任者が戻る場合もowner-wallet + fresh Worldを通す。既存grantを再承認しても他のbindingへ変更しない。
+/approve/{approvalId}はUIルートでありOpenAPI対象外。新browser sessionに同じ責任者が戻る場合もowner-wallet + fresh Worldを通す。再ログインは本人確認の更新であり、同一lease・同一宛先の承認を再要求しない。既存consentを他のbindingへ変更しない。
 
-人間だけが宛先を入力する。AgentのAPIレスポンスはdestinationConfiguredのみ。初回approveの応答はenabled/未登録を返し、UIがフォームを表示する。フォーム保存はreal DB writeであり、成功表示だけのモックは不可。
+人間だけが宛先を入力する。AgentのAPIレスポンスはdestinationConfiguredのみ。初回approveの応答はenabled/未登録を返し、UIがフォームを表示する。初回フォーム保存は、適用済み承認と最初のdestinationVersionを原子的に束縛する。以後の宛先変更はtargetProfileVersion・targetDestinationVersionに束縛した新しい一回限りの人間write approvalが必要であり、承認時点では既存consentを置換しない。PUTはactiveな支払済みlease、本人確認、CSRF、write approvalとexpectedVersionのCASを検査し、宛先保存・approval消費・consent bindingの切替を原子的に行う。保存前の新宛先のeffective enabledは前提にせず、保存までは旧consentを維持する。人間の無効化・security suspensionをwrite approvalで迂回しない。フォーム保存はreal DB writeであり、成功表示だけのモックは不可。
+
+住所利用期限はx402の確認済み支払いだけで決まり、人間承認は延長しない。適用済みの転送承認は同一lease・同一宛先のまま期間を設けず保持する。契約期限切れは実効的なenabledをsuspendedにするが承認を消さず、同一leaseの更新・復活で同じ宛先への設定を再承認なしで再開する。人間の無効化・security suspensionは引き続き再開を阻止する。未適用approval requestは10分で失効し、owner-wallet proof、World human、agent、leaseVersion、policy、nonce、expiryおよび対象destinationVersionへの束縛を検査する。request期限と永続的な承認の寿命を混同しない。
 
 ## 支払いwire
 
 intent作成bodyは購入なら`{"locationId":"…","floor":42}`（floorは省略可、kind省略時はpurchase）、更新なら`{"kind":"renew","subscriptionId":"…"}`、ENS初回追加の標準名なら`{"kind":"ens_addon","subscriptionId":"…"}`、独自名なら`{"kind":"ens_addon","subscriptionId":"…","nameType":"custom","customLabel":"my-agent"}`。`nameType`省略時は`floor`で、`nameType=custom`では`customLabel`必須、`floor`では指定不可。同じAgentの同じintentへの再送は同じ結果を返す。購入時に指定floorを予約する場合も、未指定の自動割当と同じFirestore transactionで区画・quota・冪等記録を確定する。
+
+renew quoteは自分のactive/expired subscriptionに限り、suspended/revokedは拒否する。同一leaseに未解決renewが一つだけ存在し、quoteはlease version/owner/slot、旧expiry、住所snapshot、30日/550000 atomicのtestnet価格を固定する。決済時は現在statusがactiveまたはexpiredであることを確認する。renewはslotや新規lease quota/day countを消費しない。確認済み支払いのversion/owner/slot/state不一致は`manual_review`へ保留し、旧lease権利を維持する。支払不明はexpiry後もrenew guardを保持する。期限内renewでもexpiredからの同一leaseのrenewでも、同じ宛先の既存consentを保持し、人間の無効化・security suspensionがなければ実効的なenabledを再開する。lease version変更時に未適用approvalは失効する。公開POST/payが販売可能になる時点までは503とする。
 
 住所planは30日・USDC 6 decimalsを固定し、event test/dev価格は0.55 USDC=`550000` atomic。将来mainnet価格は55 USDC=`55000000` atomicの別profileだが、現仕様の支払いchainはBase Sepoliaだけでmainnet販売は停止する。実asset address/decimals・facilitatorの接続はT-00で検証し、一致しない環境を起動しない。ENS初回追加feeは住所planと別で、event test/devの標準名が0.10 USDC=`100000` atomic、独自名が0.30 USDC=`300000` atomic。将来mainnetの標準名は10 USDC=`10000000` atomic、独自名は30 USDC=`30000000` atomicで、mainnet販売は現在停止する。設定が選択environment/nameTypeの固定額と一致しない・欠落する場合は503 / `ens_pricing_unavailable`でintentを作らず、402も返さない。ENS追加の価格・asset・network・payTo・pricingVersion・nameType・label・canonical FQDNは作成したintentに固定して決済前に表示する。`GET /v1/subscriptions/{subscriptionId}/ens`は価格を約束せず、未購入時も`status=not_purchased`を返す。
 

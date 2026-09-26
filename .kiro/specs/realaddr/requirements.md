@@ -58,22 +58,22 @@
 
 ## R-06 World操作承認
 
-- R-06.1 WHEN Agentがmail.enableを要求する THEN lease、agent、ownerWallet、policy、nonce、期限を固定したapprovalを作り人間用URLを返す SHALL。
+- R-06.1 WHEN Agentがmail.enableを要求する THEN lease、lease version、agent、ownerWallet、policy、nonce、対象destination version、10分の未適用要求期限を固定したapprovalを作り人間用URLを返す SHALL。要求期限はURL・認証・適用の期限であり、適用済み同意の期間ではない。人間は住所契約期間を承認せず、期間はx402の確定支払いだけで決定する。
 - R-06.2 WHEN 人間が承認する THEN 内容を表示し公式World環境でfresh認証、backend検証、CSRF付き明示同意POSTを通す SHALL。
 - R-06.3 IF 拒否・取消・期限切れ・別人・不正token THEN 転送可にせず住所フォームの保存を拒否する SHALL。
-- R-06.4 WHEN 承認を適用する THEN 一回だけMailProfileのenabled権限へ変換し、並行再送でも同じ結果にする SHALL。
-- R-06.5 IF 対象Lease/owner/policyが変化 THEN 古い承認を使用不可にする SHALL。
+- R-06.4 WHEN 承認を適用する THEN 一回だけ承認を適用し、並行再送でも同じ結果にする SHALL。初回承認は承認済みprofile/versionへの最初の人間入力を許可する。宛先変更の承認はApprovalへ対象profile/destination versionの一回限りの書込許可を保存し、既存profileの宛先同意をまだ変更しない。人間による初回保存・変更保存の成功時に、宛先/versionと同意対象の確定・書込許可消費を原子的に行う。同じ宛先への適用済み同意は無期限とする。
+- R-06.5 IF 対象Lease versionが変化 THEN 古い未適用の承認を使用不可にする SHALL。適用済み同意は同じlease・owner・policy・宛先の期限切れやpaid renewal/revivalでは失効させない。owner/policy変更、人間取消、明示的なsecurity suspensionは使用を拒否し、renewで解除しない。宛先変更には変更先destination versionに束縛したfresh World認証と新たな明示承認を要求し、旧同意で変更先を認可しない。
 
 ## R-07 転送可表示と人間用フォーム
 
 - R-07.1 WHEN mail.enableが承認された THEN 「郵便転送可」を表示し、人間に転送先入力フォームを提示する SHALL。
 - R-07.2 WHILE 転送先未入力 THEN 「転送先未登録」も表示し、入力を促す SHALL。
 - R-07.3 WHEN 人間がフォーム保存する THEN 氏名/宛名、国内郵便番号、都道府県、市区町村、番地、建物名任意を検証して暗号化保存する SHALL。
-- R-07.4 BEFORE 保存/更新/閲覧 THEN owner walletとWorldで認証した人間session、lease有効性、enabled grant、CSRFを検証する SHALL。
+- R-07.4 BEFORE 保存/更新/閲覧 THEN owner walletとWorldで認証した有効な人間session、lease有効性とCSRFを検証する SHALL。閲覧は適用済みの同宛先同意、保存は未消費の承認済み一回限り書込許可とprofile/destination versionのCASを検査する。初回保存は承認されたprofile/versionへの一回の保存のみ、以後の宛先変更は対象destination versionの新しい承認のみ許可し、保存前に新宛先へのeffective enabledを要求しない。宛先保存・version更新・同意対象切替・許可消費を同じtransactionで行い、取消/security suspension後の許可でPUTや再開を認可しない。宛先を変えない再ログイン・閲覧は新たなmail.enable同意を要求しない。
 - R-07.5 WHEN Agentが参照する THEN enabledとdestinationConfiguredだけを返し、転送先全文を返さない SHALL。Agent bearerによる宛先保存は禁止。
-- R-07.6 WHEN 保存に成功する THEN 再読み込み後も保持し、versionによって更新競合を検知する SHALL。
+- R-07.6 WHEN 保存に成功する THEN 再読み込み後も保持し、profile versionとdestination versionによって更新競合と同意対象を検査する SHALL。宛先全文や宛先hashをprompt、通常ログ、chainへ出さない。
 - R-07.7 WHEN 表示する THEN 「ハッカソン版: 転送設定のみ。実際の郵便転送は行いません」を明示する SHALL。発送ジョブ、送料課金、配送APIを生成しない。
-- R-07.8 WHEN 人間が権限を取り消す THEN 転送可を解除しAgentに反映する SHALL。再開には新たなWorld承認が必要。
+- R-07.8 WHEN 人間が権限を取り消す THEN 転送可を解除しAgentに反映する SHALL。取消後の再開には新たなWorld承認が必要。effective enabledは適用済み同意が同じ宛先に有効、activeな支払い済みleaseが期限内、かつ取消・security suspensionなしの場合のみとする。lease期限切れでは同意と宛先を保持したままenabledを停止し、同じleaseの確定paid renewal/revivalで再承認なしに再開する。destinationConfiguredは別項目とし、初回保存前のenabled表示は発送可能を意味しない。転送にはdestinationConfiguredも必要だが、実発送は今回対象外。
 
 ## R-08 Curvegridとオンチェーン記録
 
