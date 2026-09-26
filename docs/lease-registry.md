@@ -1,6 +1,6 @@
 # LeaseRegistryのローカルartifactと手動登録
 
-T-07のcontract準備と手動登録手順。本人が準備したwalletはEthereum Sepolia上で公開read-only確認済み（checksum形式、残高あり、codeなし）で、MultiBaasへのwallet接続は本人から完了の報告を受けた。registry library definitionを登録し、versionのread-backとABI・creation bytecodeのartifact一致を確認した。これはlibrary登録のみで、実deploy/transaction、roles設定、contract read/write/eventsは未実施。chain操作workerは未接続で、T-07は未完了。
+T-07のcontract準備と手動登録手順。Ethereum Sepoliaへ人間承認のwallet署名でdeployし、独立した公開RPC検査でreceipt、runtime code、初期rolesを照合した。MultiBaasでもalias作成・contract linkと設定read-backを確認した。MultiBaasのindexed events、LeaseRegistryのrecord/revoke write、chain worker接続は未完了で、T-07は未完了。
 
 ## Buildとexport
 
@@ -36,7 +36,7 @@ compiler/settings/contract/constructor不一致、空bytecode、未解決library
 
 ### artifact投入と照合
 
-[公式Library手順](https://docs.curvegrid.com/multibaas/manage-contracts)はForge compilation artifactまたはABIのJSON uploadを支持する。ABI単体にはdeploy用bytecodeがないため、今回は`LeaseRegistry.json`を優先する。flattened Solidityやstandard JSON compiler inputの投入は前提にしない。今回は検証済みartifactのABIとcreation bytecodeを公式APIのlibrary definitionとして登録し、versionのread-backと内容一致を確認済み。UI経由のartifact uploadと実deploymentは未検証。
+[公式Library手順](https://docs.curvegrid.com/multibaas/manage-contracts)はForge compilation artifactまたはABIのJSON uploadを支持する。ABI単体にはdeploy用bytecodeがないため、今回は`LeaseRegistry.json`を優先する。flattened Solidityやstandard JSON compiler inputの投入は前提にしない。今回は検証済みartifactのABIとcreation bytecodeを公式APIのlibrary definitionとして登録し、versionのread-backと内容一致を確認済み。UI経由のartifact uploadとUIでのdeployは未検証。実deploymentは後述のlocal helperで完了し、独立RPCで照合した。
 
 1. 人間がwalletを準備し、Ethereum Sepoliaとgas残高を確認する。秘密鍵・seed phraseをassistant、prompt、repository、ログへ渡さない。手動testではconstructorの`admin`と`writer`に接続walletを指定する。
 2. MultiBaasのContracts → LibraryでForge artifactをuploadする。`LeaseRegistry`のconstructorが`admin: address`、`writer: address`で、期待するABIとbytecodeであることを確認し、label/versionを固定する。
@@ -51,6 +51,6 @@ MultiBaas UIで正しいconstructor値を指定しても「Missing the transacti
 
 ローカル補助画面を用意した。`REGISTRY_DEPLOY_WALLET`には手動testで`admin`・`writer`に使うwallet addressをローカル環境変数として設定し、`node scripts/serve-registry-deploy.mjs --wallet "$env:REGISTRY_DEPLOY_WALLET" --port <port>`を起動する。helperはreview済みartifactのみを使い、`127.0.0.1`だけにbindし、chain ID 11155111以外では動作しない。serverが表示するloopback URLを、MetaMaskが有効な同じbrowserで開き、connect後にestimate結果とtransaction内容を確認して、人間がwallet上で承認する。serverやrepositoryへ鍵・seed phrase・MultiBaas API secretを設定しない。
 
-送信結果が不明なら再試行せず、先にchain上で結果を照合する。確定したtransaction hashを保管し、receipt、runtime code、rolesをon-chainで確認してからMultiBaasでcontractをlinkする。helperはブラウザーから報告されたreceipt/code照合結果を保存するが、初期rolesを含む独立したchain確認を完了するまで実接続ゲートの成功とは扱わない。同一artifactとwalletについて同時起動を拒否する。異常終了で起動用lockが残った場合は、記録されたprocessが停止済みかを確認してから起動用lockだけを整理し、送信試行の状態は保持する。
+送信結果が不明なら再試行せず、先にchain上で結果を照合する。確定したtransactionのreceipt、runtime code、rolesをon-chainで確認してからMultiBaasでcontractをlinkする。helper/browserからのreceipt・code報告だけではdeploy成功の証拠とせず、毎回独立したRPCでreceipt、runtime code、rolesを検証する。今回のdeployではその独立確認を完了した。同一artifactとwalletについて同時起動を拒否する。異常終了で起動用lockが残った場合は、記録されたprocessが停止済みかを確認してから起動用lockだけを整理し、送信試行の状態は保持する。
 
 その後、固定ABIの`getLease`、許可writerのwrite/read一致、無権限write拒否、eventsのblock hash/log indexを実確認する。未確認の応答やSDK methodで成功を代用しない。[公式API](https://docs.curvegrid.com/multibaas/api/multibaas-api/)と[deploy API説明](https://docs.curvegrid.com/multibaas/api/deploy-contract/)を参照する。購入・決済を有効化する手順ではない。

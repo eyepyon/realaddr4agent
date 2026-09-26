@@ -8,7 +8,7 @@ HTTP workerにはFirestoreの実行権・再試行管理と、保存済みの確
 
 GCP登録準備として[Terraform bootstrap](infra/README.md)と[読み取り専用inventory](docs/gcp-inventory.md)を追加しました。bootstrap applyで専用state bucket・Artifact Registry・無効WIF pool/provider・限定IAM memberの5件を作成し、live設定と既存IAM member保持を確認しました。GCS state移行は完了しました。appの基盤17件を登録し、live設定を確認しました。通常更新用の手動deploy workflowと、GCP認証なしでコンテナを検査するCIを追加しました。正式termsのevent image-only workflowが成功し、同一immutable digestを非公開Cloud Run 2サービスへ初回配備しました。private構成の検証99件は通過しました。Cloud Runの公開と公開後100件の確認は完了しました。独自ドメインのTLS発行とHTTPS応答も確認済みです。
 
-LeaseRegistryのコントラクトと重点テスト、MultiBaasへ渡す登録用artifactの生成手順を追加しました。実配備・業務workerとの接続は未完了です。[コントラクトの検証と登録手順](docs/lease-registry.md)を参照してください。
+LeaseRegistryをEthereum Sepoliaへ実配備し、独立RPCで検証、MultiBaasでread-only照合済みです。MultiBaas indexed events、業務worker、record/revoke write flowは未完了です。[コントラクトの検証と登録手順](docs/lease-registry.md)を参照してください。
 
 ## 読む順序
 
