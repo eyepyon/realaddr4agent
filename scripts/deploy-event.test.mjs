@@ -42,7 +42,7 @@ function fixture(role, currentImage) {
     status: { observedGeneration: 1, conditions: [{ type: 'Ready', status: 'True' }], latestReadyRevisionName: `${name}-fixture`, latestCreatedRevisionName: `${name}-fixture`, traffic: [{ revisionName: `${name}-fixture`, percent: 100 }], url: role === 'worker' ? metadata.WORKER_URL : 'https://web-fixture.run.app' },
   };
 }
-function fakeSubprocess(failure, changeBefore) {
+function fakeSubprocess(failure, changeBefore, policies = {}) {
   const services = { worker: fixture('worker', image(previousDigest)), web: fixture('web', image(previousDigest)) };
   changeBefore?.(services);
   const calls = [];
@@ -58,7 +58,7 @@ function fakeSubprocess(failure, changeBefore) {
     const role = args[3]?.startsWith('realaddr-event-worker') ? 'worker' : 'web';
     const service = services[role];
     if (args[1] === 'services' && args[2] === 'describe') return JSON.stringify(service);
-    if (args[2] === 'get-iam-policy') return JSON.stringify({ bindings: [{ role: 'roles/run.invoker', members: role === 'worker' ? [`serviceAccount:${account('tasks')}`, `serviceAccount:${account('sched')}`] : ['allUsers'] }] });
+    if (args[2] === 'get-iam-policy') return JSON.stringify(policies[role] ?? { bindings: [{ role: 'roles/run.invoker', members: role === 'worker' ? [`serviceAccount:${account('tasks')}`, `serviceAccount:${account('sched')}`] : ['allUsers'] }] });
     if (args[1] === 'revisions') return JSON.stringify({ metadata: { name: service.status.latestReadyRevisionName, namespace: config.projectNumber }, status: { imageDigest: service.spec.template.spec.containers[0].image, conditions: [{ type: 'Ready', status: 'True' }] } });
     if (args[2] === 'update') {
       const target = args.find(value => value.startsWith('--image=')).slice('--image='.length);
@@ -232,4 +232,30 @@ test('OIDC summary checks immutable subject and exposes only safe structure and 
   await assert.rejects(diagnoseOidc(config, env, async () => { throw new Error(token); }), { message: 'oidc_diagnostic_request_failed' });
   await assert.rejects(diagnoseOidc(config, env, async () => ({ status: 403 })), { message: 'oidc_diagnostic_request_failed' });
   assert.throws(() => oidcClaimSummary(claims, { ...env, GITHUB_REPOSITORY_ID: '' }), /oidc_expected_ids_required/);
+});
+
+test('web disabled invoker check with no invoker binding is preserved during image deployment', async () => {
+  const fake = fakeSubprocess(null, services => { services.web.metadata.annotations['run.googleapis.com/invoker-iam-disabled'] = 'true'; }, { web: { bindings: [] } });
+  assert.deepEqual(await deploy(config, dependencies(fake)), { status: 'deployed' });
+  assert.equal(fake.services.web.metadata.annotations['run.googleapis.com/invoker-iam-disabled'], 'true');
+  assert.equal(fake.updates.length, 2);
+});
+test('worker disabled IAM check, malformed access flag and ambiguous public web bindings reject before build', async () => {
+  for (const [role, value, policies, code] of [
+    ['worker', 'true', {}, 'worker_invoker_iam_check_required'],
+    ['web', 'unexpected', {}, 'unexpected_service_access_mode'],
+    ['web', 'true', {}, 'service_invoker_policy_mismatch'],
+    ['web', 'false', { web: { bindings: [] } }, 'service_invoker_policy_mismatch'],
+  ]) {
+    const fake = fakeSubprocess(null, services => { services[role].metadata.annotations['run.googleapis.com/invoker-iam-disabled'] = value; }, policies);
+    await assert.rejects(deploy(config, dependencies(fake)), { message: code });
+    assert.equal(fake.calls.some(call => call.program === 'docker'), false);
+    assert.equal(fake.updates.length, 0);
+  }
+});
+test('explicit enabled worker IAM check retains only tasks and scheduler invokers', async () => {
+  const fake = fakeSubprocess(null, services => { services.worker.metadata.annotations['run.googleapis.com/invoker-iam-disabled'] = 'false'; });
+  assert.deepEqual(await deploy(config, dependencies(fake)), { status: 'deployed' });
+  const denied = fakeSubprocess(null, null, { worker: { bindings: [{ role: 'roles/run.invoker', members: ['allUsers'] }] } });
+  await assert.rejects(deploy(config, dependencies(denied)), /service_invoker_policy_mismatch/);
 });

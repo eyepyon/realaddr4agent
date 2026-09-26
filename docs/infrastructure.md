@@ -1,6 +1,6 @@
 # GCPインフラ・Firestore・低コスト運用仕様
 
-決定日: 2026-09-25。ユーザー指定によりCloud Run / Cloud Firestore / Cloud Storage / GitHub Actionsを採用する。これは実装仕様であり、billing有効を読み取り確認したが、bootstrapの5件を作成済みで、アプリデプロイは未実施。
+決定日: 2026-09-25。ユーザー指定によりCloud Run / Cloud Firestore / Cloud Storage / GitHub Actionsを採用する。これは実装仕様であり、billing有効を読み取り確認したが、bootstrap初期5件とapp基盤の登録後、正式event imageの同一digestで非公開Cloud Run 2サービスを配備し、private構成を確認した。Cloud Run公開と公開後100件の確認は完了し、独自ドメインはrouting確認済み・TLS証明書発行待ち。
 
 実装状況: `infra/bootstrap`の専用state bucket・Artifact Registry・WIFと限定IAM定義、`scripts/gcp-inventory.ps1`のmetadata読取を追加した。ローカル検証は[infra手順](../infra/README.md)と[実装状況](implementation-status.md)を参照。`infra/app`の基盤・条件付きサービス定義を追加し、基盤applyは完了したが、通常更新用deploy workflowを追加したが、実行は未検証。認証済みlive inventoryと実plan（5 create・0 update・0 destroy）は確認済み。bootstrap applyは成功し、GCS state移行は完了したが、runtime/clientのgateは残る。
 
@@ -25,7 +25,7 @@
 
 state bucketと業務用bucketは分離し、他サービスのstate bucket/prefixも共有しない。state prefixはbootstrapが`realaddr/event/bootstrap`、appが`realaddr/event/app`。state bucketはuniform bucket-level access、public access prevention、versioning、削除防止を設定し、読書き権限を本アプリのinfra管理主体だけへ絞る。versioningの保持量・費用を監視する。業務用bucketには後述の短期保持とsoft delete無効の方針を適用し、Terraform stateを置かない。Terraform変数・state・planにprovider秘密、署名鍵、World情報、宛先、支払いpayloadを入れない。secret名とIAMだけをTerraformで管理し、値は権限を持つ運用者がSecret Managerへ別途登録する。未設定のsecretを成功用の仮値で埋めない。
 
-Terraform/providerの動作確認済みversionと各rootの`.terraform.lock.hcl`を管理する。`.terraform/`、local state/backup、plan、実値を含むtfvars、認証ファイルはGit対象外にし、公開用exampleにはplaceholderだけを置く。GCS backendの初期化・移行済みstateの運用手順はinfra READMEへ記載した。初回event image配備は未実施であり、公開稼働を主張しない。
+Terraform/providerの動作確認済みversionと各rootの`.terraform.lock.hcl`を管理する。`.terraform/`、local state/backup、plan、実値を含むtfvars、認証ファイルはGit対象外にし、公開用exampleにはplaceholderだけを置く。GCS backendの初期化・移行済みstateの運用手順はinfra READMEへ記載した。初回event image-onlyは成功し、同一immutable digestで非公開Cloud Runへ配備した。run.appでの公開確認は完了し、独自ドメインのTLS証明書は発行待ち。
 
 T-16の必須共存ゲートでproject内の既存Cloud Run、Firestore DB/rules/index、API、IAM、予算、bucket、Artifact Registry、Tasks、Scheduler、Secret Manager、WIF、service accountと各resourceの所有者を読み取り確認する。認証済みlive inventoryは20件成功・1件incompleteで、全regionの横断検索と実効IAMは未完了。管理主体によるRules初期適用と公式engineのdeny評価を確認し、実Firebase利用者tokenのclient試験は未実施。共有resourceを本アプリのstateへimportしない。同名の既存resourceが本アプリ所有と確認できなければ上書き・importを止め、明示的に設定したsuffixで衝突を解消する。毎回ランダム名を生成しない。apply前のplanは本アプリ専用resourceと許可されたprefix collection indexだけに限定し、他サービスへの変更があれば停止する。
 
@@ -207,3 +207,7 @@ bootstrap stateをGCSへ移行し、lineage・5 resource・outputsの一致と�
 app foundationの実applyは17 add・0 update・0 deleteで成功した。live再取得で専用4 service accountがenabled・user-managed key 0、既存project IAM memberの保持、業務bucketのuniform access/public access prevention有効・soft delete 0・7日削除、queueの毎秒1・同時実行1・最大10試行、作成secretのversion 0件を確認した。web/workerの共有default DB限定IAM grantは個別レビュー後に今回の保護設定で有効にした。入力の既定値は引き続きfalseであり、同DB内のcollection隔離を意味しない。
 
 基盤登録時は正式terms未確定のため配備を保留した。その後realaddr-v1を正式採用し、規約versionの待ち条件は解消した。event image、Cloud Run、公開IAM、Scheduler、dispatch、deploy CI/WIFの有効化は行っていない。専用主体のFirestore操作・DB拒否とqueue権限の代表検査は通過し、合成documentと短期grantのcleanupを確認した。Cloud Run invoker、Tasks OIDC、スポンサー、別Firebase利用者のclient試験は未検証。詳しい証跡範囲は実装状況のruntime IAM節を参照する。appのremote post-apply planはdetailed exit code 0で差分なし。state pullの17 resource instance、保護backupとmanifest更新を確認した。T-16全体は未完了。
+
+ドメインmappingはapp rootの`domain_mapping_reviewed=false`を既定とし、`deploy_services`・`web_public`・`domain_mapping_reviewed`が全てtrueの場合だけ固定公開originを専用webへ接続する。管理主体が実domain所有権、対象service、既存mapping不在とDNS recordを事前にレビューする。`force_override=false`で既存mappingを上書きせず、削除を防止する。DNS recordはTerraformで管理せず、ユーザー本人が設定する。mappingとmanaged certificateのReady確認までは公開完了としない。
+
+web公開は`web_public=true`の場合だけ専用webの`invoker_iam_disabled=true`で行い、workerは常にfalseとする。`allUsers` grantは作成せず、共有organization policyを変更しない。Cloud Runの認証gateを通過する公開webでも、利用者・管理者・人間承認のserver側認可を維持する。[Cloud Run公式の公開方式](https://docs.cloud.google.com/run/docs/authenticating/public)。

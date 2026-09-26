@@ -107,12 +107,13 @@ resource "google_project_iam_member" "firestore" {
   }
 }
 resource "google_cloud_run_v2_service" "app" {
-  for_each            = local.services
-  project             = var.project_id
-  location            = var.region
-  name                = "realaddr-event-${each.key}"
-  deletion_protection = true
-  ingress             = "INGRESS_TRAFFIC_ALL"
+  for_each             = local.services
+  project              = var.project_id
+  location             = var.region
+  name                 = "realaddr-event-${each.key}"
+  deletion_protection  = true
+  ingress              = "INGRESS_TRAFFIC_ALL"
+  invoker_iam_disabled = each.key == "web" && var.web_public
   scaling {
     min_instance_count = 0
     max_instance_count = each.key == "web" ? 2 : 1
@@ -172,14 +173,6 @@ resource "google_cloud_run_v2_service_iam_member" "worker_invoker" {
   role     = "roles/run.invoker"
   member   = "serviceAccount:${google_service_account.app[each.key].email}"
 }
-resource "google_cloud_run_v2_service_iam_member" "web_public" {
-  count    = var.deploy_services && var.web_public ? 1 : 0
-  project  = var.project_id
-  location = var.region
-  name     = google_cloud_run_v2_service.app["web"].name
-  role     = "roles/run.invoker"
-  member   = "allUsers"
-}
 resource "google_cloud_run_v2_service_iam_member" "deploy" {
   for_each = local.services
   project  = var.project_id
@@ -203,7 +196,7 @@ resource "google_cloud_scheduler_job" "sweep" {
   time_zone        = "Etc/UTC"
   paused           = !var.scheduler_enabled
   attempt_deadline = "60s"
-  retry_config { retry_count = 0 }
+  # Omitted retry settings use API defaults: zero retries and zero retry duration.
   http_target {
     http_method = "POST"
     uri         = "${var.worker_url}/scheduler/sweep"
@@ -221,4 +214,24 @@ resource "google_cloud_scheduler_job" "sweep" {
     }
   }
   depends_on = [google_cloud_run_v2_service_iam_member.worker_invoker]
+}
+
+resource "google_cloud_run_domain_mapping" "web" {
+  count           = var.deploy_services && var.web_public && var.domain_mapping_reviewed ? 1 : 0
+  project         = var.project_id
+  location        = var.region
+  name            = "address.chain.tokyo"
+  deletion_policy = "PREVENT"
+  metadata {
+    namespace = var.project_id
+  }
+  spec {
+    route_name       = google_cloud_run_v2_service.app["web"].name
+    certificate_mode = "AUTOMATIC"
+    force_override   = false
+  }
+  lifecycle {
+    prevent_destroy = true
+  }
+  depends_on = [google_cloud_run_v2_service.app]
 }

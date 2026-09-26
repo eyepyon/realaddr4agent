@@ -91,3 +91,9 @@ variable "secret_versions" {
     error_message = "Reference declared secret metadata and an existing numeric version for web/worker only; fixed runtime controls and credential files cannot be injected."
   }
 }
+
+variable "domain_mapping_reviewed" {
+  type        = bool
+  default     = false
+  description = "Enable only after live domain ownership, existing mapping and DNS records have been reviewed; Terraform does not manage DNS."
+}

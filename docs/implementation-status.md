@@ -12,11 +12,23 @@
 | T-02/T-08 所有者向け状態取得 | 部分実装・ローカル検証済み | 注文・契約の一覧と詳細、ENS購入状態をFirestoreから返す。所有権、応答の公開field制限、署名付きcursor、既存CLIの状態取得を確認 |
 | T-05/T-16 worker・outbox | 部分実装・ローカル検証済み | Firestore claim/generation/期限、保存済み支払いからの発行復旧、Cloud Tasks REST配信・結果照合とSchedulerの永続cursor。実送金・chain同期・実Cloud Tasks/Scheduler接続は未検証 |
 | T-08/T-18/T-19 UI | 部分着手 | 公開HTML/AEO、標準SaaSの画面、実APIへの接続。業務統合・実管理者ログインは別途 |
-| T-02/T-08/T-19 利用規約 | v1正式採用・画面反映 | realaddr-v1として15条を正式採用。単一Markdownから/termsへ初期HTML配信し、正式versionの同意欄・API/build/deploy設定を一致させる。提供開始準備と実配備は別途 |
+| T-02/T-08/T-19 利用規約 | v1正式採用・event配信確認済み | realaddr-v1として15条を正式採用。単一Markdownから/termsへ初期HTML配信し、正式versionの同意欄・API/build/deploy設定を一致させる。提供開始準備と実利用者の同意確認は別途 |
 | T-00 外部連携 | 設定の有無を確認・実接続未実施 | MultiBaasの接続設定は一部入力済み。chain・registry設定、権限、実疎通は未確認。World、Intercepta、x402、ENS、管理者OIDCの必要設定も揃っていない。値を表示せずキーの有無だけ確認し、接続済みとは扱わない |
-| T-16 GCP | bootstrap初期登録済み・全体未完了 | 専用state bucket・Artifact Registry・WIFと限定IAMのTerraform、read-only metadata inventoryを追加。認証済みlive inventoryは20件成功・1件incomplete。live Rulesの初期適用・公式engine評価と実未認証拒否を確認。bootstrap5件の作成とlive設定確認済み。実効IAM、実Firebase利用者client試験、app resource、DNS/TLSは残件 |
+| T-16 GCP | web公開・worker非公開で初回配備済み・全体未完了 | WIFとeventイメージbuild/push、runtime IAM検査、初回Cloud Run配備、公開後100項目と後続plan差分0を確認。独自ドメイン割当済み・TLS発行待ち。Tasks/Schedulerの実配信、実Firebase利用者client試験、外部業務連携は残件 |
 
 ## 検証の記録
+
+### T-16 eventサービスの初回配備
+
+限定WIFによるGitHubの実認証、専用Artifact Registryへのeventイメージbuild/pushが成功した。同じimmutable digestをweb/workerへ非公開で初回配備し、専用実行アカウント、起動用secretの数値version参照、規約 `realaddr-v1` を反映した。Schedulerは停止、Tasks dispatchは無効を維持している。
+
+live検査99項目が通過した。両サービスのReady・revision・image一致、min=0とmax web=2/worker=1、CPU idle、環境変数とIAM、未認証拒否を確認した。認証したwebではhealth、Firestore readiness、規約両URLの200と全文末尾・index方針、appのno-store/noindexを確認し、workerでは許可されていない管理用本人tokenも拒否された。実Tasks/SchedulerのOIDC配信、実利用者のwallet同意、スポンサー接続、販売・ENS発行はこの検査に含まない。
+
+Schedulerの明示的な空のretry設定はAPIが省略して返すため、設定を省略し、API既定のretry回数・期間とも0を使用するよう修正した。動作を変えずにprivate構成の後続plan差分0を確認した。Terraform fmt/validate/mock 5件が通過した。
+
+webの `allUsers` IAM追加は共有環境のdomain-restricted sharingに拒否され、その試行では公開IAMとドメイン割当は作成されなかった。共有ポリシーは変更していない。実効 `run.managed.requireInvokerIam` が強制されていないことを読み取り確認し、[Google公式のサービス単位の公開方式](https://docs.cloud.google.com/run/docs/authenticating/public)に合わせてwebだけのInvoker IAM検査を無効化した。workerのIAM検査・限定invokerとアプリの認証を維持する。通常deployの事前検査もこの方式を許可し、workerの検査無効化や不明な設定値・混在方式を拒否する。限定テスト18件が通過した。
+
+web公開設定1更新と専用ドメイン割当1作成を適用し、後続plan差分0を確認した。DNS変更はしていない。公開後のlive検査100項目が通過し、未認証webでhealth・Firestore readiness・正式規約とprivate画面のcache/index制御を確認、workerへの未認証と許可されていない本人tokenは拒否された。独自ドメインはDomainRoutable=Trueで、TLS証明書はCertificatePending。独自ドメインでのHTTPS到達は未合格であり、発行後に別途確認する。
 
 ### T-16 初回eventイメージと配備準備
 

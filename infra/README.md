@@ -49,7 +49,7 @@ backend configは専用state bucketと`prefix = "realaddr/event/bootstrap"`を�
 
 `app/`はweb/worker/tasks/schedの4専用service account、private業務bucket、Cloud Tasks queue、指定したSecret Manager metadata、限定IAMと条件付きCloud Run/Schedulerを定義する。業務bucketは7日でobject削除、versioningなし、soft deleteなし、public access prevention・uniform access・削除防止。queueは同時実行1、毎秒1、最大10試行。secret値/version作成はTerraformで扱わない。共有default DBの`datastore.user` grantは`firestore_access_reviewed=true`をレビュー後に指定した場合だけで、prefixをIAM境界とは扱わない。
 
-`deploy_services`、`runtime_ready`、`web_public`、`scheduler_enabled`、`dispatch_enabled`、`firestore_access_reviewed`は既定でfalse。`secret_purposes`も空が既定。基盤のapp applyは17 add・0 update・0 deleteで完了した。service配備には正式なterms、実secret version、同一image digest、worker origin、runtime IAM gateが必要で、公開/dispatch/Schedulerは別の明示的な有効化が必要になる。
+`deploy_services`、`runtime_ready`、`web_public`、`scheduler_enabled`、`dispatch_enabled`、`firestore_access_reviewed`、`domain_mapping_reviewed`は既定でfalse。`secret_purposes`も空が既定。基盤のapp applyは17 add・0 update・0 deleteで完了した。service配備には正式なterms、実secret version、同一image digest、worker origin、runtime IAM gateが必要で、公開/dispatch/Schedulerは別の明示的な有効化が必要になる。
 
 ## コンテナ準備
 
@@ -59,11 +59,11 @@ DockerfileはNode 22.21.0のofficial registry digestとpnpm 11.19.0を固定し�
 docker build --build-arg VITE_APP_ENV=local --build-arg VITE_TERMS_VERSION=event-demo-1 -t realaddr-local-check .
 ```
 
-これはlocal検証用command。端末のDocker daemonは利用できなかったが、Linux CIで同じlocal設定のimage buildとweb/worker起動・拒否確認が通過した。既存Node toolingによる型検査/API/worker/Web buildも通過した。event imageは正式なterms versionと公開設定が確定するまでbuildしない。event image build/push、Cloud Run配備、スポンサー接続、DNSは未実施。
+これはlocal検証用command。端末のDocker daemonは利用できなかったが、Linux CIで同じlocal設定のimage buildとweb/worker起動・拒否確認が通過した。既存Node toolingによる型検査/API/worker/Web buildも通過した。正式terms確定後のevent image build/pushと非公開Cloud Run配備は完了した。run.appでの公開確認は完了し、独自ドメインTLSとスポンサー接続は未完了。
 
 ## 通常更新用deploy workflow
 
-`deploy-event.yml`と`scripts/deploy-event.mjs`は既存2サービスのimage更新と、明示的な初回image-only操作を提供する。Cloud Runの初回作成には使わない。正式terms・Secret Manager実version・worker origin・runtime gateを確定してTerraformで初回配備し、web公開とworker専用invokerを実確認してから使用する。通常deployの前提は未完了で、workflowを実行していない。
+`deploy-event.yml`と`scripts/deploy-event.mjs`は既存2サービスのimage更新と、明示的な初回image-only操作を提供する。Cloud Runの初回作成には使わない。正式terms・Secret Manager実version・worker origin・runtime gateを確定してTerraformで初回配備し、web公開とworker専用invokerを実確認してから使用する。image-onlyのworkflowと非公開初回配備は完了した。run.appでの公開前提は確認済みで、独自ドメインTLSは発行待ち。
 
 保護された`event` Environmentの`DEPLOY_CONFIG` Secretへ、[設定契約](../docs/deployment-configuration.md#github-actionsへ渡す値)のtarget metadataをJSONで登録する。runtime secret値やservice account鍵は含めない。専用Artifact Registryのpush権限とruntime actAs・Run更新/検証権限を実確認し、既存bindingを保持したままWIFを別工程で有効化する。EnvironmentやWIFをworkflow自身で作成・有効化しない。
 
@@ -86,3 +86,13 @@ app foundationの実applyは17 add・0 update・0 deleteで成功した。live�
 image-onlyは確認したdeploy主体で、本アプリ専用Artifact Registryのname/project/location、DOCKER、STANDARD_REPOSITORY、bootstrapの用途descriptionを照合し、repository get/upload/downloadとdocker image getを実`testIamPermissions`で確認してから、許可sourceだけでevent imageをbuild/pushする。descriptionだけを所有権の証拠にせず、管理主体のlive inventoryと保護manifestによる所有レビューを先に済ませる。Run不在は管理主体の別gateで確認し、このjobのためにproject-wide Run権限を追加しない。jobはRun API、サービス作成・更新、IAM変更、Cloud Buildを呼ばない。
 
 成功時はimageのsha256 digestだけをlogへ出し、projectを含む完全なimage参照はmaskして同stepの`IMAGE_DIGEST` outputへ保存する。実識別子・token・secret値をlogへ表示しない。確定digestを保護manifestのTerraform `image_digest`へ渡す。worker URLは確認済みproject number/region/サービス名から公式deterministic形式で予定値を確定できるが、初回配備後のlive URL一致確認までは配信を有効化しない。通常deployの既存サービス・IAM・revision・rollback検査は変更しない。
+
+## 非公開配備後のドメイン公開
+
+正式`realaddr-v1`のevent image-only workflowでimageを作成し、同一immutable digestを非公開Cloud Run 2サービスへ初回配備した。private構成のlive検証99件は通過した。Scheduler停止・dispatch無効を維持し、Cloud Run公開と公開後100件の確認は完了し、独自ドメインはrouting確認済み・TLS証明書発行待ち。上記の初期登録時点の記録は、その時点の検査範囲を示す。
+
+app rootのdomain mappingは`deploy_services && web_public && domain_mapping_reviewed`の場合だけ作成する。既定falseのreview flagを変更する前に、実domain所有権、専用web target、既存mapping不在とDNS recordをレビューする。固定`address.chain.tokyo`を同project/regionの専用webへ接続し、`force_override=false`・削除防止を維持する。DNSは変更せずユーザー本人が管理する。mappingとmanaged certificateのReady、公開HTTP確認が揃うまでは公開完了としない。
+
+web公開は`web_public=true`の場合だけ専用webの`invoker_iam_disabled=true`で行い、workerは常にfalseとする。`allUsers` grantは作成せず、共有organization policyを変更しない。Cloud Runの認証gateを通過する公開webでも、利用者・管理者・人間承認のserver側認可を維持する。[Cloud Run公式の公開方式](https://docs.cloud.google.com/run/docs/authenticating/public)。
+
+公開適用はwebのinvoker IAM check無効化1 updateとdomain mapping1 createで完了し、post-apply planは差分なし。公開後100件の確認が通過し、workerの未認証・operator呼出し拒否を維持した。独自ドメインはDomainRoutable=True、ReadyはCertificatePendingで、既存CNAMEは期待値と一致した。DNS変更は行っていない。TLS発行完了とスポンサー接続は未確認。

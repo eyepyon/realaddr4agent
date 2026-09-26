@@ -128,7 +128,11 @@ function validateService(service, policy, revision, role, config) {
   demand(settings?.serviceAccountName === `realaddr-event-${role}@${config.GCP_PROJECT_ID}.iam.gserviceaccount.com`, 'runtime_identity_mismatch');
   const maximum = role === 'web' ? 2 : 1;
   demand(Number(annotations['run.googleapis.com/minScale'] ?? 0) === 0 && Number(annotations['run.googleapis.com/maxScale']) === maximum && Number(revisionAnnotations['autoscaling.knative.dev/minScale'] ?? 0) === 0 && Number(revisionAnnotations['autoscaling.knative.dev/maxScale']) === maximum, 'scale_limits_mismatch');
-  demand(!annotations['run.googleapis.com/manualInstanceCount'] && !annotations['run.googleapis.com/invoker-iam-disabled'] && annotations['run.googleapis.com/ingress'] === 'all', 'unexpected_service_access_mode');
+  const invokerCheck = annotations['run.googleapis.com/invoker-iam-disabled'];
+  demand(invokerCheck === undefined || invokerCheck === 'false' || invokerCheck === 'true', 'unexpected_service_access_mode');
+  const invokerIamDisabled = invokerCheck === 'true';
+  demand(!annotations['run.googleapis.com/manualInstanceCount'] && annotations['run.googleapis.com/ingress'] === 'all', 'unexpected_service_access_mode');
+  demand(role !== 'worker' || !invokerIamDisabled, 'worker_invoker_iam_check_required');
   demand(settings.containerConcurrency === (role === 'web' ? 20 : 1) && settings.timeoutSeconds === 60 && settings.containers?.length === 1, 'runtime_limits_mismatch');
   const container = settings.containers[0];
   demand(container.resources?.limits?.cpu === '1' && container.resources?.limits?.memory === '512Mi' && revisionAnnotations['run.googleapis.com/cpu-throttling'] !== 'false' && revisionAnnotations['run.googleapis.com/startup-cpu-boost'] === 'false', 'request_based_compute_required');
@@ -146,7 +150,9 @@ function validateService(service, policy, revision, role, config) {
   for (const entry of entries) if (entry.valueFrom) demand(entry.valueFrom.secretKeyRef && /^realaddr-event-[a-z0-9-]+$/.test(entry.valueFrom.secretKeyRef.name ?? '') && /^[1-9][0-9]*$/.test(entry.valueFrom.secretKeyRef.key ?? ''), 'secret_reference_must_be_dedicated_numeric_version');
   const invokers = (policy.bindings ?? []).filter(item => item.role === 'roles/run.invoker');
   const expectedInvokers = role === 'worker' ? [`serviceAccount:realaddr-event-tasks@${config.GCP_PROJECT_ID}.iam.gserviceaccount.com`, `serviceAccount:realaddr-event-sched@${config.GCP_PROJECT_ID}.iam.gserviceaccount.com`].sort() : ['allUsers'];
-  demand(invokers.length === 1 && !invokers[0].condition && equal([...invokers[0].members].sort(), expectedInvokers), 'service_invoker_policy_mismatch');
+  // Public web supports either IAM allUsers or the service-level disabled IAM check.
+  // The disabled-check mode has no invoker binding; image updates preserve both settings.
+  demand(role === 'web' && invokerIamDisabled ? invokers.length === 0 : invokers.length === 1 && !invokers[0].condition && equal([...invokers[0].members].sort(), expectedInvokers), 'service_invoker_policy_mismatch');
   if (role === 'worker') demand(!(policy.bindings ?? []).some(item => item.members?.some(member => ['allUsers', 'allAuthenticatedUsers'].includes(member))), 'worker_must_remain_private');
   demand(service.status?.conditions?.some(item => item.type === 'Ready' && item.status === 'True') && Number(service.status.observedGeneration) === Number(service.metadata.generation), 'service_not_ready');
   const readyName = service.status.latestReadyRevisionName;

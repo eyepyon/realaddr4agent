@@ -89,3 +89,11 @@ T-00でWorld/Intercepta/facilitator/USDC/MultiBaas/ENSの実endpoint・address�
 同じ手動workflowで`operation=image-only`を選ぶと、正式terms・同SHAのCI・保護設定・承認・WIF条件を保ったまま、Artifact Registryへのevent image作成だけを行う。`operation`の既定は通常`deploy`で、不明値は拒否する。`DEPLOY_CONFIG`のJSON契約は同じで、image-only用に設定の必須項目や承認条件を省略しない。予定worker originは管理主体の確認したmetadataから確定し、後続の実配備で一致確認する。
 
 image-only用deploy権限はレビュー済みの本アプリrepositoryへ限定する。実repository metadataと必要なget/upload/download・image get権限をjobで確認し、Run APIとIAM mutationは実行しない。Run不在・初回Terraform plan・runtime secret version・公開/配信gateは管理主体の別工程である。通常deployの既存サービス検査とrollbackは維持する。image-only成功はCloud Run配備・公開・スポンサー接続成功を意味しない。[実行手順](../infra/README.md#初回event-image-only)を参照。
+
+## 初回配備とドメイン公開のgate
+
+正式`realaddr-v1`のevent image-only workflowが成功し、同一immutable digestを非公開web/workerへ配備した。private構成のlive検証99件は通過した。Schedulerは停止、Cloud Tasks dispatchは無効のままで、Cloud Run公開と公開後100件の確認は完了し、独自ドメインはrouting確認済み・TLS証明書発行待ち。
+
+Terraformの`domain_mapping_reviewed`は既定false。`deploy_services=true`と`web_public=true`に加えて、管理主体が実domain所有権、専用web target、既存mapping不在とDNS recordをレビューしてからtrueを指定する。固定公開originだけをmappingし、`force_override=false`と削除防止を維持する。DNSはユーザー本人が管理し、mapping/certificate Readyと公開HTTP確認を別gateとする。
+
+web公開は`web_public=true`の場合だけ専用webの`invoker_iam_disabled=true`で行い、workerは常にfalseとする。`allUsers` grantは作成せず、共有organization policyを変更しない。Cloud Runの認証gateを通過する公開webでも、利用者・管理者・人間承認のserver側認可を維持する。[Cloud Run公式の公開方式](https://docs.cloud.google.com/run/docs/authenticating/public)。
