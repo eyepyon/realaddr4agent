@@ -68,6 +68,12 @@ function publicError(error: unknown): string {
   const code = (error as { code?: string } | null)?.code ?? "";
   const messages: Record<string, string> = {
     location_conflict: "拠点が別の操作で更新されました。最新値を読み直してください。",
+    version_conflict: "拠点が別の操作で更新されました。最新値を読み直してください。",
+    pricing_unavailable: "住所契約の料金設定がまだ完了していません。設定完了後に登録してください。",
+    payment_dependency_unavailable: "決済・安全性確認の接続準備中のため、販売を再開できません。",
+    read_reconciliation_unavailable: "読取照合の実行は準備中です。現在の状態は一覧から確認できます。",
+    admin_session_required: "ログインの有効期限が切れました。もう一度ログインしてください。",
+    operator_session_required: "登録済みの運営者アカウントでログインしてください。",
     idempotency_conflict: "同じ操作IDに異なる内容が指定されました。対象の状態を再取得してください。",
     invalid_request: "入力内容を確認してください。",
     unauthorized: "ログインの有効期限が切れました。もう一度ログインしてください。",
@@ -230,7 +236,12 @@ export function AdminApp() {
       return true;
     } catch (error) {
       const status = (error as { status?: number } | null)?.status;
-      if (error instanceof TypeError || (status !== undefined && status >= 500)) {
+      const code = (error as { code?: string } | null)?.code;
+      const rejectedBeforeWrite = code !== undefined && ["pricing_unavailable", "payment_dependency_unavailable", "read_reconciliation_unavailable"].includes(code);
+      if (rejectedBeforeWrite) {
+        setPendingMutation(null);
+        setNotice({ kind: "error", text: publicError(error) });
+      } else if (error instanceof TypeError || (status !== undefined && status >= 500)) {
         setPendingMutation(mutation);
         setNotice({ kind: "warning", text: "通信結果を確認できません。新しい操作を作らず、同じ内容・同じ操作IDで再試行するか、対象状態を再取得してください。" });
       } else {
