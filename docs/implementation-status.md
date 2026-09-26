@@ -13,10 +13,14 @@
 | T-05/T-16 worker・outbox | 部分実装・ローカル検証済み | Firestore claim/generation/期限、保存済み支払いからの発行復旧、Cloud Tasks REST配信・結果照合とSchedulerの永続cursor。実送金・chain同期・実Cloud Tasks/Scheduler接続は未検証 |
 | T-08/T-18/T-19 UI | 部分着手 | 公開HTML/AEO、標準SaaSの画面、実APIへの接続。業務統合・実管理者ログインは別途 |
 | T-02/T-08/T-19 利用規約 | v1正式採用・event配信確認済み | realaddr-v1として15条を正式採用。単一Markdownから/termsへ初期HTML配信し、正式versionの同意欄・API/build/deploy設定を一致させる。提供開始準備と実利用者の同意確認は別途 |
-| T-00 外部連携 | 設定の有無を確認・実接続未実施 | MultiBaasの接続設定は一部入力済み。chain・registry設定、権限、実疎通は未確認。World、Intercepta、x402、ENS、管理者OIDCの必要設定も揃っていない。値を表示せずキーの有無だけ確認し、接続済みとは扱わない |
+| T-00 外部連携 | 一部のread-only疎通を確認・全体未完了 | MultiBaas status APIの認証・schema疎通は成功したが、Ethereum Sepolia chain IDとの不一致を確認。chain・registry設定、contract権限とread/write/event操作は未確認。World、Intercepta、x402、ENS、管理者OIDCの必要設定も揃っていない |
 | T-16 GCP | 独自ドメインHTTPS確認済み・全体未完了 | WIFとeventイメージbuild/push、runtime IAM検査、初回Cloud Run配備、公開後100項目と後続plan差分0を確認。TLS発行・独自ドメイン8経路の表示と拒否を確認。Tasks/Schedulerの実配信、実Firebase利用者client試験、外部業務連携は残件 |
 
 ## 検証の記録
+
+### T-00 MultiBaas status 照会
+
+既存の非追跡設定を使い、公式MultiBaas `GET /api/v0/chains/ethereum/status`を1回照会した。接続設定は有効で照会を試行し、HTTP 200を受信、応答schema検証も通過した。接続先chainはSepolia (chain ID 11155111)ではなかった。chain IDの実値は記録しておらず、推測しない。認証と応答schemaの疎通確認であり、contract read/write/event権限や処理は未検証。書き込み・送金は行っていない。販売・登録等の業務操作は引き続き閉じたままとする。
 
 ### T-16 eventサービスの初回配備
 
