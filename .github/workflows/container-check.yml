@@ -12,6 +12,7 @@ on:
       - 'Dockerfile'
       - '.dockerignore'
       - 'docs/openapi.json'
+      - 'docs/terms.md'
       - 'scripts/container-*.mjs'
       - '.github/workflows/container-check.yml'
   push:
@@ -26,6 +27,7 @@ on:
       - 'Dockerfile'
       - '.dockerignore'
       - 'docs/openapi.json'
+      - 'docs/terms.md'
       - 'scripts/container-*.mjs'
       - '.github/workflows/container-check.yml'
 

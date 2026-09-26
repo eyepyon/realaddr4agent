@@ -25,7 +25,7 @@ GitHub repositoryの **Settings → Environments → event** でmain限定の保
 | `CLOUD_RUN_WORKER_SERVICE` | `realaddr-event-worker` |
 | `ARTIFACT_REPOSITORY` | `realaddr-event-images` |
 | `DEPLOY_SERVICE_ACCOUNT` | `<deploy-sa>@<project-id>.iam.gserviceaccount.com`。既存accountの所有者・binding・実効権限を確認。Terraform lifecycle対象外 |
-| `TERMS_VERSION` | 確定済み正式version。手動入力`terms_version`と既存web runtimeに一致し、local demo versionを使用しない |
+| `TERMS_VERSION` | 確定済み正式version。手動入力`terms_version`と既存web runtimeに一致し、local demo versionや未施行の原案識別子を使用しない。[規約原案の採用準備](terms-review.md)を参照 |
 | `WORKER_URL` | 初回配備後に確認した専用workerの実HTTPS `run.app` origin |
 | `DEPLOYMENT_APPROVED` | 配備前レビューを済ませてから文字列`true`を指定。未設定時はcloud認証前に停止 |
 

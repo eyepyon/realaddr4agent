@@ -12,10 +12,19 @@
 | T-02/T-08 所有者向け状態取得 | 部分実装・ローカル検証済み | 注文・契約の一覧と詳細、ENS購入状態をFirestoreから返す。所有権、応答の公開field制限、署名付きcursor、既存CLIの状態取得を確認 |
 | T-05/T-16 worker・outbox | 部分実装・ローカル検証済み | Firestore claim/generation/期限、保存済み支払いからの発行復旧、Cloud Tasks REST配信・結果照合とSchedulerの永続cursor。実送金・chain同期・実Cloud Tasks/Scheduler接続は未検証 |
 | T-08/T-18/T-19 UI | 部分着手 | 公開HTML/AEO、標準SaaSの画面、実APIへの接続。業務統合・実管理者ログインは別途 |
+| T-02/T-08/T-19 利用規約 | 原案作成・画面反映済み | 15条の未施行原案を単一Markdownから/termsへ初期HTML配信。公開nav/footer・認証前の利用条件からリンク。正式version・施行・法務確認は未確定 |
 | T-00 外部連携 | 設定の有無を確認・実接続未実施 | MultiBaasの接続設定は一部入力済み。chain・registry設定、権限、実疎通は未確認。World、Intercepta、x402、ENS、管理者OIDCの必要設定も揃っていない。値を表示せずキーの有無だけ確認し、接続済みとは扱わない |
 | T-16 GCP | bootstrap初期登録済み・全体未完了 | 専用state bucket・Artifact Registry・WIFと限定IAMのTerraform、read-only metadata inventoryを追加。認証済みlive inventoryは20件成功・1件incomplete。live Rulesの初期適用・公式engine評価と実未認証拒否を確認。bootstrap5件の作成とlive設定確認済み。実効IAM、実Firebase利用者client試験、app resource、DNS/TLSは残件 |
 
 ## 検証の記録
+
+### 利用規約原案の反映
+
+[規約原案](terms.md)を新規作成し、[正式採用前の確認事項](terms-review.md)を整理した。同じ宛先への適用済み同意と支払いで決まる利用期間を分離し、testnet料金、任意ENS追加、限定的な発行失敗返金、実郵便を扱わない範囲を既存仕様と照合した。法的適法性の確認が済んだことを意味しない。
+
+Web/APIの型検査とlocal設定のWeb buildが通過した。原案の全非空行をescape後の生成HTMLと比較し、15条の全文、原案識別子、未施行・非同意対象の説明を初期HTMLで確認した。DB未接続のAPI injectで `/terms`・`/terms/` がともに200、HTML本文の一致、Content-Type、`X-Robots-Tag: noindex, follow` を確認した。HTMLのnoindex、公開ページのリンク、sitemap/llms.txtからの除外も確認した。deploy scriptの既存限定テスト10件も通過した。
+
+Docker contextとgit archiveの対象へ本文を追加し、本文変更でLinux container CIが動くようにした。正式TERMS_VERSIONや保護された設定を変更しておらず、event image作成・push・Cloud Run配備は行っていない。ブラウザの目視、公開originへの到達、正式版への同意・本文version対応の本番検証は未実施。タスク全体の完了チェックは付けない。
 
 Node.js 22.21.0、pnpm 11.19.0を確認。Firestore Emulator 1.22.0をGoogle公式配布物から取得し、SHA-256 `9b6498b7f62714d67f48f59b3818883cd682dbcd46b9f59511de81c97bb5166c`を検証した。Java 21でローカルの`127.0.0.1:8085`へ起動し、架空project `demo-realaddr-local`を使用する。実GCPのFirestoreや利用者データには接続していない。Emulatorを指定した`pnpm test`は2件通過、skip 0。内容はfloor境界/prefix拒否、challenge再使用拒否、tenant所有権、同一floorの並行予約、rate bucketと空き数である。payment・World・ENSの実接続結果を含まない。
 

@@ -233,6 +233,10 @@ export function createApp(config: ApiConfig, repository: RealAddrRepository | nu
   app.get('/', (request, reply) => staticRoute(request, reply, 'index.html', false));
   app.get('/developers', (request, reply) => staticRoute(request, reply, 'developers/index.html', false));
   app.get('/faq', (request, reply) => staticRoute(request, reply, 'faq/index.html', false));
+  for (const path of ['/terms', '/terms/']) app.get(path, (request, reply) => {
+    reply.header('X-Robots-Tag', 'noindex, follow');
+    return staticRoute(request, reply, 'terms/index.html', false);
+  });
   app.get('/app', (request, reply) => staticRoute(request, reply, 'app/index.html', true));
   app.get('/app/subscriptions', (request, reply) => staticRoute(request, reply, 'app/index.html', true));
   app.get('/app/payments', (request, reply) => staticRoute(request, reply, 'app/index.html', true));

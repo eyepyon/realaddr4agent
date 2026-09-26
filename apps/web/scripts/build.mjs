@@ -28,7 +28,7 @@ function setPublicMetadata(html, page) {
   const config = PUBLIC_PAGES[page];
   let result = html.replace(/<title>[^<]*<\/title>/, `<title>${config.title}</title>`);
   result = result.replace(/<meta name="description" content="[^"]*"\s*\/>/, `<meta name="description" content="${config.description}" />`);
-  result = result.replace("<meta name=\"theme-color\" content=\"#f5f7fa\" />", `<meta name="theme-color" content="#f5f7fa" />\n    <meta name="robots" content="index,follow" />\n    <meta property="og:type" content="website" />\n    <meta property="og:title" content="${config.title}" />\n    <meta property="og:description" content="${config.description}" />\n    <meta property="og:url" content="${canonicalUrl(page)}" />\n    <link rel="canonical" href="${canonicalUrl(page)}" />`);
+  result = result.replace("<meta name=\"theme-color\" content=\"#f5f7fa\" />", `<meta name="theme-color" content="#f5f7fa" />\n    <meta name="robots" content="${page === "terms" ? "noindex,follow" : "index,follow"}" />\n    <meta property="og:type" content="website" />\n    <meta property="og:title" content="${config.title}" />\n    <meta property="og:description" content="${config.description}" />\n    <meta property="og:url" content="${canonicalUrl(page)}" />\n    <link rel="canonical" href="${canonicalUrl(page)}" />`);
   const markup = renderPublicPage(page);
   result = result.replace(/<div id="root">[\s\S]*?<\/div>/, `<div id="root" data-prerender="public">${markup}</div>`);
   return result;
@@ -41,7 +41,7 @@ function setPrivateShell(html, title, message) {
   return result;
 }
 
-for (const page of ["home", "developers", "faq"]) {
+for (const page of ["home", "developers", "faq", "terms"]) {
   const output = page === "home" ? join(dist, "index.html") : join(dist, page, "index.html");
   if (page !== "home") await mkdir(dirname(output), { recursive: true });
   await writeFile(output, setPublicMetadata(baseHtml, page), "utf8");

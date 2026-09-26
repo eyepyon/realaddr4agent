@@ -40,6 +40,7 @@
 !packages/domain/src/**
 !docs/
 !docs/openapi.json
+!docs/terms.md
 !scripts/
 !scripts/container-build.mjs
 !scripts/container-entrypoint.mjs

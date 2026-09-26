@@ -66,6 +66,7 @@
   - docs/frontend.mdの標準SaaS部品を共有する。既存一覧に条件付きcursorとID一件照会を実装し、一覧要約だけの詳細panelと関連ID間の導線を用意する。管理者によるWorld承認代行、宛先全文取得、手動paid上書きを許可しない。
   - 最小確認: 管理ログインとAgent/未認証拒否、拠点の受付停止または再照合要求1件の監査。対応: R-16/R-17、A-45/A-46。
 - [ ] T-19 公開HTML・AEO・画面統一
+  - 利用規約原案はdocs/terms.mdを単一正本として/termsへ初期HTML配信し、未施行表示と利用者画面からの導線を設ける。正式version設定・正式同意・event配備とは分離し、採用前確認事項はdocs/terms-review.mdに記録する。
   - 依存: T-01、T-08。docs/frontend.mdとdocs/aeo.mdに従い/・/developers・/faqの初期HTML、metadata/JSON-LD、robots/sitemap/llms、OpenAPI導線を共通公開設定から生成する。
   - 公開originはhttps://address.chain.tokyo。公開/利用者/承認/adminで白/薄灰/青のSaaS UIを共有し、私的データをpublic HTMLへ含めない。SPA fallbackは既知routeだけ。
   - 最小確認: 狭い/広い画面を1回確認し、no-JS GETの本文と発見用ファイル、private noindex/no-storeを確認。ドメイン到達はT-16完了後。対応: R-17/R-18、A-47〜A-49。

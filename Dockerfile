@@ -4,7 +4,7 @@ RUN npm install --global pnpm@11.19.0 && test "$(pnpm --version)" = "11.19.0"
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY apps ./apps
 COPY packages ./packages
-COPY docs/openapi.json ./docs/openapi.json
+COPY docs/openapi.json docs/terms.md ./docs/
 COPY scripts/container-build.mjs ./scripts/container-build.mjs
 RUN pnpm install --frozen-lockfile
 ARG VITE_APP_ENV

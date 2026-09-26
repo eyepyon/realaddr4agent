@@ -30,6 +30,8 @@
 
 ## メタ情報と発見用ファイル
 
+利用規約の原案は[単一本文](terms.md)から `/terms` の初期HTMLを生成する。原案の全文はJavaScriptなしで読めるが、未施行のためHTMLとHTTP headerに `noindex,follow` を付け、sitemapとllms.txtから除外する。公開ナビゲーション・footerと利用者画面からリンクし、正式規約への同意と混同しない。`/terms/` も同じ本文を返し、canonicalは `/terms` とする。正式採用の手順・残件は[規約確認事項](terms-review.md)に記録する。
+
 各公開HTMLの初回レスポンスに固有の日本語 `<title>`、内容に一致する `meta description`、`<link rel="canonical" href="https://address.chain.tokyo/…">`、Open Graphの `og:title` / `og:description` / `og:url` / `og:type` を置く。Open Graph画像は実際の公開画像がある場合のみ指定する。トップに `WebSite` と `Service` のJSON-LDを置けるが、説明やOfferは画面に見える事実と一致させる。FAQPageを使う場合も表示本文と同じ回答だけにし、rich resultは保証しない。[Googleの構造化データ指針](https://developers.google.com/search/docs/appearance/structured-data/sd-policies)は表示内容との一致と正確性を求める。
 
 `/robots.txt` は公開ページを許可し、`Sitemap: https://address.chain.tokyo/sitemap.xml` を示す。`/sitemap.xml` には実際に200を返す公開canonical HTML (`/`、`/developers`、`/faq`) だけを載せる。`lastmod` は更新日時を正確に出せる場合のみ入れる。`/llms.txt` はこのプロジェクトの実装対象とし、短いサービス概要、現在の環境と制約、公開ガイド、`/openapi.json` の絶対リンクを載せる。llms.txtは検索エンジンの正式な優遇条件ではなく、crawlerによる読み取りや採用を前提にしない。`/openapi.json` は公開のOpenAPI 3.1契約を既存API仕様と同じ `application/json` で返す。公開HTMLにはOpenAPIへの可視リンクを置き、HTTP `Link: </openapi.json>; rel="service-desc"; type="application/json"` を付ける。RFC 9727の `/.well-known/api-catalog` は必要なら後で追加できるが、ハッカソンの必須範囲にはしない。[RFC 9727](https://www.rfc-editor.org/rfc/rfc9727.html)を採用するときはlinksetの形式とmedia typeを満たす。
@@ -55,6 +57,7 @@ AIエージェントによる日本の住所利用契約のためのサービス
 | Route | 状態・Content-Type | Cache-Control | インデックス方針 |
 | --- | --- | --- | --- |
 | `/`, `/developers`, `/faq` | 200 `text/html; charset=utf-8`。初回HTMLに本文とリンク | `public, max-age=300` を開始値とし更新時に再確認 | canonicalを持つ公開ページ |
+| `/terms`, `/terms/` | 200 `text/html; charset=utf-8`。原案全文と未施行表示 | `public, max-age=300` | `noindex,follow`。原案の間はsitemap/llms.txtから除外 |
 | `/assets/*` | 存在するassetは200で正しいCSS/JS/画像型。未知assetは404 | hash付き名は `public, max-age=31536000, immutable` | HTMLに必要なassetをbotから遮断しない |
 | `/robots.txt`, `/llms.txt` | 200 `text/plain; charset=utf-8` | `public, max-age=300` | 公開説明のみ |
 | `/sitemap.xml` | 200 `application/xml; charset=utf-8` | `public, max-age=300` | 公開canonical HTMLだけを列挙 |

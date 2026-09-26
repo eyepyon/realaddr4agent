@@ -25,6 +25,7 @@ GCP登録準備として[Terraform bootstrap](infra/README.md)と[読み取り�
 13. [公開ページ・AEO仕様](docs/aeo.md)
 14. [料金・ENS追加購入](docs/pricing.md)
 15. [event環境の設定値・GitHub Actions投入先](docs/deployment-configuration.md)
+16. [利用規約原案](docs/terms.md)（未施行）/ [正式採用前の確認事項](docs/terms-review.md)
 
 ## 3つの開発エージェントから使う
 

@@ -4,7 +4,7 @@ export const OPERATOR_URL = "https://jgrec.jp/";
 export const PAYMENT_NETWORK = "Base Sepolia";
 export const ENS_NETWORK = "Ethereum Sepolia";
 
-export type PublicPageKey = "home" | "developers" | "faq";
+export type PublicPageKey = "home" | "developers" | "faq" | "terms";
 
 export const PUBLIC_PAGES: Record<PublicPageKey, { path: string; title: string; description: string }> = {
   home: {
@@ -21,6 +21,11 @@ export const PUBLIC_PAGES: Record<PublicPageKey, { path: string; title: string; 
     path: "/faq",
     title: "よくある質問 | RealAddr for Agents",
     description: "仮想区画、料金、World認証、ENS追加購入、郵便機能とネットワークについて説明します。",
+  },
+  terms: {
+    path: "/terms",
+    title: "利用規約原案 | RealAddr for Agents",
+    description: "正式な規約として未確定の利用規約原案です。施行日と正式な同意対象は未確定です。",
   },
 };
 
@@ -46,11 +51,13 @@ export function getPublicPage(path: string): PublicPageKey | undefined {
   if (path === "/" || path === "") return "home";
   if (path === "/developers" || path === "/developers/") return "developers";
   if (path === "/faq" || path === "/faq/") return "faq";
+  if (path === "/terms" || path === "/terms/") return "terms";
   return undefined;
 }
 
 export function sitemapXml(): string {
   const urls = Object.values(PUBLIC_PAGES)
+    .filter((page) => page.path !== "/terms")
     .map((page) => `  <url><loc>${PUBLIC_ORIGIN}${page.path}</loc></url>`)
     .join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;

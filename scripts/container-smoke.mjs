@@ -41,6 +41,10 @@ async function health(id, role) {
     if (response.headers.get('cache-control') !== 'no-store') throw new Error('health_cache_policy');
     if (${JSON.stringify(role)} === 'web') {
       if (response.status !== 200 || body.status !== 'ok') throw new Error('web_health_failed');
+      const terms = await fetch('http://127.0.0.1:8080/terms', { signal: AbortSignal.timeout(2000) });
+      const html = await terms.text();
+      if (terms.status !== 200 || !html.includes('realaddr-event-draft-1') || !html.includes('第15条')) throw new Error('draft_terms_not_served');
+      if (!terms.headers.get('x-robots-tag')?.includes('noindex') || !/<meta[^>]+name="robots"[^>]+content="[^\"]*noindex/.test(html)) throw new Error('draft_terms_must_be_noindex');
     } else {
       if (response.status !== 401 || body.error !== 'unauthorized') throw new Error('worker_auth_not_closed');
     }
