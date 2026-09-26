@@ -1,6 +1,6 @@
 # 未解決事項一覧
 
-このリポジトリは仕様のみで、アプリ、provider接続、GCP resource、公開deployはいずれも未実装・未検証。以下は現時点で実作業前に確認が必要な項目であり、すべての開発を止めるものではない。詳細契約・運用手順・受入条件は参照先を正本とする。
+アプリは部分実装済みで、ローカルの基礎検証を実施した。外部providerの実接続とGCP公開は未確認。以下は引き続き確認が必要な項目であり、すべての開発を止めるものではない。詳細契約・運用手順・受入条件は参照先を正本とする。
 
 最優先はU-03〜U-07の外部疎通。GCPへのapply前にU-08、公開・提出までにU-01/U-09〜U-11を完了する。U-02の通常返金方針と発行失敗時の自動返金条件は決定済みで、実鍵・asset・finalityの疎通はU-05に含める。画面/DBなど独立部分は並行して実装できる。
 
@@ -10,7 +10,7 @@
 | U-03 | World client設定、callback登録、eventで使うproof/auth手順とfresh認証確認を取得・検証する。 | 外部設定/実接続。T-03 live前 | [operations O-03](operations.md)、[integrations](integrations.md) |
 | U-04 | Intercepta live key、実schema/verdict、対象network、test addressのallow/denyを取得・検証する。 | 外部資格情報/実接続。T-04前 | [operations O-04](operations.md)、[integrations](integrations.md) |
 | U-05 | Base SepoliaのUSDC contract/decimals、facilitatorと認証、finality、送金結果不明時の照合経路を固定・実測する。 | 外部設定/実接続。T-05 live前 | [operations O-05](operations.md)、[pricing](pricing.md)、[acceptance](acceptance.md) |
-| U-06 | MultiBaas Sepolia deployment、必要role/permission、署名方式、read/write/eventの実接続を確認する。 | 外部設定/実接続。T-07完了前 | [operations O-06/O-11](operations.md)、[ensv2](ensv2.md) |
+| U-06 | MultiBaasの接続設定は一部入力済み。Sepolia deployment、必要role/permission、chain・registry設定、署名方式、read/write/eventの実疎通は未確認。 | 外部設定/実接続。T-07完了前 | [operations O-06/O-11](operations.md)、[ensv2](ensv2.md) |
 | U-07 | ENS parent名と運営鍵、公式deployment/ABI/SDK、親→拠点→name registry接続、gas実測と拠点別registry登録receiptを確定する。 | 外部設定/実接続。T-12/13完了前 | [operations O-09–O-11](operations.md)、[ensv2](ensv2.md)、[pricing](pricing.md) |
 | U-08 | 共有GCP projectの実resource/owner、Firestore location/rules/index、IAM/API、予算・quota、専用名の空き、`DEPLOY_SERVICE_ACCOUNT`で指定したデプロイ用service accountの所有者・binding・実効権限をlive inventoryで調べる。専用web/worker/Tasks/Scheduler identityと専用WIFは設計済み。apply前に設定・IAM計画とFirestore client Rulesの直接アクセス可否を確認し、専用runtime主体の作成後・業務データ取扱い前にその実IAM権限を別途確認する。 | apply前の共存ゲートと、専用SA作成後の稼働前ゲート。いずれも未実施で、GCP変更も未実施 | [operations O-12](operations.md)、[infrastructure](infrastructure.md)、[acceptance A-41](acceptance.md) |
 | U-09 | 本アプリ専用Google OIDC client/callbackと初期運用者allowlistを設定する。 | 外部設定。T-18前 | [operations O-13](operations.md)、[admin](admin.md) |

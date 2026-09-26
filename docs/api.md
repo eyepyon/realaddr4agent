@@ -1,6 +1,12 @@
 # HTTP / CLI契約
 
-本書と[OpenAPI](openapi.json)は実装予定のv1契約。外部ベンダーAPIのschemaではない。郵便機能は承認・転送可表示・人間の転送先保存のみ。
+本書と[OpenAPI](openapi.json)はv1のHTTP契約。外部ベンダーAPIのschemaではない。郵便機能は承認・転送可表示・人間の転送先保存のみ。現在の実装可否は[README](../README.md)と[実装状況](implementation-status.md)を参照する。
+
+## 現在のAPI提供範囲
+
+Agent認証済みowner向けに、payment-intentとsubscriptionの一覧・詳細read、および`GET /v1/subscriptions/{subscriptionId}/ens`を提供する。これらは認証主体のtenantとagentに束縛し、一覧は`createdAt DESC, document ID DESC`（orders）または`updatedAt DESC, document ID DESC`（leases）で安定順に返す。cursorは署名済みopaque値で、owner、endpoint、sort、limitに束縛する。limitは1〜100、default 20。次ページ有無の判定にはlookaheadを1件だけ読む。DTOは明示的な公開field allowlistから組み立て、暗号文、転送先全文、World識別子、authorization nonceを含めない。
+
+このread実装は購入/更新/ENS購入またはpay mutationを有効化しない。`GET /v1/subscriptions/by-ens`は503で利用不可。ENS未購入または`pending_payment`は`not_purchased`、支払済みで外部検証未接続の状態は`pending`とし、外部登録・controller・leaseを実検証できない限り`ready`を返さない。返金済みは`disabled`。mail profileは現行実装では`disabled`のみで、保存状態がenabledでもhuman approval統合がないためfail closedで503とする。人間承認・宛先保存と管理APIの範囲は別契約のまま閉じている。
 
 ## 共通
 
@@ -29,11 +35,11 @@ location/payment intent/subscription本体の識別子はid。参照先とpath p
 | GET /v1/locations | Agent | 公開拠点・plan。locations/nextCursorを返す |
 | GET /v1/locations/{locationId}/floors/{floor} | Agent | 仮想区画の現在の空き状態。availableのみ返し、予約の確約はしない |
 | POST /v1/payment-intents | Agent | purchase/renewまたは既存契約への一回限りのens_addon intent。区画予約はpurchaseのみ |
-| GET /v1/payment-intents | Agent | 自分のintent一覧。createdAt降順、paymentIntents/nextCursor。署名payloadは返さない |
-| GET /v1/payment-intents/{intentId} | owner Agent | 状態・リスク・結果 |
+| GET /v1/payment-intents | owner Agent | 実装済みread。自分のintent一覧。createdAt降順、paymentIntents/nextCursor。署名payloadは返さない |
+| GET /v1/payment-intents/{intentId} | owner Agent | 実装済みread。状態・リスク・結果 |
 | POST /v1/payment-intents/{intentId}/pay | owner Agent | preconditions→402→決済→200/202 |
-| GET /v1/subscriptions | Agent | 自身の契約。subscriptions/nextCursorを返す |
-| GET /v1/subscriptions/{subscriptionId} | owner Agent | 住所/期限/chain/転送可/宛先有無 |
+| GET /v1/subscriptions | owner Agent | 実装済みread。自身の契約。subscriptions/nextCursorを返す |
+| GET /v1/subscriptions/{subscriptionId} | owner Agent | 実装済みread。住所/期限/chain/転送可/宛先有無 |
 | POST /v1/subscriptions/{subscriptionId}/mail-approval | owner Agent | mail.enable承認URL発行。forceReauthで人間session再取得も可 |
 | POST /v1/approvals/{approvalId}/owner-challenge | browser session+CSRF | ownerWallet署名要求 |
 | POST /v1/approvals/{approvalId}/owner-proof | browser session+CSRF | 一回限りwallet署名検証 |
@@ -107,7 +113,7 @@ Agentにapproval.approve、mail-destination.writeを付与しない。clientのh
 | --- | --- | --- |
 | GET /v1/ens/resolve?name=... | public・rate limited | 公式ENSv2とcontroller/契約状態を照合しverified/pending/invalidを返す |
 | GET /v1/subscriptions/by-ens?name=... | owner Agent | verifiedな自分の契約を既存Subscription shapeで取得 |
-| GET /v1/subscriptions/{subscriptionId}/ens | owner Agent | 名前発行・同期状態 |
+| GET /v1/subscriptions/{subscriptionId}/ens | owner Agent | 実装済みread。名前発行・同期状態。外部検証なしではreadyを返さない |
 | POST /v1/subscriptions/{subscriptionId}/ens-description-transaction | owner Agent + Idempotency-Key | description更新のunsigned txを構築。送信/保存完了ではない |
 
 public responseは内部lease UUID、営業所住所、転送先、World認証、郵便設定を含めない。verifiedは名前と有効契約の一致のみを意味する。RPC停止は503、実在するが同期中は200/pending、存在しない/期限切れ/検証不一致は200/invalidと理由を返す。by-ensは自分のbindingを確認後もpendingなら409、invalidなら410。他者/不明は404。

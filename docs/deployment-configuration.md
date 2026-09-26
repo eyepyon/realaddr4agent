@@ -35,8 +35,9 @@ workflowでは例えば`${{ vars.GCP_PROJECT_ID }}`と`${{ secrets.DEPLOY_SERVIC
 | 分野 | キーとevent用の値例・確認事項 |
 | --- | --- |
 | 環境・公開 | `APP_ENV=event`、`PUBLIC_ORIGIN=https://address.chain.tokyo`、`GCP_PROJECT_ID=<event-project-id>`、`GCP_REGION=<verified-region>`、`FIRESTORE_DATABASE_ID=(default)`、`FIRESTORE_COLLECTION_PREFIX=realaddr_event_`、`RESOURCE_PREFIX=realaddr-event` |
+| Cloud Tasks dispatch | `CLOUD_TASKS_DISPATCH_ENABLED=false`をdefaultとする。`true`は`APP_ENV=event`のみ許可し、`GCP_REGION`、`TASKS_QUEUE=realaddr-event-jobs`、workerと同一projectであること、専用worker runtime identity、`WORKER_URL`のHTTPS origin、専用`TASK_INVOKER_SA`を構成検査する。key file、service account key、ADC fallbackを使用しない。Cloud Run metadata serverで得るruntime identity emailを検証する |
 | 認証・価格profile | `TERMS_VERSION=<published-terms-version>`、`PRICE_PROFILE=testnet`、`PRICING_VERSION=<reviewed-price-version>`。eventの`RATE_LIMIT_HMAC_KEY`は下の秘密設定に置く。mainnet profileを指定しても販売を開始しない |
-| app resource | `GCS_BUCKET=<app-private-bucket>`、`TASKS_QUEUE=<app-queue>`、`WORKER_URL=<private-worker-url>`、`TASK_INVOKER_SA=<new-app-task-invoker>`、`SCHEDULER_INVOKER_SA=<new-app-scheduler-invoker>`。実IDはinventory後のmanifestから取得。`ARTIFACT_REPOSITORY`はActionsのimage push先でありruntimeに不要 |
+| app resource | `GCS_BUCKET=<app-private-bucket>`、`TASKS_QUEUE=realaddr-event-jobs`、`WORKER_URL=<verified-https-worker-origin>`、`TASK_INVOKER_SA=<new-app-task-invoker>`、`SCHEDULER_INVOKER_SA=<new-app-scheduler-invoker>`。実IDはinventory後のmanifestから取得。`ARTIFACT_REPOSITORY`はActionsのimage push先でありruntimeに不要 |
 | 上限 | `DAILY_NEW_LEASE_LIMIT=100`。`BILLING_ALERT_USD=5`は本アプリの月次運用目標であり、共有projectの既存予算通知や課金停止を設定するキーではない |
 | World・risk | `WORLD_ISSUER=<verified-issuer>`、`WORLD_CLIENT_ID=<event-client-id>`、`WORLD_REDIRECT_URI=https://address.chain.tokyo/auth/world/callback`、`INTERCEPTA_BASE_URL=<verified-live-api-url>`。World issuerとIntercepta endpoint/schemaはT-00の実接続で確定 |
 | x402決済 | `PAYMENT_NETWORK=<verified-base-sepolia-caip2>`、`PAYMENT_ASSET=<verified-base-sepolia-usdc-address>`、`PAYMENT_DECIMALS=6`、`PAYMENT_PAY_TO=<reviewed-receiving-address>`、`X402_FACILITATOR_URL=<verified-facilitator>`、`PAYMENT_FINALITY_POLICY=<tested-policy>`。Base Sepoliaのasset・facilitator・receipt/finalityはT-00で実測 |
@@ -44,6 +45,8 @@ workflowでは例えば`${{ vars.GCP_PROJECT_ID }}`と`${{ secrets.DEPLOY_SERVIC
 | LeaseRegistry・MultiBaas | `MULTIBAAS_URL=<verified-deployment-url>`、`MULTIBAAS_CHAIN_LABEL=<verified-sepolia-label>`、`REGISTRY_ADDRESS=<verified-contract-address>`、`REGISTRY_CHAIN_ID=11155111`、`REGISTRY_CONTRACT_LABEL=<verified-label>`。登録先と権限は実deploymentで確認 |
 | ENSv2 | `ENS_CHAIN_ID=11155111`、`ENS_RPC_URL=<verified-sepolia-rpc>`、`ENS_PARENT_NAME=<controlled-parent-name>`、`ENS_PARENT_REGISTRY=<verified-address>`、`ENS_USER_REGISTRY=<verified-address>`、`ENS_NAME_CONTROLLER=<verified-address>`、`ENS_UNIVERSAL_RESOLVER=<verified-address>`、`ENS_FACTORY=<verified-address>`、`ENS_RESOLVER_IMPLEMENTATION=<verified-address>`、`ENS_FINALITY_POLICY=<tested-policy>`。親名の制御・公式deployment/ABI・gas確認までは販売を無効にする |
 | 管理者OIDC | `ADMIN_GOOGLE_CLIENT_ID=<app-client-id>`、`ADMIN_OIDC_REDIRECT_URI=https://address.chain.tokyo/auth/admin/callback`。本アプリ専用clientの実値・callback登録を確認し、server側の保護設定から注入。World session/consentとは独立 |
+
+Cloud Tasks dispatchはlocal/defaultで無効とし、event設定のCloud Tasks/worker接続が検証されるまで有効化しない。`WORKER_URL`は完全なHTTPS originとして検査し、末尾path等を補完・推測せず、設定した専用worker URLと完全一致させる。Tasks HTTP targetのaudienceと宛先originは同じworker originに固定する。dispatchが有効な構成でも、queueにtaskが存在することはoutbox jobの業務完了やpayment successを意味しない。Cloud Tasks/Scheduler/GCPへの実接続やIAM/Rules gateの確認は未実施・未検証である。
 
 Web buildは`VITE_APP_ENV=local|event`と`VITE_TERMS_VERSION=<published-terms-version>`をbuild時に固定する。event buildは正式なterms versionと公開設定が確認できるまで実施しない。ブラウザへsecretを含む`VITE_`変数を渡さない。
 

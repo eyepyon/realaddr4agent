@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node22 --external:fastify --external:@google-cloud/firestore --external:viem --outfile=dist/index.js",
-    "typecheck": "tsc --project tsconfig.json"
+    "typecheck": "tsc --project tsconfig.json",
+    "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
     "@realaddr/db": "workspace:*",

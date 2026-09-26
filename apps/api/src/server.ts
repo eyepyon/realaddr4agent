@@ -4,7 +4,8 @@ import { extname, resolve } from 'node:path';
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import type { Firestore } from '@google-cloud/firestore';
 import { DomainError, validateFloor } from '@realaddr/domain';
-import { RealAddrRepository, type AgentPrincipal } from '@realaddr/db';
+import { OwnerReadRepository, RealAddrRepository, type AgentPrincipal } from '@realaddr/db';
+import { ownerCursor, uuidPattern } from './owner-cursor.js';
 import { recoverMessageAddress } from 'viem';
 import type { ApiConfig } from './config.js';
 import { repoRoot } from './paths.js';
@@ -40,6 +41,7 @@ export function createApp(config: ApiConfig, repository: RealAddrRepository | nu
   const app = Fastify({ logger: false, genReqId: () => randomUUID(), bodyLimit: 64 * 1024 });
   const root = repoRoot();
   const webDist = resolve(root, 'apps/web/dist');
+  const ownerReads = db ? new OwnerReadRepository(db, config.collectionPrefix) : null;
   const cursorSign = (id: string) => createHmac('sha256', config.rateLimitKey).update(`location:${id}`).digest('hex');
   const cursorEncode = (id: string) => Buffer.from(JSON.stringify({ id, mac: cursorSign(id) })).toString('base64url');
   const cursorDecode = (value: unknown): string | undefined => {
@@ -161,12 +163,39 @@ export function createApp(config: ApiConfig, repository: RealAddrRepository | nu
     await principal(request);
     return failure(reply, request, 503, 'integration_unavailable', 'Integration is not configured', true);
   };
+  for (const kind of ['orders', 'subscriptions'] as const) {
+    const path = kind === 'orders' ? '/v1/payment-intents' : '/v1/subscriptions';
+    app.get(path, async request => {
+      const identity = await principal(request);
+      if (!ownerReads) throw new DomainError('configuration_incomplete', 503);
+      const q = object(request.query, ['limit', 'cursor']);
+      if (q.limit !== undefined && (typeof q.limit !== 'string' || !/^[1-9][0-9]*$/.test(q.limit))) throw new DomainError('invalid_request', 422);
+      const limit = q.limit === undefined ? 20 : Number(q.limit);
+      if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new DomainError('invalid_request', 422);
+      const codec = ownerCursor(config.rateLimitKey, kind, identity, limit);
+      const cursor = codec.decode(q.cursor);
+      const options = cursor ? { limit, cursor } : { limit };
+      const result = kind === 'orders' ? await ownerReads.listOrders(identity, options) : await ownerReads.listSubscriptions(identity, options);
+      return { [kind === 'orders' ? 'paymentIntents' : 'subscriptions']: result.items, nextCursor: result.nextCursor ? codec.encode(result.nextCursor) : null };
+    });
+  }
+  app.get('/v1/subscriptions/by-ens', protectedUnavailable);
+  for (const [path, param, kind] of [
+    ['/v1/payment-intents/:intentId', 'intentId', 'order'],
+    ['/v1/subscriptions/:subscriptionId', 'subscriptionId', 'subscription'],
+    ['/v1/subscriptions/:subscriptionId/ens', 'subscriptionId', 'ens'],
+  ] as const) app.get<{ Params: Record<string, string> }>(path, async request => {
+    const identity = await principal(request);
+    object(request.query, []);
+    const id = request.params[param];
+    if (!id || !uuidPattern.test(id)) throw new DomainError('invalid_request', 422);
+    if (!ownerReads) throw new DomainError('configuration_incomplete', 503);
+    return kind === 'order' ? ownerReads.getOrder(identity, id) : kind === 'ens' ? ownerReads.getEns(identity, id) : ownerReads.getSubscription(identity, id);
+  });
   for (const [method, path] of [
-    ['POST', '/v1/payment-intents'], ['GET', '/v1/payment-intents'],
-    ['GET', '/v1/payment-intents/:intentId'], ['POST', '/v1/payment-intents/:intentId/pay'],
-    ['GET', '/v1/subscriptions'], ['GET', '/v1/subscriptions/by-ens'],
-    ['GET', '/v1/subscriptions/:subscriptionId'], ['POST', '/v1/subscriptions/:subscriptionId/mail-approval'],
-    ['GET', '/v1/subscriptions/:subscriptionId/ens'], ['POST', '/v1/subscriptions/:subscriptionId/ens-description-transaction'],
+    ['POST', '/v1/payment-intents'], ['POST', '/v1/payment-intents/:intentId/pay'],
+    ['POST', '/v1/subscriptions/:subscriptionId/mail-approval'],
+    ['POST', '/v1/subscriptions/:subscriptionId/ens-description-transaction'],
   ] as const) app.route({ method, url: path, handler: protectedUnavailable });
   app.get('/v1/ens/resolve', async (request, reply) => failure(reply, request, 503, 'ens_dependency_unavailable', 'ENS verification is unavailable', true));
   for (const [method, path] of [

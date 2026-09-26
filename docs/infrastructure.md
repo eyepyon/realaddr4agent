@@ -13,7 +13,7 @@
 | 業務データ | 既存projectのFirestore Native mode / Standard edition | 共有の`(default)` databaseを参照。全論理collectionに`realaddr_event_`を付け、DB本体とrulesは既存の管理主体が所有 |
 | ファイル | Cloud Storage Standard、private bucket | 匿名化したデモ証跡と、必要時の暗号化snapshot。public access prevention / uniform access |
 | 遅延実行・再送 | Cloud Tasksのqueue1個 | IDだけをpayloadにする。決済照合・MultiBaas・ENSの小さな処理単位 |
-| 取りこぼし回復 | Cloud Schedulerのjob1個 | 5分ごとにworkerのsweep endpointを呼ぶ。期限掃除・未配信outbox・照合待ちを小分けに検出 |
+| 取りこぼし回復 | Cloud Schedulerのjob1個 | 5分ごとにworkerのsweep endpointを呼ぶ。期限掃除・未配信outbox・照合待ちをcursor付きのbounded pageで検出 |
 | CI/CD | GitHub Actions → Artifact Registry → Cloud Run | Linux標準runner、OIDC/Workload Identity Federation、image digest固定 |
 | 秘密 | Secret Manager | provider credential、session/暗号化鍵、事業者testnet署名鍵を権限別に管理 |
 
@@ -70,7 +70,7 @@ flowchart LR
 ## Cloud Runの実行条件
 
 - 2サービスともrequest-based billing、min instances=0。web: max instances=2 / concurrency=20、worker: max instances=1 / concurrency=1。各1 vCPU / 512 MiBを開始点とし、実測OOMがあればmemoryだけ見直す。
-- HTTP timeout=60秒、処理内部の期限=40秒。chain finalityを待ち続けず、未確定を保存して次のtaskを予約する。リクエスト終了後のCPUやメモリ内timerに業務処理を依存させない。
+- HTTP timeoutの初期目標=60秒。workerは25秒のbounded sweep予算など処理ごとの期限を実装で明示し、chain finalityを待ち続けず未確定を保存して次のtaskを予約する。Firestore deadline等を含む実行上限が未実装の間、40秒の処理期限を保証済みとして扱わない。リクエスト終了後のCPUやメモリ内timerに業務処理を依存させない。
 - min=0はコールドスタートを許容する選択。read p95目標はwarmとcoldを分けて測り、無料運用と常時500ms応答を同時保証しない。
 - health checkでDB全件走査・provider呼び出しをしない。keep-alive目的の定期アクセスは置かない。Schedulerの回復処理にも実行分の使用量は発生する。
 - Cloud Tasksは初期max concurrent dispatches=1、max dispatches/sec=1、指数backoff、max attempts=10。業務outbox側も試行数・nextAttemptAt・上限到達後のmanual_reviewを保持し、sweepが無限に新taskを作らない。
@@ -80,6 +80,8 @@ flowchart LR
 ## Firestoreのデータ契約
 
 [design.md](../.kiro/specs/realaddr/design.md)の論理collection定義を使用する。`FIRESTORE_DATABASE_ID=(default)`、基本の`FIRESTORE_COLLECTION_PREFIX=realaddr_event_`とし、repositoryの単一mapperだけが論理名を物理collection ID `realaddr_event_<logical>`へ変換する。admin、guard、outbox、session、rate limitなど例外を作らず、本アプリの全root collectionに適用する。衝突時に明示suffixを採用した場合も、そのmanifestのprefixを単一mapper・index設定・cleanupで共用する。直接のcollection名指定を他の実装箇所に散らさない。prefixは同一DB内の名前衝突を防ぐもので、IAMまたはSecurity Rulesによる隔離を保証しない。documentにはschemaVersionを持たせる。時刻はFirestore Timestamp / APIではUTC ISO 8601。金額はcanonicalな10進整数文字列として保存し、演算・上限検証はbigintで行う。JS numberでtoken額を扱わない。slotはrepositoryの書込境界でも整数1..65535を検証する。[Firestore複数DB管理](https://firebase.google.com/docs/firestore/manage-databases)によるとclient libraryは通常`(default)`へ接続するため、実行時のdatabase IDも明示的に検査する。
+
+owner向けorder/lease一覧readの複合index契約は、物理collection group `realaddr_event_orders`で`tenantId ASC, agentId ASC, createdAt DESC, __name__ DESC`、`realaddr_event_leases`で`tenantId ASC, agentId ASC, updatedAt DESC, __name__ DESC`とする。cursor pagingはこの順序とlimitに固定し、署名cursorをowner/endpoint/sort/limitへ束縛する。これはアプリ側のindex定義契約であり、GCP上へのindex作成・適用は未実施。index変更は本アプリprefix付きcollection groupだけを対象とする。
 
 本アプリはブラウザ/AgentからFirestoreへ直接アクセスしない。既存`(default)` DB全体のSecurity Rulesは共有の管理主体が所有し、本アプリから配信・全面置換しない。T-16ではlive rulesを読み取り、Firebase clientなどRulesが適用される経路で本アプリprefixの代表パスに対する未認証・他利用者のread/write拒否を少数確認する。rulesの読取・評価ができなければ共存ゲートを通さない。server SDKやIAM認証RESTによる試行はRulesを迂回するため、この確認の代わりにならない。本アプリのprefix下が既存rulesの広い`allow`でclientからアクセス可能なら共存ゲートを失敗とし、共有管理主体が既存サービスを壊さない形で修正してから進める。重複する`allow`はORで評価され、追加の`deny`で広い許可を取り消せない。[Rules評価](https://firebase.google.com/docs/rules/rules-behavior)、[Rulesの配信](https://firebase.google.com/docs/firestore/security/get-started)。APIとworkerは専用service accountのIAMでserver SDKを使用する。[server SDKはSecurity Rulesを迂回する](https://firebase.google.com/docs/firestore/security/rules-conditions)ため、すべての更新を認可付きrepository経由にする。管理スクリプトも同じvalidationを使う。既存の広いproject IAMがあればprefix外へのserver accessも可能なので、権限の実態をT-16で確認する。apply前は既存resourceのread-only inventory、IAM管理方法とplan、Rules適用clientの拒否を確認する。新規web/worker runtime service accountは専用resourceの作成後、顧客データ投入・公開業務routeの有効化前に実identityで共有DBへの必要操作と対象外DBへの拒否を確認する。運用者credentialでの成功はruntime主体の権限証拠にならず、documentのNOT_FOUNDはIAM拒否の証拠にならない。
 
@@ -121,21 +123,26 @@ Firestore transactionは競合時にcallbackが再実行される。全readをwr
 
 paginationはcursor+limit（初期20、最大100）。lease一覧はagentId+updatedAt、intent一覧はagentId+createdAt（同時刻はdocument IDで安定順序）、処理待ちはstate+availableAt、hold掃除はstatus+expiresAt、監査はresourceId+occurredAtを主要queryとする。管理一覧は拠点status、決済/契約status・locationId（内部buildingId）、処理projection kind/status、監査targetType+targetIdの実際に使う完全一致filterと時刻降順+document ID降順だけに必要な複合indexを用意する。ID一件照会はdocument直接読取とし、処理projectionもprefix mapperを通す。必要な複合indexとfield exemptionは`realaddr_event_`で始まる本アプリ専用collection groupのものだけをTerraformのapp stateで管理できる。他サービスのindex削除・変更、全DB index定義の包括的なFirebase deployは禁止する。大きいpayload、ciphertext、bitmap、responseSnapshotは本アプリcollectionでindex対象外。配列へ監査履歴やjob全件を蓄積しない。
 
-sweepは各query最大20件を処理し、残りはcursor付きtaskへ分割する。常時snapshot listener、collection全走査、offset paginationは禁止。UI/CLIはpending時だけ5秒→最大30秒のbackoffでpollし、完了・非表示時は停止。rate limitは共有Firestoreの時間bucketをtransaction更新する（IPは鍵付きhash）。メモリ制限は補助とし、複数instanceで回避できないことを検証する。
+sweepは5分ごとのScheduler tickあたり一つのbounded pageだけを処理する。各cycle開始時のcutoff `through`を固定し、処理待ちは`state in [pending, processing]`、`availableAt <= through`、`availableAt ASC, document ID ASC`の順で最大20件を取得する。`ops_metrics`のprefix付きdocumentにsweep claim（60秒）、固定cutoff、永続cursorを保存し、重複Scheduler要求をfenceする。pageを使い切った後にcursorを保存し、次のtickで同じcutoffの続きから読む。query末尾に達したらcursorをwrapして先頭へ戻し、新cycleのcutoffを取り直す。これにより新規jobの流入で一つの巡回が延び続けることを防ぎ、前のpageで保留したjobも次の巡回で再訪する。workerはdispatch reconciliation operationsを最大5並列で起動し、25秒の処理予算後は新規jobを開始しない。開始済み呼出しとDB更新をawaitし、未処理entryをcursorの次周回で再訪する。skip/failureもcursorを進め、次の周回で再訪する。未処理分のcontinuation taskは作らない。この決定は以前の「残りをcursor付きtaskへ分割する」記述を置き換える。常時snapshot listener、collection全走査、offset paginationは禁止。UI/CLIはpending時だけ5秒→最大30秒のbackoffでpollし、完了・非表示時は停止。rate limitは共有Firestoreの時間bucketをtransaction更新する（IPは鍵付きhash）。メモリ制限は補助とし、複数instanceで回避できないことを検証する。
 
 expiresAtは毎要求で検証する。無料枠に含まれないTTL deleteは初期構成では無効。短命session/challenge/rate bucketはSchedulerの期限queryで小分け削除し、削除操作数を予算に含める。個人情報・認証データ・送金payloadをindexやログへ複製しない。
 
 ## 決済・outbox・再起動
 
 1. APIは署名payloadをverifyしてpayerをrisk判定し、transactionでprepared→settling、暗号化payload、slot固定、settlement outboxを保存する。判定の有効期限も保存する。
-2. commit後にCloud Tasks enqueueをawaitして応答する。途中停止・enqueue失敗でもoutboxが残り、Schedulerが再配信する。enqueue不能なら202と再照合状態を返す。メモリ内で後処理を継続しない。
-3. workerはoutboxのclaimOwner、claimUntil、claimGenerationをtransaction更新して処理権を取る。queue重複配信でも一度だけ状態適用する。max instances=1を排他制御の根拠にしない。
-4. 未送信のsettle実行直前に期限/slot/payer/risk freshnessを再検査する。古いriskはlive再判定し、deny/holdなら送金しない。結果不明なら元認可とchainの照合へ進み、新nonceで課金しない。
-5. 外部結果確定後、order kindごとにtransactionで確定する。住所購入・更新はpayment/lease/slot/mail/outboxとMultiBaas同期を更新し、ENS購入済みの場合だけENSの期限同期を配信する。ens_addonはpayment/ens_entitlements/outboxを確定し、区画の再割当や住所期限延長をしない。公開pay endpointの初回は202、完了後の同じpay要求は200。決済確定とENS名登録完了は別状態とする。
+2. APIはcommit後にenqueueをawaitして応答する設計だが、このAPI経路へのTasks adapter接続は未実装である。worker専用dispatcherでのCloud Tasks enqueueは`CLOUD_TASKS_DISPATCH_ENABLED=true`の場合だけ許可する。この設定は`APP_ENV=event`でのみ許可し、`GCP_REGION`、`TASKS_QUEUE=realaddr-event-jobs`、専用worker runtime、HTTPS `WORKER_URL` origin、専用`TASK_INVOKER_SA`が揃い一致するときに限る。local/defaultはfalse。worker dispatcherはCloud Run metadata serverから得たruntime identity emailを検証し、key fileやADC fallbackを使わない。dispatchを無効化またはenqueue結果不明でもoutboxは残り、dispatch有効時にSchedulerが再照合する。API接続後はenqueue不能なら202と再照合状態を返す設計とする。メモリ内で後処理を継続しない。
+3. Cloud Tasks task IDはoutbox IDと永続`taskGeneration`から作るstable hashとする。CreateTask結果が不明なら同じtask IDで再試行する。409は即成功扱いせずGETし、taskが存在すればqueue presenceを確認済みとする。409後または以前のconfirmed後にGETが404ならtaskを再作成せずgenerationを回転し、次のsweepで新IDを作る。確認済みqueue presenceは業務履行を意味しない。dispatch claim（60秒、owner+generation）とworker execution claim（owner/until/generation）は別々に永続化する。per-job dispatch backoffは`dispatchAvailableAt`へ保存し、5秒から倍増して最大300秒とする。dispatch claimはexecutionの`availableAt`を変更しない。
+4. workerはoutboxのexecution claimをtransaction更新して処理権を取る。queue重複配信でも一度だけ状態適用する。max instances=1を排他制御の根拠にしない。
+5. 未送信のsettle実行直前に期限/slot/payer/risk freshnessを再検査する。古いriskはlive再判定し、deny/holdなら送金しない。結果不明なら元認可とchainの照合へ進み、新nonceで課金しない。
+6. 外部結果確定後、order kindごとにtransactionで確定する。住所購入・更新はpayment/lease/slot/mail/outboxとMultiBaas同期を更新し、ENS購入済みの場合だけENSの期限同期を配信する。ens_addonはpayment/ens_entitlements/outboxを確定し、区画の再割当や住所期限延長をしない。公開pay endpointの初回は202、完了後の同じpay要求は200。決済確定とENS名登録完了は別状態とする。
 
 **処理claimの期限切れだけで外部送金をやり直さない。** 支払いは既存のfacilitator/chain照合規則に従う。自前chain送信はsigner+nonceの永続予約と同一raw transaction/hashの暗号化保存をbroadcast前に行い、未知状態は同じtxの照会/安全な再broadcastに限定する。MultiBaas管理署名では同等のrequest ID照合が実利用できることをT-00で確認し、できないwrite方式は採用しない（自前送信+MultiBaas read/eventへ切替可）。
 
-Cloud Tasksは配信をexactly-onceにしない。task IDの短期重複排除だけに頼らず、outbox/versionと外部照合が業務の冪等性を保証する。Schedulerにも同じsweep claimを設ける。reorgや古いversionのtaskは現在の確定状態と照合する。worker応答喪失後でも同じENS名・同じ契約へ収束させる。
+内部outbox execution retryは最大5回、dispatch reconciliation claimはoutbox累積最大10回とする。内部再試行間隔は5秒から倍増し最大300秒、dispatch用`dispatchAvailableAt`も5秒から倍増して最大300秒とする。上限に達したjobは`manual_review`とadmin projectionへ永続化する。dispatch reconciliationの上限到達も同様にmanual reviewへ送る。いずれもpayment success、refund、hold/slot releaseを意味しない。claimごとにgenerationを増やし、完了・再試行・業務適用は同じtransaction内でowner/generation/期限と対象versionを照合する。dispatch claimとexecution claimは独立し、両方とも60秒、owner+generationを保存する。期限切れの`processing`を取得した場合は`reconciliationOnly=true`を永続化し、後の再試行でも消さない。この状態を新規送金の許可として使わない。workerへ渡すHTTP bodyは`outboxId`だけとし、receiptや検証済みフラグは受け取らない。
+
+処理中は`availableAt=claimUntil`とし、due照会は`state in [pending, processing]`、`availableAt <= now`、`availableAt ASC, document ID ASC`で最大20件に限定する。cursorとScheduler sweep claimは`ops_metrics`のprefix付きcollectionへ保存する。必要な複合indexは`realaddr_event_outbox`の`state ASC, availableAt ASC`だけを対象とする。Emulatorでの照会成功は実環境のindex配備証拠ではない。実indexの作成はT-16の所有権確認とapp側Terraformの実装・適用後に行い、共有DB全体のindex定義を置換しない。
+
+Cloud Tasksは配信をexactly-onceにしない。task IDの短期重複排除だけに頼らず、outbox/versionと外部照合が業務の冪等性を保証する。Scheduler sweep claimは`ops_metrics`に別途設ける。terminalの`completed`、`superseded`、`manual_review`、またはoutbox欠落task deliveryには200 ACKを返す。`manual_review`へのACKは履行を表さない。busyまたはnot-dueのdeliveryは503として再配信を促す。handler利用不可の場合も業務outbox実行上限5回の後にmanual reviewへ送る（Cloud Tasks queueのmax attempts=10とは別の上限）。reorgや古いversionのtaskは現在の確定状態と照合する。worker応答喪失後でも同じENS名・同じ契約へ収束させる。[Cloud Tasks CreateTask](https://docs.cloud.google.com/tasks/docs/reference/rest/v2/projects.locations.queues.tasks/create)の409/存在確認を使って不明結果を回復し、[Cloud Run metadata server](https://docs.cloud.google.com/run/docs/container-contract#metadata-server)から実行主体emailを検証する。Cloud Tasks/Scheduler/GCP resourceの作成・実配信・IAM/Rules gateは未実施・未検証であり、この記述は運用仕様である。
 
 ## IAM・CI/CD・復旧
 

@@ -2,7 +2,9 @@
 
 AIエージェントがx402で実住所の利用区画を契約し、ENSv2名で住所契約を参照し、World IDによる人間承認後に郵便転送設定を有効化するサービス。
 
-**仕様に加えて、ローカルの実行基盤、Agent認証、Firestore repository、公開ページと一部APIを実装中です。** Firestore Emulatorで基礎的なDBチェックを実施しました。x402決済、World、Intercepta、MultiBaas、ENSv2の実接続とGCPデプロイは未検証です。仕様作成日: 2026-09-25。初回リリースは実サービス接続と永続化を伴う縦断フローを完成させます。
+**仕様に加えて、ローカルの実行基盤、Agent認証、Firestore repository、公開ページと一部APIを実装中です。** Agent認証済みownerのpayment-intent/subscription一覧・詳細とENS状態readが利用できます。これらはtenant・agentで範囲を限定し、転送先全文などの秘匿fieldは返しません。購入・更新・支払いmutationは公開せず、ENS名前検索による契約取得も利用できません。外部ENS検証なしにENSをreadyとせず、mail approval統合がない保存済みenabled profileはfail closedです。住所購入の内部DB処理には、決済結果不明時の予約保持、確認済み支払いからの契約発行、未払い確定時の解放を追加しました。外部検証adapterと決済workerは未接続で、公開購入APIは引き続き販売を拒否します。Firestore Emulatorでの検証範囲は[実装状況](docs/implementation-status.md)を参照してください。x402決済、World、Intercepta、MultiBaas、ENSv2の実接続とGCPデプロイは未検証です。仕様作成日: 2026-09-25。初回リリースは実サービス接続と永続化を伴う縦断フローを完成させます。
+
+HTTP workerにはFirestoreの実行権・再試行管理と、保存済みの確認済み支払いから契約発行を復旧する処理、Cloud Tasks REST dispatcher、Scheduler sweep recoveryを実装しました。送金・chain同期handlerは未接続で、実GCPのCloud Tasks/Scheduler配信、IAM/Rules gateは未検証です。未接続処理を成功扱いせず、状態を永続化して保留します。
 
 ## 読む順序
 
@@ -120,6 +122,8 @@ pnpm dev
 ```
 
 `pnpm dev`はAPIを`http://localhost:8080`で起動します。先にFirestore Emulatorを`127.0.0.1:8085`で起動してください。別のターミナルで`node packages/agent-cli/dist/index.js health --json`、`GET /ready`を確認できます。機械処理でJSONと終了コードを直接読む場合はbuild済みCLIを`node`で起動します。`pnpm agent`はpnpmの表示が標準出力に混ざり、終了コードもpnpm側で変換される場合があります。`/health`はプロセス、`/ready`はEmulator接続を確認します。実施済みチェックは[実装状況](docs/implementation-status.md)に記録します。`pnpm test`は通常の最小チェックです。DB transactionチェックはテスト用プロセスに`FIRESTORE_EMULATOR_HOST=127.0.0.1:8085`を設定して実行します。未設定ならそのDBチェックはskipされます。`AGENT_SIGNER_KEY_REF`はGit管理対象外の`.secrets/`内の署名鍵、`AGENT_CREDENTIAL_FILE`は`.credentials/`内のCLI tokenファイルを指すよう設定し、実値をリポジトリへ追加しないでください。
+
+`.env.example`では`CLOUD_TASKS_DISPATCH_ENABLED=false`です。dispatchを有効にできるのは、専用Cloud Tasks queueと同じprojectのworker、verified HTTPS `WORKER_URL`、専用invoke/runtime identitiesを備えた`APP_ENV=event`構成だけです。現時点でGCP上のCloud Tasks/Scheduler dispatchは未接続・未検証です。
 
 ```powershell
 $env:FIRESTORE_EMULATOR_HOST = '127.0.0.1:8085'
